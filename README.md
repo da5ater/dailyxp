@@ -56,7 +56,7 @@ after checking its contents. DailyXP never edits unrelated Omarchy settings.
 omarchy plugin validate .
 /usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
   BarWidget.qml Panel.qml StateStore.qml
-node --test tests/state_model.test.js
+node --test tests/*.test.js
 ```
 
 The temporary foundation probe can also be exercised without pointer input:

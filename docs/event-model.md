@@ -65,7 +65,7 @@ future events only.
 ## Verification
 
 ```sh
-node --test tests/event_model.test.js
+node --test tests/*.test.js
 ```
 
 The suite covers deterministic ID generation, strict event validation,
