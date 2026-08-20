@@ -42,6 +42,17 @@ test("starts from an empty valid state when neither slot is usable", () => {
   assert.deepEqual(recovered.payload, { probeEvents: [] });
 });
 
+test("distinguishes a fresh start from unrecoverable bytes without overwriting them", () => {
+  const fresh = StateModel.recoverDetailed("", "");
+  const damaged = StateModel.recoverDetailed("{torn", "unsupported");
+
+  assert.equal(fresh.fresh, true);
+  assert.equal(fresh.error, "");
+  assert.equal(damaged.fresh, false);
+  assert.match(damaged.error, /left unchanged/);
+  assert.equal(damaged.source, "none");
+});
+
 test("adding a probe event is idempotent and does not mutate prior state", () => {
   const initial = StateModel.createEnvelope({ probeEvents: ["probe-1"] }, 3);
   const duplicate = StateModel.addProbeEvent(initial, "probe-1");
@@ -60,6 +71,29 @@ test("save plan keeps the prior valid envelope as backup", () => {
 
   assert.deepEqual(StateModel.decode(plan.backupRaw).envelope, current);
   assert.deepEqual(StateModel.decode(plan.primaryRaw).envelope, next);
+});
+
+test("journal initialization preserves legacy probe envelopes", () => {
+  const legacy = StateModel.createEnvelope({ probeEvents: ["probe-1"] }, 3);
+  const legacyRaw = StateModel.encode(legacy);
+  const upgraded = StateModel.withEventJournal(legacy, '{"schemaVersion":1}\n');
+
+  assert.equal(StateModel.decode(legacyRaw).valid, true);
+  assert.deepEqual(upgraded.payload.probeEvents, ["probe-1"]);
+  assert.equal(upgraded.payload.eventJournalRaw, '{"schemaVersion":1}\n');
+  assert.equal(upgraded.generation, 4);
+});
+
+test("a probe and its canonical journal commit in one envelope generation", () => {
+  const initial = StateModel.withEventJournal(
+    StateModel.createEnvelope({ probeEvents: [] }, 0),
+    '{"events":[]}\n'
+  );
+  const recorded = StateModel.recordProbe(initial, "probe-1", '{"events":["probe-1"]}\n');
+
+  assert.equal(recorded.generation, initial.generation + 1);
+  assert.deepEqual(recorded.payload.probeEvents, ["probe-1"]);
+  assert.equal(recorded.payload.eventJournalRaw, '{"events":["probe-1"]}\n');
 });
 
 test("every interrupted save boundary recovers a whole generation", () => {

@@ -8,6 +8,7 @@ BarWidget {
   id: root
   moduleName: "io.github.da5ater.dailyxp"
 
+  readonly property var stateStore: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
@@ -42,8 +43,7 @@ BarWidget {
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
-
-  StateStore { id: stateStore }
+  onStateStoreChanged: injectPanel()
 
   Loader {
     id: panelLoader
@@ -59,8 +59,9 @@ BarWidget {
   IpcHandler {
     target: root.moduleName
     function addProbe(): string {
-      stateStore.addProbe()
-      return stateStore.errorMessage === "" ? "ok" : "error"
+      if (!root.stateStore) return "unavailable"
+      root.stateStore.addProbe()
+      return root.stateStore.errorMessage === "" ? "ok" : "error"
     }
     function open(): void { root.open() }
     function close(): void { root.close() }
@@ -73,9 +74,9 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.vertical ? "󰓎" : "XP " + stateStore.probeCount
+    text: root.vertical ? "󰓎" : "XP " + (root.stateStore ? root.stateStore.probeCount : 0)
     labelVisible: true
-    tooltipText: stateStore.ready ? "Open DailyXP" : "Loading DailyXP"
+    tooltipText: root.stateStore && root.stateStore.ready ? "Open DailyXP" : "Loading DailyXP"
     hasVisualContent: true
     horizontalMargin: 8.75
     verticalPadding: 8.75

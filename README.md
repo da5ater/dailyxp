@@ -4,18 +4,20 @@ DailyXP is an Omarchy-first life-gamification product for focused work, goals,
 habits, recovery, social competition, and a persistent comeback story.
 
 This repository currently contains the installable Omarchy Quattro foundation:
-a bar widget, its nested panel, and a fault-tolerant local state primitive. The
-probe button is intentionally temporary; product workflows arrive in later
-tickets.
+a bar widget, its nested panel, and one headless in-shell state service shared
+by every monitor. The probe button is intentionally temporary; product
+workflows arrive in later tickets. The versioned offline journal contract is documented in
+[`docs/event-model.md`](docs/event-model.md).
 
 ## Requirements
 
 - Omarchy 4 / Quattro with the Omarchy shell plugin host
-- `mkdir` from GNU coreutils, used without root access to create the XDG state
-  directory
+- `mkdir` and `readlink` from GNU coreutils, used without root access to create
+  the XDG state directory and resolve the system IANA timezone
 
-DailyXP starts no service, installer, privileged command, or second Quickshell
-process. Plugin QML runs unsandboxed inside the existing Omarchy shell process.
+DailyXP starts no external daemon, installer, privileged command, or second
+Quickshell process. Its headless QML service runs once inside the existing
+Omarchy shell process, whose plugin code runs unsandboxed.
 
 ## Install
 
@@ -37,8 +39,9 @@ omarchy plugin enable io.github.da5ater.dailyxp
 ## Data and removal
 
 Durable local state lives under `$XDG_STATE_HOME/dailyxp/`, falling back to
-`~/.local/state/dailyxp/`. Removing the plugin leaves this user-owned state in
-place so reinstalling does not erase progress.
+`~/.local/state/dailyxp/`. It contains a checksum-protected primary/backup
+envelope and a canonical versioned event journal. Removing the plugin leaves
+this user-owned state in place so reinstalling does not erase progress.
 
 ```sh
 omarchy plugin remove io.github.da5ater.dailyxp
@@ -53,7 +56,7 @@ after checking its contents. DailyXP never edits unrelated Omarchy settings.
 omarchy plugin validate .
 /usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
   BarWidget.qml Panel.qml StateStore.qml
-node --test tests/state_model.test.js
+node --test tests/*.test.js
 ```
 
 The temporary foundation probe can also be exercised without pointer input:
