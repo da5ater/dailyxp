@@ -56,6 +56,12 @@ omarchy plugin validate .
 node --test tests/state_model.test.js
 ```
 
+The temporary foundation probe can also be exercised without pointer input:
+
+```sh
+omarchy-shell io.github.da5ater.dailyxp addProbe
+```
+
 ## License
 
 DailyXP is licensed under GPL-3.0-or-later. See `LICENSE`.

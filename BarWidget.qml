@@ -58,6 +58,10 @@ BarWidget {
 
   IpcHandler {
     target: root.moduleName
+    function addProbe(): string {
+      stateStore.addProbe()
+      return stateStore.errorMessage === "" ? "ok" : "error"
+    }
     function open(): void { root.open() }
     function close(): void { root.close() }
     function show(): void { root.open() }
