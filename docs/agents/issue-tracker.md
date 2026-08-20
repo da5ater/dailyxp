@@ -1,20 +1,28 @@
-# Issue tracker: GitHub
+# Technical issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all
-operations and infer the repository from the GitHub remote.
+Approved executable technical work for this repo lives as GitHub issues. Use
+the `gh` CLI for all operations and infer the repository from the GitHub
+remote.
+
+Product discovery, Wayfinder maps, research questions, and unresolved decisions
+do not belong in GitHub Issues. Work through them with Mohamed in chat, then
+capture the resolved product contract in the repository PRD before generating
+technical tickets.
 
 ## Conventions
 
 - Create issues with `gh issue create`.
 - Read the complete issue, comments, labels, dependencies, and linked pull
   requests before acting.
-- Put research findings, decision rationale, implementation evidence, and
-  blockers in comments on the issue they belong to.
-- Use issue comments as the durable progress context. Chat receives only an
-  approval-ready handoff or a genuine blocker.
-- Use native GitHub sub-issues and blocking relationships where available.
-- Assign a Wayfinder ticket before working it; the assignee is the claim.
-- Close a decision ticket only after its resolution is recorded in a comment.
+- Put implementation findings, review findings, fixes, verification evidence,
+  cost evidence, and blockers in comments on the technical issue they belong
+  to.
+- Use issue and pull-request comments as durable delivery context. Chat receives
+  decision batches, genuine blockers, and approval-ready handoffs.
+- Use native GitHub dependencies for technical delivery order where available.
+- Assign a technical ticket before implementation; the assignee is the claim.
+- Close a technical ticket only after its pull request is merged or the ticket
+  receives an explicit terminal disposition.
 
 ## Pull requests as a triage surface
 
@@ -25,16 +33,6 @@ requests by the triage workflow.
 
 ## Publishing
 
-When a skill says to publish a spec or ticket, create a GitHub issue. When it
-says to fetch a ticket, read the issue and all comments.
-
-## Wayfinding operations
-
-- The map is one issue labelled `wayfinder:map`.
-- Decision tickets are sub-issues labelled `wayfinder:research`,
-  `wayfinder:prototype`, `wayfinder:grilling`, or `wayfinder:task`.
-- GitHub native issue dependencies are canonical. If unavailable, use a
-  `Blocked by:` line in the issue body.
-- The frontier is the map's open, unblocked, unassigned child issues.
-- Claim with assignment, resolve with a detailed comment, close the ticket,
-  then append a one-line linked gist to the map's Decisions-so-far section.
+When a skill says to fetch a technical ticket, read the issue and all comments.
+Do not publish a spec or planning artifact as a GitHub issue; store the approved
+PRD in the repository and use it to generate executable technical tickets.
