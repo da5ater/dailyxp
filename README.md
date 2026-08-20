@@ -68,6 +68,12 @@ The temporary foundation probe can also be exercised without pointer input:
 omarchy-shell io.github.da5ater.dailyxp addProbe
 ```
 
+The idempotent planning-day lifecycle can be checked independently:
+
+```sh
+omarchy-shell io.github.da5ater.dailyxp ensurePlanningDay
+```
+
 ## License
 
 DailyXP is licensed under GPL-3.0-or-later. See `LICENSE`.

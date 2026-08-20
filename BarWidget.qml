@@ -63,6 +63,12 @@ BarWidget {
       root.stateStore.addProbe()
       return root.stateStore.errorMessage === "" ? "ok" : "error"
     }
+    function ensurePlanningDay(): string {
+      if (!root.stateStore) return "unavailable"
+      var applied = root.stateStore.ensureCurrentPlanningDay()
+      if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
+      return applied ? "ok" : "busy"
+    }
     function open(): void { root.open() }
     function close(): void { root.close() }
     function show(): void { root.open() }
