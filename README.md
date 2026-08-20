@@ -6,8 +6,11 @@ habits, recovery, social competition, and a persistent comeback story.
 This repository currently contains the installable Omarchy Quattro foundation:
 a bar widget, its nested panel, and one headless in-shell state service shared
 by every monitor. The probe button is intentionally temporary; product
-workflows arrive in later tickets. The versioned offline journal contract is documented in
-[`docs/event-model.md`](docs/event-model.md).
+workflows arrive in later tickets. The versioned offline journal contract is
+documented in [`docs/event-model.md`](docs/event-model.md). The PLAN-001 model
+now provides durable Goals, Milestones, Tasks, Routines, Task Occurrences,
+carryover, and consent-gated proposals; see
+[`docs/planning-model.md`](docs/planning-model.md).
 
 ## Requirements
 

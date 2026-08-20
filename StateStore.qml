@@ -2,6 +2,8 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "EventModel.js" as EventModel
+import "PlanningJournal.js" as PlanningJournal
+import "PlanningModel.js" as PlanningModel
 import "StateModel.js" as StateModel
 
 Item {
@@ -19,6 +21,8 @@ Item {
   readonly property int probeCount: envelope.payload.probeEvents.length
   property var journal: null
   property bool journalReady: false
+  property var planningProjection: PlanningModel.emptyProjection()
+  property var proposalPreview: null
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
@@ -64,6 +68,7 @@ Item {
     var zone = index >= 0 ? path.slice(index + marker.length) : ""
     if (EventModel.isIanaTimezone(zone)) {
       systemTimezone = zone
+      ensureCurrentPlanningDay()
       return
     }
     if (errorMessage === "") errorMessage = "Could not determine the system IANA timezone from /etc/localtime"
@@ -116,7 +121,9 @@ Item {
       return
     }
     journal = loaded.journal
+    planningProjection = PlanningModel.project(journal.events)
     journalReady = true
+    ensureCurrentPlanningDay()
   }
 
   function persistNext(nextEnvelope, nextJournal) {
@@ -158,6 +165,39 @@ Item {
       errorMessage = "Could not record DailyXP event: " + error
       console.warn("dailyxp/state", errorMessage)
     }
+  }
+
+  function applyPlanningCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = PlanningModel.decide(planningProjection, command)
+      proposalPreview = result.preview || null
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = PlanningJournal.appendIntents(journal, result.events, {
+        occurredAtUtc: now.toISOString(),
+        localDateTime: localContext.localDateTime,
+        timezone: localContext.timezone,
+        utcOffsetMinutes: localContext.utcOffsetMinutes,
+        systemTimezoneVerified: true,
+        dayBoundaryMinutes: configuredDayBoundaryMinutes
+      }, EventModel)
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP plan: " + error
+      console.warn("dailyxp/planning", errorMessage)
+      return false
+    }
+  }
+
+  function ensureCurrentPlanningDay() {
+    if (!ready || !recordingReady || saving) return false
+    var now = new Date()
+    var localContext = EventModel.localSystemContext(now, systemTimezone)
+    var dailyXpDate = EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
+    return applyPlanningCommand({ type: "day.advance", dailyXpDate: dailyXpDate })
   }
 
   function failSave(stage, error) {
@@ -211,6 +251,8 @@ Item {
       if (!root.saving || !root._pendingEnvelope) return
       root.envelope = root._pendingEnvelope
       root.journal = root._pendingJournal
+      root.planningProjection = root._pendingJournal
+        ? PlanningModel.project(root._pendingJournal.events) : PlanningModel.emptyProjection()
       root.journalReady = true
       root._primaryRaw = root._pendingPrimaryRaw
       root._pendingEnvelope = null
@@ -235,6 +277,14 @@ Item {
         primaryFile.setText(root._pendingPrimaryRaw)
     }
     onSaveFailed: function(error) { root.failSave("backup", error) }
+  }
+
+  Timer {
+    interval: 60000
+    repeat: true
+    running: root.ready
+    triggeredOnStart: false
+    onTriggered: root.ensureCurrentPlanningDay()
   }
 
   Component.onCompleted: {
