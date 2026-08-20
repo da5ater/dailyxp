@@ -12,7 +12,8 @@ Mohamed owns product decisions, approval, and the final decision to merge.
   delivery work. Each issue must explain the task, context, dependencies,
   acceptance criteria, and verification required by an implementation agent.
 - Record implementation findings, review findings, fixes, evidence, and
-  blockers on the relevant technical issue or pull request.
+  blockers on the relevant technical issue. A pull request may carry additional
+  code-specific detail but does not replace the ticket context.
 - Use chat for product-decision batches, genuine blockers, and approval-ready
   pull-request handoffs.
 - A technical ticket is delivered through a feature branch and draft pull
@@ -31,8 +32,7 @@ Mohamed owns product decisions, approval, and the final decision to merge.
 - Upgrading the AWS account plan, buying a commitment, or accepting a material
   out-of-pocket cost still requires Mohamed's explicit approval.
 - Frontend, UX, and motion design must use `gaming-entertainment`, `animate`,
-  and `apple-design`. Gamification rules and reviews must use
-  `gamification-loops`.
+  and `apple-design`.
 
 ## Agent skills
 
