@@ -56,6 +56,22 @@ test("advancing a day creates one scheduled occurrence and carries unfinished wo
   assert.notEqual(plan.occurrences[0].occurrenceKey, plan.occurrences[1].occurrenceKey);
 });
 
+test("advancing after downtime deterministically catches up every intervening DailyXP date", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-catchup", title: "Study",
+    expectedMinutes: 60, startDate: "2026-08-17", endDate: null, restDates: [], carryover: true,
+    schedule: { type: "weekdays", weekdays: [1, 2, 3, 4, 5] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-17" });
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-21" });
+
+  assert.deepEqual(plan.occurrences.map(item => [item.dailyXpDate, item.status]), [
+    ["2026-08-17", "overdue"], ["2026-08-18", "overdue"],
+    ["2026-08-19", "overdue"], ["2026-08-20", "overdue"], ["2026-08-21", "open"]
+  ]);
+  assert.equal(plan.lastAdvancedDailyXpDate, "2026-08-21");
+});
+
 test("Routine edit scopes preserve completed history and change only targeted untouched occurrences", () => {
   let plan = PlanningModel.emptyProjection();
   plan = apply(plan, {
@@ -354,4 +370,21 @@ test("three repeated misses offer one smaller rescheduling Planning Proposal", (
     plan = apply(plan, { type: "day.advance", dailyXpDate });
   assert.equal(plan.proposals[0].status, "pending");
   assert.ok(plan.proposals[0].missedOccurrenceIds.length >= 6);
+});
+
+test("a pending proposal resets its miss baseline when the person decides", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-pending", title: "Study",
+    expectedMinutes: 60, startDate: "2026-08-17", endDate: null, restDates: [], carryover: true,
+    schedule: { type: "weekdays", weekdays: [1, 2, 3, 4, 5, 6, 7] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  for (const dailyXpDate of ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20",
+    "2026-08-21", "2026-08-22", "2026-08-23"])
+    plan = apply(plan, { type: "day.advance", dailyXpDate });
+  assert.equal(plan.proposals[0].status, "pending");
+
+  const accepted = PlanningModel.decide(plan, { type: "proposal.accept", proposal: plan.proposals[0] });
+  plan = PlanningModel.projectIntents(plan, accepted.events);
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-24" });
+  assert.equal(plan.proposals[0].status, "accepted");
 });

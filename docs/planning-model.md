@@ -21,6 +21,11 @@ Advancing a DailyXP day:
   new day's occurrence; and
 - never edits completed history.
 
+The projection records its last advanced DailyXP date. Startup deterministically
+replays intervening dates in bounded chunks, so scheduled work created while the
+shell was stopped still exists and can become overdue. A Routine created after
+today was already advanced immediately receives today's occurrence when due.
+
 Routine edits support `today`, `today_and_future`, and `all_untouched` scopes.
 Only open or overdue occurrences are editable. A schedule edit removes a newly
 ineligible untouched occurrence or creates a newly eligible current occurrence,
@@ -32,7 +37,9 @@ may be deleted; records with durable history are archived.
 ## Consent and persistence
 
 Template and adaptive Planning Proposal preview/edit commands return a preview
-without events. Dismissal requires and enforces a future dismissal date.
+without events and every proposal explains why. Dismissal requires and enforces
+a future dismissal date. Repeated-miss proposals record the miss set at the
+person's acceptance or dismissal, so only a fresh cycle can offer another.
 Commitments are created only by explicit acceptance.
 
 `PlanningJournal.js` converts accepted intents into the versioned EventModel
@@ -47,7 +54,8 @@ Run:
 ```sh
 node --test tests/*.test.js
 omarchy plugin validate .
-qmllint -I /usr/share/omarchy/shell BarWidget.qml Panel.qml StateStore.qml
+/usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
+  BarWidget.qml Panel.qml StateStore.qml
 ```
 
 The tests cover hierarchy, standalone Tasks, recurrence idempotency, carryover,

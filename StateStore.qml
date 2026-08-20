@@ -260,6 +260,7 @@ Item {
       root._pendingPrimaryRaw = ""
       root.saving = false
       root.persisted()
+      Qt.callLater(root.ensureCurrentPlanningDay)
     }
     onSaveFailed: function(error) { root.failSave("primary", error) }
   }

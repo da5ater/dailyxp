@@ -8,6 +8,7 @@ var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 var OCCURRENCE_STATUSES = [
   "open", "overdue", "completed", "rescheduled", "skipped", "dismissed", "archived", "merged"
 ];
+var MAX_CATCH_UP_DAYS = 366;
 
 function fail(field, reason) {
   throw new Error(field + ": " + reason);
@@ -34,7 +35,8 @@ function freeze(value) {
 function emptyProjection() {
   return freeze({
     schemaVersion: PROJECTION_SCHEMA_VERSION,
-    goals: [], milestones: [], tasks: [], routines: [], occurrences: [], proposals: []
+    goals: [], milestones: [], tasks: [], routines: [], occurrences: [], proposals: [],
+    lastAdvancedDailyXpDate: null
   });
 }
 
@@ -195,6 +197,62 @@ function intent(type, payload, occurrenceKey) {
   return freeze({ type: "planning." + type, payload: clone(payload), occurrenceKey: occurrenceKey || null });
 }
 
+function nextDate(value) {
+  var date = dateValue(value, "dailyXpDate");
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function missedIdsForRoutine(projection, routineId, advancingDate) {
+  return projection.occurrences.filter(function(occurrence) {
+    return occurrence.routineId === routineId && (occurrence.status === "overdue" ||
+      (advancingDate && occurrence.status === "open" && occurrence.dailyXpDate < advancingDate));
+  }).map(function(occurrence) { return occurrence.id; });
+}
+
+function advanceOneDay(plan, dailyXpDate) {
+  var events = [];
+  plan.occurrences.forEach(function(occurrence) {
+    if (occurrence.status === "open" && occurrence.dailyXpDate < dailyXpDate) {
+      var routine = findById(plan.routines, occurrence.routineId);
+      if (routine && routine.carryover) events.push(intent("occurrence.overdue", { id: occurrence.id }));
+    }
+  });
+  plan.routines.forEach(function(routine) {
+    var key = routineOccurrenceKey(routine.id, dailyXpDate);
+    var exists = plan.occurrences.some(function(item) { return item.occurrenceKey === key; });
+    if (routine.status === "active" && !exists && scheduledOn(routine, dailyXpDate))
+      events.push(intent("occurrence.created", occurrenceFromRoutine(routine, dailyXpDate, key, key), key));
+
+    var missedOccurrenceIds = missedIdsForRoutine(plan, routine.id, routine.carryover ? dailyXpDate : null);
+    var proposalId = "adaptive:reschedule:" + routine.id;
+    var priorProposal = findById(plan.proposals, proposalId);
+    var priorMissedIds = priorProposal && Array.isArray(priorProposal.missedOccurrenceIds)
+      ? priorProposal.missedOccurrenceIds : [];
+    var newMissedCount = missedOccurrenceIds.filter(function(id) {
+      return priorMissedIds.indexOf(id) === -1;
+    }).length;
+    var cooldownEnded = !priorProposal || priorProposal.status !== "dismissed" ||
+      priorProposal.dismissedUntil <= dailyXpDate;
+    var mayOffer = !priorProposal ? missedOccurrenceIds.length >= 3
+      : priorProposal.status !== "pending" && cooldownEnded && newMissedCount >= 3;
+    if (mayOffer) events.push(intent("proposal.offered", {
+      id: proposalId,
+      routineId: routine.id,
+      kind: "adaptive",
+      status: "pending",
+      explanation: "Three unfinished occurrences suggest a smaller daily plan.",
+      missedOccurrenceIds: missedOccurrenceIds,
+      commands: [{
+        type: "routine.edit", id: routine.id, scope: "today_and_future", dailyXpDate: dailyXpDate,
+        changes: { expectedMinutes: Math.max(15, Math.round(routine.expectedMinutes * 0.75)) }
+      }]
+    }));
+  });
+  events.push(intent("day.advanced", { dailyXpDate: dailyXpDate }));
+  return events;
+}
+
 function decide(projection, command) {
   var plan = projection || emptyProjection();
   var input = command || {};
@@ -225,55 +283,30 @@ function decide(projection, command) {
     validateRoutine(plan, entity);
     entity.status = "active";
     entity.revision = 1;
-    return freeze({ events: [intent("routine.created", entity)] });
+    var routineEvents = [intent("routine.created", entity)];
+    if (plan.lastAdvancedDailyXpDate && scheduledOn(entity, plan.lastAdvancedDailyXpDate)) {
+      var currentKey = routineOccurrenceKey(entity.id, plan.lastAdvancedDailyXpDate);
+      routineEvents.push(intent("occurrence.created", occurrenceFromRoutine(
+        entity, plan.lastAdvancedDailyXpDate, currentKey, currentKey
+      ), currentKey));
+    }
+    return freeze({ events: routineEvents });
   }
   if (input.type === "day.advance") {
     dateValue(input.dailyXpDate, "dailyXpDate");
+    if (plan.lastAdvancedDailyXpDate && input.dailyXpDate <= plan.lastAdvancedDailyXpDate)
+      return freeze({ events: [] });
     var events = [];
-    plan.occurrences.forEach(function(occurrence) {
-      if (occurrence.status === "open" && occurrence.dailyXpDate < input.dailyXpDate) {
-        var routine = findById(plan.routines, occurrence.routineId);
-        if (routine && routine.carryover) events.push(intent("occurrence.overdue", { id: occurrence.id }));
-      }
-    });
-    plan.routines.forEach(function(routine) {
-      var key = routineOccurrenceKey(routine.id, input.dailyXpDate);
-      var exists = plan.occurrences.some(function(item) { return item.occurrenceKey === key; });
-      if (routine.status === "active" && !exists && scheduledOn(routine, input.dailyXpDate)) {
-        events.push(intent("occurrence.created", occurrenceFromRoutine(
-          routine, input.dailyXpDate, key, key
-        ), key));
-      }
-      var missedOccurrenceIds = plan.occurrences.filter(function(occurrence) {
-        return occurrence.routineId === routine.id && (occurrence.status === "overdue" ||
-          (occurrence.status === "open" && occurrence.dailyXpDate < input.dailyXpDate && routine.carryover));
-      }).map(function(occurrence) { return occurrence.id; });
-      var proposalId = "adaptive:reschedule:" + routine.id;
-      var priorProposal = findById(plan.proposals, proposalId);
-      var priorMissedIds = priorProposal && Array.isArray(priorProposal.missedOccurrenceIds)
-        ? priorProposal.missedOccurrenceIds : [];
-      var newMissedCount = missedOccurrenceIds.filter(function(id) {
-        return priorMissedIds.indexOf(id) === -1;
-      }).length;
-      var cooldownEnded = !priorProposal || priorProposal.status !== "dismissed" ||
-        priorProposal.dismissedUntil <= input.dailyXpDate;
-      var mayOffer = !priorProposal ? missedOccurrenceIds.length >= 3
-        : priorProposal.status !== "pending" && cooldownEnded && newMissedCount >= 3;
-      if (mayOffer) {
-        events.push(intent("proposal.offered", {
-          id: proposalId,
-          kind: "adaptive",
-          status: "pending",
-          explanation: "Three unfinished occurrences suggest a smaller daily plan.",
-          missedOccurrenceIds: missedOccurrenceIds,
-          commands: [{
-            type: "routine.edit", id: routine.id, scope: "today_and_future",
-            dailyXpDate: input.dailyXpDate,
-            changes: { expectedMinutes: Math.max(15, Math.round(routine.expectedMinutes * 0.75)) }
-          }]
-        }));
-      }
-    });
+    var working = plan;
+    var date = plan.lastAdvancedDailyXpDate ? nextDate(plan.lastAdvancedDailyXpDate) : input.dailyXpDate;
+    var advanced = 0;
+    while (date <= input.dailyXpDate && advanced < MAX_CATCH_UP_DAYS) {
+      var dayEvents = advanceOneDay(working, date);
+      events = events.concat(dayEvents);
+      working = projectIntents(working, dayEvents);
+      date = nextDate(date);
+      advanced += 1;
+    }
     return freeze({ events: events });
   }
   if (input.type === "occurrence.transition") {
@@ -369,15 +402,19 @@ function decide(projection, command) {
     if (input.dismissedUntil <= input.dailyXpDate)
       fail("proposal.dismissedUntil", "must be after the dismissal day");
     var dismissedProposal = findById(plan.proposals, input.proposalId);
+    var dismissedMissedIds = dismissedProposal && dismissedProposal.routineId
+      ? missedIdsForRoutine(plan, dismissedProposal.routineId, null) : [];
     return freeze({ events: [intent("proposal.dismissed", {
       id: input.proposalId, kind: input.kind, status: "dismissed", dismissedUntil: input.dismissedUntil,
-      missedOccurrenceIds: dismissedProposal && dismissedProposal.missedOccurrenceIds
-        ? clone(dismissedProposal.missedOccurrenceIds) : []
+      routineId: dismissedProposal ? dismissedProposal.routineId || null : null,
+      missedOccurrenceIds: dismissedMissedIds
     })] });
   }
   if (input.type === "proposal.accept") {
     var accepted = clone(input.proposal || {});
     var offeredProposal = findById(plan.proposals, accepted.id);
+    var acceptedMissedIds = offeredProposal && offeredProposal.routineId
+      ? missedIdsForRoutine(plan, offeredProposal.routineId, null) : [];
     validateProposal(accepted);
     var acceptedEvents = [];
     var working = plan;
@@ -389,8 +426,8 @@ function decide(projection, command) {
     });
     acceptedEvents.push(intent("proposal.accepted", {
       id: accepted.id, kind: accepted.kind, status: "accepted", explanation: accepted.explanation || "",
-      missedOccurrenceIds: offeredProposal && offeredProposal.missedOccurrenceIds
-        ? clone(offeredProposal.missedOccurrenceIds) : []
+      routineId: offeredProposal ? offeredProposal.routineId || null : null,
+      missedOccurrenceIds: acceptedMissedIds
     }));
     return freeze({ events: acceptedEvents });
   }
@@ -501,6 +538,8 @@ function projectIntents(projection, intents) {
     else if (event.type === "planning.milestone.created") next.milestones = replace(next.milestones, event.payload);
     else if (event.type === "planning.task.created") next.tasks = replace(next.tasks, event.payload);
     else if (event.type === "planning.routine.created") next.routines = replace(next.routines, event.payload);
+    else if (event.type === "planning.day.advanced")
+      next.lastAdvancedDailyXpDate = event.payload.dailyXpDate;
     else if (event.type === "planning.occurrence.created") {
       var occurrenceExists = next.occurrences.some(function(item) {
         return item.occurrenceKey === event.payload.occurrenceKey;
