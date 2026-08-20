@@ -22,15 +22,18 @@ Advancing a DailyXP day:
 - never edits completed history.
 
 Routine edits support `today`, `today_and_future`, and `all_untouched` scopes.
-Only open or overdue occurrences are editable. Milestone significance locks as
-soon as progress is recorded. Unstarted records may be deleted; records with
-durable history are archived.
+Only open or overdue occurrences are editable. A schedule edit removes a newly
+ineligible untouched occurrence or creates a newly eligible current occurrence,
+while completed history remains unchanged. Rescheduling creates a traceable
+replacement; merging requires an overdue occurrence and today's open equivalent.
+Milestone significance locks as soon as progress is recorded. Unstarted records
+may be deleted; records with durable history are archived.
 
 ## Consent and persistence
 
-Template and adaptive proposal preview/edit commands return a preview without
-events. Dismissal records only the dismissal interval. Commitments are created
-only by explicit acceptance.
+Template and adaptive Planning Proposal preview/edit commands return a preview
+without events. Dismissal requires and enforces a future dismissal date.
+Commitments are created only by explicit acceptance.
 
 `PlanningJournal.js` converts accepted intents into the versioned EventModel
 journal. `StateStore.qml` exposes `applyPlanningCommand(command)` and commits the

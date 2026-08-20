@@ -81,7 +81,7 @@ test("Routine edit scopes preserve completed history and change only targeted un
   assert.equal(plan.routines[0].expectedMinutes, 45);
 });
 
-test("templates and adaptive suggestions change commitments only after explicit acceptance", () => {
+test("template and adaptive Planning Proposals change commitments only after explicit acceptance", () => {
   const proposal = {
     id: "template-study",
     kind: "template",
@@ -101,19 +101,19 @@ test("templates and adaptive suggestions change commitments only after explicit 
     type: "proposal.edit", proposal, changes: { explanation: "Start with one focused hour" }
   });
   const dismissed = apply(empty, { type: "proposal.dismiss", proposalId: proposal.id,
-    kind: "adaptive", dismissedUntil: "2026-09-21" });
+    kind: "adaptive", dailyXpDate: "2026-08-21", dismissedUntil: "2026-09-21" });
 
   assert.equal(previewed.events.length, 0);
   assert.equal(edited.events.length, 0);
   assert.equal(edited.preview.explanation, "Start with one focused hour");
   assert.equal(dismissed.goals.length, 0);
-  assert.equal(dismissed.suggestions[0].status, "dismissed");
+  assert.equal(dismissed.proposals[0].status, "dismissed");
 
   const accepted = PlanningModel.decide(empty, { type: "proposal.accept", proposal });
   const plan = PlanningModel.projectIntents(empty, accepted.events);
   assert.equal(plan.goals.length, 1);
   assert.equal(plan.routines.length, 1);
-  assert.equal(plan.suggestions[0].status, "accepted");
+  assert.equal(plan.proposals[0].status, "accepted");
 });
 
 test("lifecycle commands delete only unstarted records and archive durable history", () => {
@@ -164,4 +164,77 @@ test("Milestone progress locks significance and preserves its measurement contra
   assert.throws(() => PlanningModel.decide(plan, {
     type: "milestone.edit", id: "milestone-100", changes: { significance: 5 }
   }), /significance/);
+
+  plan = apply(plan, { type: "entity.remove", entityType: "milestone", id: "milestone-100" });
+  assert.equal(plan.milestones[0].status, "archived");
+});
+
+test("Routine links must reference the accepted Goal hierarchy", () => {
+  const routine = { id: "routine-invalid", title: "Study", expectedMinutes: 60,
+    startDate: "2026-08-21", endDate: null, restDates: [], carryover: false,
+    schedule: { type: "weekdays", weekdays: [5] }, primarySkill: "backend/study",
+    goalId: "missing-goal", milestoneId: null };
+
+  assert.throws(() => PlanningModel.decide(PlanningModel.emptyProjection(), {
+    type: "routine.create", routine
+  }), /routine.goalId/);
+});
+
+test("schedule edits remove newly ineligible work and create newly eligible work", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-scope", title: "Study",
+    expectedMinutes: 60, startDate: "2026-08-20", endDate: null, restDates: [], carryover: false,
+    schedule: { type: "weekdays", weekdays: [4] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-20" });
+  plan = apply(plan, { type: "routine.edit", id: "routine-scope", scope: "today_and_future",
+    dailyXpDate: "2026-08-20", changes: { schedule: { type: "weekdays", weekdays: [5] } } });
+  assert.equal(plan.occurrences.length, 0);
+
+  plan = apply(plan, { type: "routine.edit", id: "routine-scope", scope: "today",
+    dailyXpDate: "2026-08-20", changes: { schedule: { type: "weekdays", weekdays: [4] } } });
+  assert.deepEqual(plan.occurrences.map(item => item.dailyXpDate), ["2026-08-20"]);
+});
+
+test("rescheduling creates a replacement and merging requires today's equivalent", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-move", title: "Study",
+    expectedMinutes: 60, startDate: "2026-08-20", endDate: null, restDates: [], carryover: true,
+    schedule: { type: "weekdays", weekdays: [4, 5] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-20" });
+  const originalId = plan.occurrences[0].id;
+  plan = apply(plan, { type: "occurrence.transition", id: originalId, status: "rescheduled",
+    targetDailyXpDate: "2026-08-22" });
+  assert.deepEqual(plan.occurrences.map(item => item.status), ["rescheduled", "open"]);
+  assert.equal(plan.occurrences[1].rescheduledFrom, originalId);
+
+  let mergePlan = PlanningModel.emptyProjection();
+  mergePlan = apply(mergePlan, { type: "routine.create", routine: { id: "routine-merge", title: "Study",
+    expectedMinutes: 60, startDate: "2026-08-20", endDate: null, restDates: [], carryover: true,
+    schedule: { type: "weekdays", weekdays: [4, 5] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  mergePlan = apply(mergePlan, { type: "day.advance", dailyXpDate: "2026-08-20" });
+  mergePlan = apply(mergePlan, { type: "day.advance", dailyXpDate: "2026-08-21" });
+  mergePlan = apply(mergePlan, { type: "occurrence.transition", id: mergePlan.occurrences[0].id,
+    status: "merged", dailyXpDate: "2026-08-21", mergeIntoId: mergePlan.occurrences[1].id });
+  assert.equal(mergePlan.occurrences[0].status, "merged");
+  assert.deepEqual(mergePlan.occurrences[1].mergedFrom, [mergePlan.occurrences[0].id]);
+});
+
+test("dismissed adaptive proposals stay suppressed for a required interval", () => {
+  const proposal = { id: "adaptive-smaller", kind: "adaptive", explanation: "Try a smaller target", commands: [] };
+  let plan = PlanningModel.emptyProjection();
+  assert.throws(() => PlanningModel.decide(plan, { type: "proposal.dismiss", proposalId: proposal.id,
+    kind: "adaptive", dailyXpDate: "2026-08-21", dismissedUntil: null }), /dismissedUntil/);
+  plan = apply(plan, { type: "proposal.dismiss", proposalId: proposal.id, kind: "adaptive",
+    dailyXpDate: "2026-08-21", dismissedUntil: "2026-08-28" });
+
+  const suppressed = PlanningModel.decide(plan, { type: "proposal.preview", proposal,
+    dailyXpDate: "2026-08-27" });
+  const available = PlanningModel.decide(plan, { type: "proposal.preview", proposal,
+    dailyXpDate: "2026-08-28" });
+  assert.equal(suppressed.suppressed, true);
+  assert.equal(suppressed.preview, null);
+  assert.equal(available.preview.id, proposal.id);
 });
