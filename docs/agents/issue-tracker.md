@@ -17,6 +17,13 @@ technical tickets.
 - Put implementation findings, review findings, fixes, verification evidence,
   cost evidence, and blockers in comments on the technical issue they belong
   to.
+- Use this delivery order: implement and verify, run `simplify` over the changed
+  code, run applicable codebase-improvement skills, then begin the formal
+  standards-and-ticket review loop. Re-run verification after any edit.
+- Keep improvement passes inside accepted behavior and ticket scope. Record
+  architectural opportunities as follow-up recommendations; do not turn them
+  into issues or active work without the product decision or approval required
+  by `AGENTS.md`.
 - Use issue and pull-request comments as durable delivery context. Chat receives
   decision batches, genuine blockers, and approval-ready handoffs.
 - Use native GitHub dependencies for technical delivery order where available.
