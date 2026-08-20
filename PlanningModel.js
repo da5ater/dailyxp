@@ -51,6 +51,13 @@ function applyChanges(target, changes) {
   Object.keys(changes || {}).forEach(function(key) { target[key] = clone(changes[key]); });
 }
 
+function applyAllowedChanges(target, changes, allowed, field) {
+  Object.keys(changes || {}).forEach(function(key) {
+    if (allowed.indexOf(key) === -1) fail(field, "cannot change " + key);
+    target[key] = clone(changes[key]);
+  });
+}
+
 function isUntouchedOccurrence(occurrence) {
   return occurrence.status === "open" || occurrence.status === "overdue";
 }
@@ -90,16 +97,35 @@ function occurrenceFromRoutine(routine, dailyXpDate, id, occurrenceKey) {
   };
 }
 
+function resolveGoalMilestoneLinks(projection, entity, field) {
+  var milestone = entity.milestoneId ? findById(projection.milestones, entity.milestoneId) : null;
+  if (entity.milestoneId && !milestone) fail(field + ".milestoneId", "must reference a Milestone");
+  if (milestone && !entity.goalId) entity.goalId = milestone.goalId;
+  if (milestone && entity.goalId !== milestone.goalId)
+    fail(field + ".hierarchy", "Goal must own the selected Milestone");
+  if (entity.goalId && !findById(projection.goals, entity.goalId))
+    fail(field + ".goalId", "must reference a Goal");
+}
+
+function validateMilestone(projection, milestone) {
+  required(milestone.title, "milestone.title");
+  if (!findById(projection.goals, milestone.goalId))
+    fail("milestone.goalId", "must reference a Goal");
+  if (!milestone.measurement || MEASUREMENT_TYPES.indexOf(milestone.measurement.type) === -1)
+    fail("milestone.measurement", "is invalid");
+  if (!Number.isInteger(milestone.significance) || milestone.significance < 1)
+    fail("milestone.significance", "must be a positive integer");
+  if (milestone.measurement.type !== "binary" &&
+      (typeof milestone.measurement.target !== "number" || !isFinite(milestone.measurement.target) ||
+        milestone.measurement.target <= 0))
+    fail("milestone.measurement.target", "must be a positive number");
+}
+
 function validateRoutine(projection, routine) {
+  required(routine.title, "routine.title");
   required(routine.primarySkill, "routine.primarySkill");
   if (typeof routine.carryover !== "boolean") fail("routine.carryover", "must be true or false");
-  var milestone = routine.milestoneId ? findById(projection.milestones, routine.milestoneId) : null;
-  if (routine.milestoneId && !milestone) fail("routine.milestoneId", "must reference a Milestone");
-  if (milestone && !routine.goalId) routine.goalId = milestone.goalId;
-  if (milestone && routine.goalId !== milestone.goalId)
-    fail("routine.hierarchy", "Goal must own the selected Milestone");
-  if (routine.goalId && !findById(projection.goals, routine.goalId))
-    fail("routine.goalId", "must reference a Goal");
+  resolveGoalMilestoneLinks(projection, routine, "routine");
   dateValue(routine.startDate, "routine.startDate");
   if (routine.endDate) {
     dateValue(routine.endDate, "routine.endDate");
@@ -131,18 +157,19 @@ function occurrenceEditableChanges(changes) {
 }
 
 function validateTask(projection, task) {
+  required(task.title, "task.title");
   required(task.primarySkill, "task.primarySkill");
   required(task.urgency, "task.urgency");
   if (!Number.isInteger(task.estimateMinutes) || task.estimateMinutes < 1)
     fail("task.estimateMinutes", "must be a positive integer");
   if (task.deadline) dateValue(task.deadline, "task.deadline");
-  var milestone = task.milestoneId ? findById(projection.milestones, task.milestoneId) : null;
-  if (task.milestoneId && !milestone) fail("task.milestoneId", "must reference a Milestone");
-  if (milestone && !task.goalId) task.goalId = milestone.goalId;
-  if (milestone && task.goalId !== milestone.goalId)
-    fail("task.hierarchy", "Goal must own the selected Milestone");
-  if (task.goalId && !findById(projection.goals, task.goalId))
-    fail("task.goalId", "must reference a Goal");
+  resolveGoalMilestoneLinks(projection, task, "task");
+}
+
+function validateProposal(proposal) {
+  required(proposal.id, "proposal.id");
+  if (["template", "adaptive"].indexOf(proposal.kind) === -1) fail("proposal.kind", "is invalid");
+  if (!Array.isArray(proposal.commands)) fail("proposal.commands", "must be an array");
 }
 
 function scheduledOn(routine, dailyXpDate) {
@@ -180,15 +207,7 @@ function decide(projection, command) {
   }
   if (input.type === "milestone.create") {
     entity = initializeEntity(plan, input.milestone, "milestone");
-    if (!findById(plan.goals, entity.goalId)) fail("milestone.goalId", "must reference a Goal");
-    if (!entity.measurement || MEASUREMENT_TYPES.indexOf(entity.measurement.type) === -1)
-      fail("milestone.measurement", "is invalid");
-    if (!Number.isInteger(entity.significance) || entity.significance < 1)
-      fail("milestone.significance", "must be a positive integer");
-    if (entity.measurement.type !== "binary" &&
-        (typeof entity.measurement.target !== "number" || !isFinite(entity.measurement.target) ||
-          entity.measurement.target <= 0))
-      fail("milestone.measurement.target", "must be a positive number");
+    validateMilestone(plan, entity);
     entity.status = "open";
     return freeze({ events: [intent("milestone.created", entity)] });
   }
@@ -222,20 +241,28 @@ function decide(projection, command) {
           routine, input.dailyXpDate, key, key
         ), key));
       }
-      var missedCount = plan.occurrences.filter(function(occurrence) {
+      var missedOccurrenceIds = plan.occurrences.filter(function(occurrence) {
         return occurrence.routineId === routine.id && (occurrence.status === "overdue" ||
           (occurrence.status === "open" && occurrence.dailyXpDate < input.dailyXpDate && routine.carryover));
-      }).length;
+      }).map(function(occurrence) { return occurrence.id; });
       var proposalId = "adaptive:reschedule:" + routine.id;
       var priorProposal = findById(plan.proposals, proposalId);
-      var mayOffer = !priorProposal || (priorProposal.status === "dismissed" &&
-        priorProposal.dismissedUntil <= input.dailyXpDate);
-      if (missedCount >= 3 && mayOffer) {
+      var priorMissedIds = priorProposal && Array.isArray(priorProposal.missedOccurrenceIds)
+        ? priorProposal.missedOccurrenceIds : [];
+      var newMissedCount = missedOccurrenceIds.filter(function(id) {
+        return priorMissedIds.indexOf(id) === -1;
+      }).length;
+      var cooldownEnded = !priorProposal || priorProposal.status !== "dismissed" ||
+        priorProposal.dismissedUntil <= input.dailyXpDate;
+      var mayOffer = !priorProposal ? missedOccurrenceIds.length >= 3
+        : priorProposal.status !== "pending" && cooldownEnded && newMissedCount >= 3;
+      if (mayOffer) {
         events.push(intent("proposal.offered", {
           id: proposalId,
           kind: "adaptive",
           status: "pending",
           explanation: "Three unfinished occurrences suggest a smaller daily plan.",
+          missedOccurrenceIds: missedOccurrenceIds,
           commands: [{
             type: "routine.edit", id: routine.id, scope: "today_and_future",
             dailyXpDate: input.dailyXpDate,
@@ -290,8 +317,10 @@ function decide(projection, command) {
     var changes = clone(input.changes || {});
     var editEvents = [];
     var effectiveRoutine = clone(existingRoutine);
-    applyChanges(effectiveRoutine, changes);
-    if (effectiveRoutine.id !== existingRoutine.id) fail("routine.id", "cannot be changed");
+    applyAllowedChanges(effectiveRoutine, changes, [
+      "title", "expectedMinutes", "startDate", "endDate", "restDates", "carryover",
+      "schedule", "primarySkill", "goalId", "milestoneId"
+    ], "routine.changes");
     validateRoutine(plan, effectiveRoutine);
     var occurrenceChanges = occurrenceEditableChanges(changes);
     if (input.scope !== "today") {
@@ -318,14 +347,15 @@ function decide(projection, command) {
   }
   if (input.type === "proposal.preview" || input.type === "proposal.edit") {
     var preview = clone(input.proposal || {});
-    required(preview.id, "proposal.id");
-    if (["template", "adaptive"].indexOf(preview.kind) === -1) fail("proposal.kind", "is invalid");
-    if (!Array.isArray(preview.commands)) fail("proposal.commands", "must be an array");
+    validateProposal(preview);
     var priorProposal = findById(plan.proposals, preview.id);
     if (priorProposal && priorProposal.status === "dismissed" &&
         (!input.dailyXpDate || input.dailyXpDate < priorProposal.dismissedUntil))
       return freeze({ events: [], preview: null, suppressed: true });
-    if (input.type === "proposal.edit") applyChanges(preview, input.changes);
+    if (input.type === "proposal.edit") {
+      applyAllowedChanges(preview, input.changes, ["explanation", "commands"], "proposal.changes");
+      validateProposal(preview);
+    }
     return freeze({ events: [], preview: preview });
   }
   if (input.type === "proposal.dismiss") {
@@ -335,14 +365,17 @@ function decide(projection, command) {
     dateValue(input.dismissedUntil, "proposal.dismissedUntil");
     if (input.dismissedUntil <= input.dailyXpDate)
       fail("proposal.dismissedUntil", "must be after the dismissal day");
+    var dismissedProposal = findById(plan.proposals, input.proposalId);
     return freeze({ events: [intent("proposal.dismissed", {
-      id: input.proposalId, kind: input.kind, status: "dismissed", dismissedUntil: input.dismissedUntil || null
+      id: input.proposalId, kind: input.kind, status: "dismissed", dismissedUntil: input.dismissedUntil,
+      missedOccurrenceIds: dismissedProposal && dismissedProposal.missedOccurrenceIds
+        ? clone(dismissedProposal.missedOccurrenceIds) : []
     })] });
   }
   if (input.type === "proposal.accept") {
     var accepted = clone(input.proposal || {});
-    required(accepted.id, "proposal.id");
-    if (!Array.isArray(accepted.commands)) fail("proposal.commands", "must be an array");
+    var offeredProposal = findById(plan.proposals, accepted.id);
+    validateProposal(accepted);
     var acceptedEvents = [];
     var working = plan;
     accepted.commands.forEach(function(proposalCommand) {
@@ -352,7 +385,9 @@ function decide(projection, command) {
       working = projectIntents(working, outcome.events);
     });
     acceptedEvents.push(intent("proposal.accepted", {
-      id: accepted.id, kind: accepted.kind, status: "accepted", explanation: accepted.explanation || ""
+      id: accepted.id, kind: accepted.kind, status: "accepted", explanation: accepted.explanation || "",
+      missedOccurrenceIds: offeredProposal && offeredProposal.missedOccurrenceIds
+        ? clone(offeredProposal.missedOccurrenceIds) : []
     }));
     return freeze({ events: acceptedEvents });
   }
@@ -362,11 +397,33 @@ function decide(projection, command) {
     if (["completed", "archived"].indexOf(input.status) === -1) fail("task.status", "is invalid");
     return freeze({ events: [intent("task.transitioned", { id: task.id, status: input.status })] });
   }
+  if (input.type === "task.edit") {
+    var editableTask = findById(plan.tasks, input.id);
+    if (!editableTask) fail("task.id", "was not found");
+    var updatedTask = clone(editableTask);
+    applyAllowedChanges(updatedTask, input.changes, [
+      "title", "estimateMinutes", "urgency", "deadline", "primarySkill", "goalId", "milestoneId"
+    ], "task.changes");
+    validateTask(plan, updatedTask);
+    return freeze({ events: [intent("task.updated", { id: input.id, changes: clone(input.changes || {}) })] });
+  }
   if (input.type === "goal.transition") {
     var goal = findById(plan.goals, input.id);
     if (!goal) fail("goal.id", "was not found");
     if (GOAL_STATUSES.indexOf(input.status) === -1) fail("goal.status", "is invalid");
     return freeze({ events: [intent("goal.transitioned", { id: goal.id, status: input.status })] });
+  }
+  if (input.type === "goal.edit") {
+    var editableGoal = findById(plan.goals, input.id);
+    if (!editableGoal) fail("goal.id", "was not found");
+    var updatedGoal = clone(editableGoal);
+    applyAllowedChanges(updatedGoal, input.changes, ["title", "targetDate", "primarySkill", "reason"],
+      "goal.changes");
+    required(updatedGoal.title, "goal.title");
+    required(updatedGoal.primarySkill, "goal.primarySkill");
+    required(updatedGoal.reason, "goal.reason");
+    if (updatedGoal.targetDate) dateValue(updatedGoal.targetDate, "goal.targetDate");
+    return freeze({ events: [intent("goal.updated", { id: input.id, changes: clone(input.changes || {}) })] });
   }
   if (input.type === "entity.remove") {
     var collectionName = input.entityType + "s";
@@ -407,9 +464,19 @@ function decide(projection, command) {
   if (input.type === "milestone.edit") {
     var editableMilestone = findById(plan.milestones, input.id);
     if (!editableMilestone) fail("milestone.id", "was not found");
-    if (editableMilestone.lockedSignificance && Object.prototype.hasOwnProperty.call(input.changes || {}, "significance") &&
-        input.changes.significance !== editableMilestone.significance)
+    var updatedMilestone = clone(editableMilestone);
+    applyAllowedChanges(updatedMilestone, input.changes, ["title", "goalId", "measurement", "significance"],
+      "milestone.changes");
+    if (editableMilestone.lockedSignificance && updatedMilestone.significance !== editableMilestone.significance)
       fail("milestone.significance", "is locked after progress begins");
+    if (editableMilestone.progress !== undefined &&
+        JSON.stringify(updatedMilestone.measurement) !== JSON.stringify(editableMilestone.measurement))
+      fail("milestone.measurement", "is locked after progress begins");
+    if (updatedMilestone.goalId !== editableMilestone.goalId &&
+        (plan.tasks.some(function(item) { return item.milestoneId === input.id; }) ||
+          plan.routines.some(function(item) { return item.milestoneId === input.id; })))
+      fail("milestone.goalId", "cannot change while work references the Milestone");
+    validateMilestone(plan, updatedMilestone);
     return freeze({ events: [intent("milestone.updated", { id: input.id, changes: clone(input.changes || {}) })] });
   }
   fail("command.type", "is unsupported");
@@ -464,9 +531,15 @@ function projectIntents(projection, intents) {
     } else if (event.type === "planning.task.transitioned") {
       var transitionedTask = findById(next.tasks, event.payload.id);
       if (transitionedTask) transitionedTask.status = event.payload.status;
+    } else if (event.type === "planning.task.updated") {
+      var updatedTask = findById(next.tasks, event.payload.id);
+      if (updatedTask) applyChanges(updatedTask, event.payload.changes);
     } else if (event.type === "planning.goal.transitioned") {
       var transitionedGoal = findById(next.goals, event.payload.id);
       if (transitionedGoal) transitionedGoal.status = event.payload.status;
+    } else if (event.type === "planning.goal.updated") {
+      var updatedGoal = findById(next.goals, event.payload.id);
+      if (updatedGoal) applyChanges(updatedGoal, event.payload.changes);
     } else if (event.type === "planning.entity.deleted") {
       var deleteCollection = event.payload.entityType + "s";
       next[deleteCollection] = next[deleteCollection].filter(function(item) { return item.id !== event.payload.id; });

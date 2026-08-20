@@ -207,6 +207,43 @@ test("required planning attributes and Goal hierarchy cannot be omitted or contr
   assert.equal(plan.tasks[0].goalId, "goal-one");
 });
 
+test("Milestone and Routine edits reject model-owned or invalid contract fields", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "goal.create", goal: { id: "goal-edit", title: "Edit safely",
+    status: "active", targetDate: null, primarySkill: "backend/study", reason: "Keep invariants" } });
+  plan = apply(plan, { type: "milestone.create", milestone: { id: "milestone-edit", goalId: "goal-edit",
+    title: "Valid milestone", measurement: { type: "numeric", target: 10 }, significance: 2 } });
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-edit-safe", title: "Study",
+    expectedMinutes: 60, startDate: "2026-08-20", endDate: null, restDates: [], carryover: true,
+    schedule: { type: "weekdays", weekdays: [4] }, primarySkill: "backend/study",
+    goalId: "goal-edit", milestoneId: "milestone-edit" } });
+
+  assert.throws(() => PlanningModel.decide(plan, { type: "milestone.edit", id: "milestone-edit",
+    changes: { goalId: "missing", measurement: { type: "bogus" }, significance: 0 } }),
+  /milestone.goalId|measurement|significance/);
+  assert.throws(() => PlanningModel.decide(plan, { type: "routine.edit", id: "routine-edit-safe",
+    scope: "today_and_future", dailyXpDate: "2026-08-20",
+    changes: { status: "nonsense", revision: "oops" } }), /routine.changes/);
+});
+
+test("Goal and Task edits preserve required fields and hierarchy", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "goal.create", goal: { id: "goal-editable", title: "Original Goal",
+    status: "active", targetDate: null, primarySkill: "backend/study", reason: "Learn" } });
+  plan = apply(plan, { type: "task.create", task: { id: "task-editable", title: "Original Task",
+    estimateMinutes: 30, urgency: "normal", deadline: null, primarySkill: "backend/study",
+    goalId: "goal-editable", milestoneId: null } });
+  plan = apply(plan, { type: "goal.edit", id: "goal-editable", changes: { title: "Updated Goal" } });
+  plan = apply(plan, { type: "task.edit", id: "task-editable",
+    changes: { title: "Updated Task", estimateMinutes: 45 } });
+
+  assert.equal(plan.goals[0].title, "Updated Goal");
+  assert.equal(plan.tasks[0].title, "Updated Task");
+  assert.equal(plan.tasks[0].goalId, "goal-editable");
+  assert.throws(() => PlanningModel.decide(plan, { type: "task.edit", id: "task-editable",
+    changes: { status: "completed" } }), /task.changes/);
+});
+
 test("schedule edits remove newly ineligible work and create newly eligible work", () => {
   let plan = PlanningModel.emptyProjection();
   plan = apply(plan, { type: "routine.create", routine: { id: "routine-scope", title: "Study",
@@ -282,4 +319,11 @@ test("three repeated misses offer one smaller rescheduling Planning Proposal", (
 
   plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-20" });
   assert.equal(plan.proposals.length, 1);
+
+  const accepted = PlanningModel.decide(plan, { type: "proposal.accept", proposal: plan.proposals[0] });
+  plan = PlanningModel.projectIntents(plan, accepted.events);
+  for (const dailyXpDate of ["2026-08-21", "2026-08-22", "2026-08-23"])
+    plan = apply(plan, { type: "day.advance", dailyXpDate });
+  assert.equal(plan.proposals[0].status, "pending");
+  assert.ok(plan.proposals[0].missedOccurrenceIds.length >= 6);
 });
