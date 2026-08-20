@@ -11,10 +11,10 @@ function event(overrides = {}) {
     eventId: EVENT_ID,
     deviceId: DEVICE_ID,
     type: "foundation.probed",
-    occurredAtUtc: "2026-08-20T01:30:00.000Z",
+    occurredAtUtc: "2026-08-20T00:30:00.000Z",
     localDateTime: "2026-08-20T03:30:00.000",
     timezone: "Africa/Cairo",
-    utcOffsetMinutes: 120,
+    utcOffsetMinutes: 180,
     dayBoundaryMinutes: 240,
     occurrenceKey: EventModel.occurrenceKey("routine/anki", "2026-08-19"),
     payload: { probeId: "probe-1" },
@@ -35,7 +35,7 @@ test("freezes UTC, timezone, offset, local time, and DailyXP date on an event", 
   assert.equal(created.schemaVersion, 1);
   assert.equal(created.dailyXpDate, "2026-08-19");
   assert.equal(created.context.timezone, "Africa/Cairo");
-  assert.equal(created.context.utcOffsetMinutes, 120);
+  assert.equal(created.context.utcOffsetMinutes, 180);
   assert.equal(created.context.dayBoundaryMinutes, 240);
   assert.equal(Object.isFrozen(created), true);
 });
@@ -50,7 +50,8 @@ test("rejects invalid context before it enters the journal", () => {
   assert.throws(() => event({ occurredAtUtc: "yesterday" }), /occurredAtUtc/);
   assert.throws(() => event({ timezone: "" }), /timezone/);
   assert.throws(() => event({ timezone: "Cairo" }), /timezone/);
-  assert.throws(() => event({ utcOffsetMinutes: 180 }), /contradict/);
+  assert.throws(() => event({ timezone: "Etc/Unknown" }), /timezone/);
+  assert.throws(() => event({ utcOffsetMinutes: 120 }), /context/);
   assert.throws(() => event({ dayBoundaryMinutes: 1440 }), /dayBoundaryMinutes/);
   assert.throws(() => event({ payload: { bad: undefined } }), /payload/);
 });
@@ -71,7 +72,7 @@ test("projection rebuild is deterministic and ignores duplicate IDs", () => {
     eventId: "33333333-3333-4333-8333-333333333333",
     type: "session.finished",
     occurredAtUtc: "2026-08-20T06:00:00.000Z",
-    localDateTime: "2026-08-20T08:00:00.000"
+    localDateTime: "2026-08-20T09:00:00.000"
   });
   const journal = { schemaVersion: 1, deviceId: DEVICE_ID, events: [first, first, second] };
 
@@ -86,24 +87,39 @@ test("projection rebuild is deterministic and ignores duplicate IDs", () => {
 
 test("DST and current Day Boundary changes cannot move frozen history", () => {
   const beforeDst = event({
-    occurredAtUtc: "2026-03-01T01:30:00.000Z",
-    localDateTime: "2026-03-01T03:30:00.000",
-    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2026-02-28")
+    occurredAtUtc: "2024-03-10T06:59:00.000Z",
+    localDateTime: "2024-03-10T01:59:00.000",
+    timezone: "America/New_York",
+    utcOffsetMinutes: -300,
+    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2024-03-09")
   });
   const afterDst = event({
     eventId: "44444444-4444-4444-8444-444444444444",
-    occurredAtUtc: "2026-07-01T01:30:00.000Z",
-    localDateTime: "2026-07-01T04:30:00.000",
-    utcOffsetMinutes: 180,
-    occurrenceKey: EventModel.occurrenceKey("routine/bootdev", "2026-07-01")
+    occurredAtUtc: "2024-03-10T07:00:00.000Z",
+    localDateTime: "2024-03-10T03:00:00.000",
+    timezone: "America/New_York",
+    utcOffsetMinutes: -240,
+    occurrenceKey: EventModel.occurrenceKey("routine/bootdev", "2024-03-09")
   });
   let journal = EventModel.createJournal(DEVICE_ID);
   journal = EventModel.append(journal, beforeDst);
   journal = EventModel.append(journal, afterDst);
 
   const rebuilt = EventModel.rebuildProjection(EventModel.loadJournal(EventModel.exportJournal(journal)).journal);
-  assert.deepEqual(rebuilt.countsByDailyXpDate, { "2026-02-28": 1, "2026-07-01": 1 });
+  assert.deepEqual(rebuilt.countsByDailyXpDate, { "2024-03-09": 2 });
   assert.deepEqual(rebuilt.uniqueOccurrenceKeys, [beforeDst.occurrenceKey, afterDst.occurrenceKey]);
+});
+
+test("projection maps safely retain prototype-like valid keys", () => {
+  const constructorEvent = event({ type: "constructor", occurrenceKey: "__proto__" });
+  const projection = EventModel.rebuildProjection({
+    schemaVersion: 1,
+    deviceId: DEVICE_ID,
+    events: [constructorEvent]
+  });
+
+  assert.equal(projection.countsByType.constructor, 1);
+  assert.deepEqual(projection.uniqueOccurrenceKeys, ["__proto__"]);
 });
 
 test("occurrence identity is based on its frozen date, not later settings", () => {

@@ -39,6 +39,41 @@ function validUtcInstant(value) {
   return !isNaN(parsed.getTime()) && parsed.toISOString() === value;
 }
 
+function zoneContext(occurredAtUtc, timezone) {
+  if (!validUtcInstant(occurredAtUtc)) fail("occurredAtUtc", "must be a canonical UTC instant with milliseconds");
+  var zone = String(timezone || "");
+  if (!IANA_TIMEZONE_PATTERN.test(zone)) fail("timezone", "must be an IANA timezone name such as Africa/Cairo");
+  var formatter;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hourCycle: "h23"
+    });
+  } catch (error) {
+    fail("timezone", "is not available in the runtime timezone database");
+  }
+  var values = {};
+  formatter.formatToParts(new Date(occurredAtUtc)).forEach(function(part) {
+    if (part.type !== "literal") values[part.type] = part.value;
+  });
+  var milliseconds = occurredAtUtc.slice(20, 23);
+  var localDateTime = values.year + "-" + values.month + "-" + values.day + "T" +
+    values.hour + ":" + values.minute + ":" + values.second + "." + milliseconds;
+  var parts = localParts(localDateTime);
+  var localMillis = Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5], parts[6]);
+  var utcOffsetMinutes = (localMillis - new Date(occurredAtUtc).getTime()) / 60000;
+  if (!Number.isInteger(utcOffsetMinutes)) fail("timezone", "resolved to a non-minute UTC offset");
+  return { timezone: zone, localDateTime: localDateTime, utcOffsetMinutes: utcOffsetMinutes };
+}
+
+function systemTimezone() {
+  var zone = String(Intl.DateTimeFormat().resolvedOptions().timeZone || "");
+  if (!IANA_TIMEZONE_PATTERN.test(zone)) return "Etc/UTC";
+  return zone;
+}
+
 function localParts(value) {
   var match = LOCAL_DATE_TIME_PATTERN.exec(String(value || ""));
   if (!match) fail("localDateTime", "must be YYYY-MM-DDTHH:mm:ss.sss without an offset");
@@ -93,6 +128,9 @@ function deepFreeze(value) {
 function createEvent(input) {
   var source = input || {};
   var eventId = source.eventId || uuidV4();
+  var resolved = zoneContext(source.occurredAtUtc, source.timezone);
+  var suppliedLocalDateTime = source.localDateTime === undefined ? resolved.localDateTime : source.localDateTime;
+  var suppliedOffset = source.utcOffsetMinutes === undefined ? resolved.utcOffsetMinutes : source.utcOffsetMinutes;
   var frozenOccurrenceKey = source.occurrenceKey === undefined || source.occurrenceKey === null
     ? null : String(source.occurrenceKey);
   var candidate = {
@@ -101,17 +139,19 @@ function createEvent(input) {
     deviceId: String(source.deviceId || ""),
     type: String(source.type || ""),
     occurredAtUtc: source.occurredAtUtc,
-    localDateTime: source.localDateTime,
-    dailyXpDate: dailyXpDate(source.localDateTime, source.dayBoundaryMinutes),
+    localDateTime: suppliedLocalDateTime,
+    dailyXpDate: dailyXpDate(suppliedLocalDateTime, source.dayBoundaryMinutes),
     occurrenceKey: frozenOccurrenceKey,
     context: {
       timezone: source.timezone,
-      utcOffsetMinutes: source.utcOffsetMinutes,
+      utcOffsetMinutes: suppliedOffset,
       dayBoundaryMinutes: source.dayBoundaryMinutes
     },
     payload: cloneJson(source.payload)
   };
   validateEvent(candidate);
+  if (candidate.localDateTime !== resolved.localDateTime || candidate.context.utcOffsetMinutes !== resolved.utcOffsetMinutes)
+    fail("event.context.timezone", "does not match the timezone rules at occurredAtUtc");
   return deepFreeze(candidate);
 }
 
@@ -141,11 +181,6 @@ function validateEvent(value) {
   return true;
 }
 
-function frozenEventCopy(value) {
-  validateEvent(value);
-  return deepFreeze(cloneJson(value));
-}
-
 function createJournal(deviceId) {
   if (!isUuidV4(deviceId)) fail("deviceId", "must be an RFC 4122 version-4 UUID");
   return deepFreeze({ schemaVersion: JOURNAL_SCHEMA_VERSION, deviceId: String(deviceId), events: [] });
@@ -164,25 +199,31 @@ function append(journal, value) {
   validateEvent(value);
   for (var i = 0; i < journal.events.length; i += 1)
     if (journal.events[i].eventId === value.eventId) return journal;
-  var nextEvents = journal.events.map(frozenEventCopy);
-  nextEvents.push(frozenEventCopy(value));
+  var nextEvents = journal.events.map(cloneJson);
+  nextEvents.push(cloneJson(value));
   return deepFreeze({ schemaVersion: JOURNAL_SCHEMA_VERSION, deviceId: journal.deviceId, events: nextEvents });
 }
 
 function normalizeJournal(value) {
   validateJournalShape(value);
-  var normalized = createJournal(value.deviceId);
-  for (var i = 0; i < value.events.length; i += 1) normalized = append(normalized, value.events[i]);
-  return normalized;
+  var seen = Object.create(null);
+  var events = [];
+  for (var i = 0; i < value.events.length; i += 1) {
+    var eventId = value.events[i].eventId;
+    if (seen[eventId]) continue;
+    seen[eventId] = true;
+    events.push(cloneJson(value.events[i]));
+  }
+  return deepFreeze({ schemaVersion: JOURNAL_SCHEMA_VERSION, deviceId: value.deviceId, events: events });
 }
 
 function rebuildProjection(journal) {
   validateJournalShape(journal);
-  var seen = {};
+  var seen = Object.create(null);
   var appliedEventIds = [];
   var countsByType = {};
   var countsByDailyXpDate = {};
-  var occurrenceSeen = {};
+  var occurrenceSeen = Object.create(null);
   var uniqueOccurrenceKeys = [];
   var lastEventAtUtc = null;
   for (var i = 0; i < journal.events.length; i += 1) {
@@ -190,8 +231,15 @@ function rebuildProjection(journal) {
     if (seen[value.eventId]) continue;
     seen[value.eventId] = true;
     appliedEventIds.push(value.eventId);
-    countsByType[value.type] = (countsByType[value.type] || 0) + 1;
-    countsByDailyXpDate[value.dailyXpDate] = (countsByDailyXpDate[value.dailyXpDate] || 0) + 1;
+    var typeCount = Object.prototype.hasOwnProperty.call(countsByType, value.type) ? countsByType[value.type] : 0;
+    Object.defineProperty(countsByType, value.type, {
+      value: typeCount + 1, writable: true, enumerable: true, configurable: true
+    });
+    var dayCount = Object.prototype.hasOwnProperty.call(countsByDailyXpDate, value.dailyXpDate)
+      ? countsByDailyXpDate[value.dailyXpDate] : 0;
+    Object.defineProperty(countsByDailyXpDate, value.dailyXpDate, {
+      value: dayCount + 1, writable: true, enumerable: true, configurable: true
+    });
     if (value.occurrenceKey !== null && !occurrenceSeen[value.occurrenceKey]) {
       occurrenceSeen[value.occurrenceKey] = true;
       uniqueOccurrenceKeys.push(value.occurrenceKey);
@@ -266,6 +314,8 @@ if (typeof module !== "undefined" && module.exports) {
     EVENT_SCHEMA_VERSION: EVENT_SCHEMA_VERSION,
     isUuidV4: isUuidV4,
     uuidV4: uuidV4,
+    zoneContext: zoneContext,
+    systemTimezone: systemTimezone,
     dailyXpDate: dailyXpDate,
     createEvent: createEvent,
     validateEvent: validateEvent,

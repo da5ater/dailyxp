@@ -7,6 +7,8 @@ import "StateModel.js" as StateModel
 Item {
   id: root
 
+  // Injected once by the Omarchy service host.
+  property var shell: null
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string stateHome: Quickshell.env("XDG_STATE_HOME") || home + "/.local/state"
   readonly property string stateDir: stateHome + "/dailyxp"
@@ -20,6 +22,7 @@ Item {
   property bool ready: false
   property bool saving: false
   property string errorMessage: ""
+  readonly property int configuredDayBoundaryMinutes: dayBoundaryMinutesFromConfig()
 
   property string _primaryRaw: ""
   property string _backupRaw: ""
@@ -30,6 +33,27 @@ Item {
   property string _pendingPrimaryRaw: ""
 
   signal persisted()
+
+  function pluginSettings() {
+    var config = shell && shell.shellConfig ? shell.shellConfig : null
+    if (!config) return ({})
+    var layout = config.bar && config.bar.layout ? config.bar.layout : ({})
+    var sections = ["left", "center", "right"]
+    for (var s = 0; s < sections.length; s += 1) {
+      var entries = Array.isArray(layout[sections[s]]) ? layout[sections[s]] : []
+      for (var i = 0; i < entries.length; i += 1)
+        if (entries[i] && entries[i].id === "io.github.da5ater.dailyxp") return entries[i]
+    }
+    var plugins = Array.isArray(config.plugins) ? config.plugins : []
+    for (var p = 0; p < plugins.length; p += 1)
+      if (plugins[p] && plugins[p].id === "io.github.da5ater.dailyxp") return plugins[p]
+    return ({})
+  }
+
+  function dayBoundaryMinutesFromConfig() {
+    var value = Number(pluginSettings().dayBoundaryMinutes)
+    return Number.isInteger(value) && value >= 0 && value <= 1439 ? value : 240
+  }
 
   function acceptPrimary(raw) {
     _primaryRaw = String(raw || "")
@@ -102,10 +126,8 @@ Item {
         deviceId: journal.deviceId,
         type: "foundation.probed",
         occurredAtUtc: nowUtc,
-        localDateTime: nowUtc.slice(0, -1),
-        timezone: "Etc/UTC",
-        utcOffsetMinutes: 0,
-        dayBoundaryMinutes: 240,
+        timezone: EventModel.systemTimezone(),
+        dayBoundaryMinutes: configuredDayBoundaryMinutes,
         occurrenceKey: null,
         payload: { probeId: eventId }
       })

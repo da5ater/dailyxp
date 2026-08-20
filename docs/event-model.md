@@ -14,6 +14,10 @@ same fixtures can run in Omarchy, backend tests, and a future desktop client.
 - `dailyXpDate` is calculated once from that recorded context. Projection
   rebuild never asks the current clock, timezone database, DST offset, or
   current Day Boundary to reinterpret completed history.
+- Event creation resolves the named IANA zone through the runtime timezone
+  database and derives wall time and UTC offset from the UTC instant. Supplied
+  context must match those rules. Reload validates the frozen internal
+  relationship without asking newer timezone rules to reinterpret history.
 - A Routine can assign `occurrenceKey(routineId, dailyXpDate)` when creating a
   Task Occurrence. Later events retain that key, allowing projections to count
   the occurrence once without regenerating its identity.
@@ -50,6 +54,10 @@ new device journal through the same backup-first atomic write sequence. If
 both envelopes are damaged, or the embedded journal is invalid or unsupported,
 startup stays available with an actionable error and does not write either
 source file. The panel disables recording until a valid journal is ready.
+
+The runtime uses the system IANA timezone and reads `dayBoundaryMinutes` from
+the plugin entry in `shell.json`, defaulting to 240 (04:00). The value is
+captured on each new event; changing it affects future events only.
 
 ## Verification
 
