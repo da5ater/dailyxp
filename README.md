@@ -4,9 +4,9 @@ DailyXP is an Omarchy-first life-gamification product for focused work, goals,
 habits, recovery, social competition, and a persistent comeback story.
 
 This repository currently contains the installable Omarchy Quattro foundation:
-a bar widget, its nested panel, and a fault-tolerant local state primitive. The
-probe button is intentionally temporary; product workflows arrive in later
-tickets. The versioned offline journal contract is documented in
+a bar widget, its nested panel, and one headless in-shell state service shared
+by every monitor. The probe button is intentionally temporary; product
+workflows arrive in later tickets. The versioned offline journal contract is documented in
 [`docs/event-model.md`](docs/event-model.md).
 
 ## Requirements
@@ -15,8 +15,9 @@ tickets. The versioned offline journal contract is documented in
 - `mkdir` from GNU coreutils, used without root access to create the XDG state
   directory
 
-DailyXP starts no service, installer, privileged command, or second Quickshell
-process. Plugin QML runs unsandboxed inside the existing Omarchy shell process.
+DailyXP starts no external daemon, installer, privileged command, or second
+Quickshell process. Its headless QML service runs once inside the existing
+Omarchy shell process, whose plugin code runs unsandboxed.
 
 ## Install
 

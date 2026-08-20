@@ -6,10 +6,12 @@
   "author": "Mohamed Osama Mohamed Khater",
   "description": "Gamify focused work, goals, habits, recovery, and friendly competition.",
   "kinds": [
-    "bar-widget"
+    "bar-widget",
+    "service"
   ],
   "entryPoints": {
-    "barWidget": "BarWidget.qml"
+    "barWidget": "BarWidget.qml",
+    "service": "StateStore.qml"
   },
   "barWidget": {
     "displayName": "DailyXP",
