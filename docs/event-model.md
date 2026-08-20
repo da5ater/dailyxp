@@ -42,6 +42,14 @@ with an actionable message and the exact `originalRaw` bytes. Callers must keep
 those bytes and must not overwrite the source until a validated replacement is
 durably written. There is no best-effort partial import.
 
+`StateStore.qml` applies this rule at shell startup. It first recovers the
+newest checksum-valid primary/backup envelope, then validates or migrates the
+embedded canonical journal. A fresh or legacy foundation envelope receives one
+new device journal through the same backup-first atomic write sequence. If
+both envelopes are damaged, or the embedded journal is invalid or unsupported,
+startup stays available with an actionable error and does not write either
+source file. The panel disables recording until a valid journal is ready.
+
 ## Verification
 
 ```sh

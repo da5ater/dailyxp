@@ -38,8 +38,9 @@ omarchy plugin enable io.github.da5ater.dailyxp
 ## Data and removal
 
 Durable local state lives under `$XDG_STATE_HOME/dailyxp/`, falling back to
-`~/.local/state/dailyxp/`. Removing the plugin leaves this user-owned state in
-place so reinstalling does not erase progress.
+`~/.local/state/dailyxp/`. It contains a checksum-protected primary/backup
+envelope and a canonical versioned event journal. Removing the plugin leaves
+this user-owned state in place so reinstalling does not erase progress.
 
 ```sh
 omarchy plugin remove io.github.da5ater.dailyxp

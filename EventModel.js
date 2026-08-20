@@ -8,6 +8,7 @@ var UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[
 var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 var LOCAL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{3})$/;
 var EVENT_TYPE_PATTERN = /^[a-z][a-z0-9_.-]*$/;
+var IANA_TIMEZONE_PATTERN = /^[A-Za-z_+-]+(?:\/[A-Za-z0-9_+.-]+)+$/;
 
 function fail(field, reason) {
   throw new Error(field + ": " + reason);
@@ -92,27 +93,13 @@ function deepFreeze(value) {
 function createEvent(input) {
   var source = input || {};
   var eventId = source.eventId || uuidV4();
-  var deviceId = source.deviceId;
-  if (!isUuidV4(eventId)) fail("eventId", "must be an RFC 4122 version-4 UUID");
-  if (!isUuidV4(deviceId)) fail("deviceId", "must be an RFC 4122 version-4 UUID");
-  if (!EVENT_TYPE_PATTERN.test(String(source.type || ""))) fail("type", "must be a stable lowercase event name");
-  if (!validUtcInstant(source.occurredAtUtc)) fail("occurredAtUtc", "must be a canonical UTC instant with milliseconds");
-  localParts(source.localDateTime);
-  if (typeof source.timezone !== "string" || source.timezone.trim() === "") fail("timezone", "must be recorded");
-  if (!Number.isInteger(source.utcOffsetMinutes) || source.utcOffsetMinutes < -840 || source.utcOffsetMinutes > 840)
-    fail("utcOffsetMinutes", "must be an integer from -840 through 840");
-  if (!Number.isInteger(source.dayBoundaryMinutes) || source.dayBoundaryMinutes < 0 || source.dayBoundaryMinutes > 1439)
-    fail("dayBoundaryMinutes", "must be an integer from 0 through 1439");
-  if (!isJsonValue(source.payload)) fail("payload", "must contain JSON values only");
   var frozenOccurrenceKey = source.occurrenceKey === undefined || source.occurrenceKey === null
     ? null : String(source.occurrenceKey);
-  if (frozenOccurrenceKey !== null && frozenOccurrenceKey === "") fail("occurrenceKey", "cannot be empty");
-
-  return deepFreeze({
+  var candidate = {
     schemaVersion: EVENT_SCHEMA_VERSION,
     eventId: String(eventId),
-    deviceId: String(deviceId),
-    type: String(source.type),
+    deviceId: String(source.deviceId || ""),
+    type: String(source.type || ""),
     occurredAtUtc: source.occurredAtUtc,
     localDateTime: source.localDateTime,
     dailyXpDate: dailyXpDate(source.localDateTime, source.dayBoundaryMinutes),
@@ -123,7 +110,9 @@ function createEvent(input) {
       dayBoundaryMinutes: source.dayBoundaryMinutes
     },
     payload: cloneJson(source.payload)
-  });
+  };
+  validateEvent(candidate);
+  return deepFreeze(candidate);
 }
 
 function validateEvent(value) {
@@ -132,18 +121,22 @@ function validateEvent(value) {
   if (!isUuidV4(value.deviceId)) fail("event.deviceId", "must be an RFC 4122 version-4 UUID");
   if (!EVENT_TYPE_PATTERN.test(String(value.type || ""))) fail("event.type", "is invalid");
   if (!validUtcInstant(value.occurredAtUtc)) fail("event.occurredAtUtc", "is invalid");
-  localParts(value.localDateTime);
+  var parts = localParts(value.localDateTime);
   if (!DATE_PATTERN.test(String(value.dailyXpDate || ""))) fail("event.dailyXpDate", "is invalid");
   if (value.occurrenceKey !== null && (typeof value.occurrenceKey !== "string" || value.occurrenceKey === ""))
     fail("event.occurrenceKey", "must be null or a nonempty string");
-  if (!value.context || typeof value.context.timezone !== "string" || value.context.timezone.trim() === "")
-    fail("event.context.timezone", "is required");
+  if (!value.context || !IANA_TIMEZONE_PATTERN.test(String(value.context.timezone || "")))
+    fail("event.context.timezone", "must be an IANA timezone name such as Africa/Cairo");
   if (!Number.isInteger(value.context.utcOffsetMinutes) || value.context.utcOffsetMinutes < -840 || value.context.utcOffsetMinutes > 840)
     fail("event.context.utcOffsetMinutes", "is invalid");
   if (!Number.isInteger(value.context.dayBoundaryMinutes) || value.context.dayBoundaryMinutes < 0 || value.context.dayBoundaryMinutes > 1439)
     fail("event.context.dayBoundaryMinutes", "is invalid");
   if (dailyXpDate(value.localDateTime, value.context.dayBoundaryMinutes) !== value.dailyXpDate)
     fail("event.dailyXpDate", "does not match the recorded local context");
+  var localMillis = Date.UTC(parts[0], parts[1] - 1, parts[2], parts[3], parts[4], parts[5], parts[6]);
+  var contextualMillis = new Date(value.occurredAtUtc).getTime() + value.context.utcOffsetMinutes * 60000;
+  if (localMillis !== contextualMillis)
+    fail("event.context", "UTC instant, localDateTime, and utcOffsetMinutes contradict each other");
   if (!isJsonValue(value.payload)) fail("event.payload", "must contain JSON values only");
   return true;
 }

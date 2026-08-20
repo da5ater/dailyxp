@@ -49,6 +49,8 @@ test("computes the DailyXP date without consulting the current timezone", () => 
 test("rejects invalid context before it enters the journal", () => {
   assert.throws(() => event({ occurredAtUtc: "yesterday" }), /occurredAtUtc/);
   assert.throws(() => event({ timezone: "" }), /timezone/);
+  assert.throws(() => event({ timezone: "Cairo" }), /timezone/);
+  assert.throws(() => event({ utcOffsetMinutes: 180 }), /contradict/);
   assert.throws(() => event({ dayBoundaryMinutes: 1440 }), /dayBoundaryMinutes/);
   assert.throws(() => event({ payload: { bad: undefined } }), /payload/);
 });
@@ -83,20 +85,24 @@ test("projection rebuild is deterministic and ignores duplicate IDs", () => {
 });
 
 test("DST and current Day Boundary changes cannot move frozen history", () => {
-  const beforeDst = event();
+  const beforeDst = event({
+    occurredAtUtc: "2026-03-01T01:30:00.000Z",
+    localDateTime: "2026-03-01T03:30:00.000",
+    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2026-02-28")
+  });
   const afterDst = event({
     eventId: "44444444-4444-4444-8444-444444444444",
-    occurredAtUtc: "2026-08-20T01:30:00.000Z",
-    localDateTime: "2026-08-20T04:30:00.000",
+    occurredAtUtc: "2026-07-01T01:30:00.000Z",
+    localDateTime: "2026-07-01T04:30:00.000",
     utcOffsetMinutes: 180,
-    occurrenceKey: EventModel.occurrenceKey("routine/bootdev", "2026-08-20")
+    occurrenceKey: EventModel.occurrenceKey("routine/bootdev", "2026-07-01")
   });
   let journal = EventModel.createJournal(DEVICE_ID);
   journal = EventModel.append(journal, beforeDst);
   journal = EventModel.append(journal, afterDst);
 
   const rebuilt = EventModel.rebuildProjection(EventModel.loadJournal(EventModel.exportJournal(journal)).journal);
-  assert.deepEqual(rebuilt.countsByDailyXpDate, { "2026-08-19": 1, "2026-08-20": 1 });
+  assert.deepEqual(rebuilt.countsByDailyXpDate, { "2026-02-28": 1, "2026-07-01": 1 });
   assert.deepEqual(rebuilt.uniqueOccurrenceKeys, [beforeDst.occurrenceKey, afterDst.occurrenceKey]);
 });
 
@@ -140,4 +146,10 @@ test("bounded version-0 migration produces a backup and deterministic v1 journal
   assert.equal(migrated.backupRaw, legacy);
   assert.equal(migrated.journal.schemaVersion, 1);
   assert.equal(EventModel.loadJournal(EventModel.exportJournal(migrated.journal)).migrated, false);
+
+  const failedReplacement = EventModel.loadJournal("{torn replacement");
+  const restored = EventModel.loadJournal(migrated.backupRaw);
+  assert.equal(failedReplacement.ok, false);
+  assert.equal(restored.ok, true);
+  assert.equal(EventModel.exportJournal(restored.journal), EventModel.exportJournal(migrated.journal));
 });
