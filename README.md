@@ -68,9 +68,10 @@ The temporary foundation probe can also be exercised without pointer input:
 omarchy-shell io.github.da5ater.dailyxp addProbe
 ```
 
-The idempotent planning-day lifecycle can be requested independently. The
-request starts an asynchronous atomic save, so read its status afterward rather
-than treating the request response as persistence confirmation:
+The idempotent planning-day lifecycle can be requested independently. When an
+advance is needed, the request starts an asynchronous atomic save, so read its
+status afterward rather than treating the request response as persistence
+confirmation:
 
 ```sh
 omarchy-shell io.github.da5ater.dailyxp ensurePlanningDay
