@@ -388,3 +388,17 @@ test("a pending proposal resets its miss baseline when the person decides", () =
   plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-24" });
   assert.equal(plan.proposals[0].status, "accepted");
 });
+
+test("repeated misses offer a smaller plan even when carryover is disabled", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-no-carry", title: "Practice",
+    expectedMinutes: 60, startDate: "2026-08-17", endDate: null, restDates: [], carryover: false,
+    schedule: { type: "weekdays", weekdays: [1, 2, 3, 4, 5, 6, 7] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  for (const dailyXpDate of ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"])
+    plan = apply(plan, { type: "day.advance", dailyXpDate });
+
+  assert.deepEqual(plan.occurrences.map(item => item.status), ["open", "open", "open", "open"]);
+  assert.equal(plan.proposals[0].status, "pending");
+  assert.equal(plan.proposals[0].missedOccurrenceIds.length, 3);
+});

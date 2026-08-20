@@ -224,7 +224,7 @@ function advanceOneDay(plan, dailyXpDate) {
     if (routine.status === "active" && !exists && scheduledOn(routine, dailyXpDate))
       events.push(intent("occurrence.created", occurrenceFromRoutine(routine, dailyXpDate, key, key), key));
 
-    var missedOccurrenceIds = missedIdsForRoutine(plan, routine.id, routine.carryover ? dailyXpDate : null);
+    var missedOccurrenceIds = missedIdsForRoutine(plan, routine.id, dailyXpDate);
     var proposalId = "adaptive:reschedule:" + routine.id;
     var priorProposal = findById(plan.proposals, proposalId);
     var priorMissedIds = priorProposal && Array.isArray(priorProposal.missedOccurrenceIds)
@@ -403,7 +403,7 @@ function decide(projection, command) {
       fail("proposal.dismissedUntil", "must be after the dismissal day");
     var dismissedProposal = findById(plan.proposals, input.proposalId);
     var dismissedMissedIds = dismissedProposal && dismissedProposal.routineId
-      ? missedIdsForRoutine(plan, dismissedProposal.routineId, null) : [];
+      ? missedIdsForRoutine(plan, dismissedProposal.routineId, plan.lastAdvancedDailyXpDate) : [];
     return freeze({ events: [intent("proposal.dismissed", {
       id: input.proposalId, kind: input.kind, status: "dismissed", dismissedUntil: input.dismissedUntil,
       routineId: dismissedProposal ? dismissedProposal.routineId || null : null,
@@ -414,7 +414,7 @@ function decide(projection, command) {
     var accepted = clone(input.proposal || {});
     var offeredProposal = findById(plan.proposals, accepted.id);
     var acceptedMissedIds = offeredProposal && offeredProposal.routineId
-      ? missedIdsForRoutine(plan, offeredProposal.routineId, null) : [];
+      ? missedIdsForRoutine(plan, offeredProposal.routineId, plan.lastAdvancedDailyXpDate) : [];
     validateProposal(accepted);
     var acceptedEvents = [];
     var working = plan;
