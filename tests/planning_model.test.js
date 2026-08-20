@@ -180,6 +180,33 @@ test("Routine links must reference the accepted Goal hierarchy", () => {
   }), /routine.goalId/);
 });
 
+test("required planning attributes and Goal hierarchy cannot be omitted or contradicted", () => {
+  const empty = PlanningModel.emptyProjection();
+  assert.throws(() => PlanningModel.decide(empty, {
+    type: "goal.create", goal: { id: "goal-empty", title: "A Goal" }
+  }), /goal.primarySkill|goal.reason/);
+  assert.throws(() => PlanningModel.decide(empty, {
+    type: "task.create", task: { id: "task-empty", title: "A Task" }
+  }), /task.estimateMinutes|task.urgency|task.primarySkill/);
+
+  let plan = apply(empty, { type: "goal.create", goal: { id: "goal-one", title: "Goal one",
+    status: "active", targetDate: null, primarySkill: "backend/study", reason: "Learn" } });
+  plan = apply(plan, { type: "goal.create", goal: { id: "goal-two", title: "Goal two",
+    status: "active", targetDate: null, primarySkill: "backend/build", reason: "Ship" } });
+  plan = apply(plan, { type: "milestone.create", milestone: { id: "milestone-one", goalId: "goal-one",
+    title: "Checkpoint", measurement: { type: "binary" }, significance: 2 } });
+  assert.throws(() => PlanningModel.decide(plan, { type: "task.create", task: { id: "task-conflict",
+    title: "Conflicting task", estimateMinutes: 30, urgency: "normal", primarySkill: "backend/build",
+    deadline: null, goalId: "goal-two", milestoneId: "milestone-one" } }), /hierarchy/);
+
+  plan = apply(plan, { type: "task.create", task: { id: "task-linked", title: "Linked task",
+    estimateMinutes: 30, urgency: "normal", primarySkill: "backend/study", deadline: null,
+    goalId: null, milestoneId: "milestone-one" } });
+  plan = apply(plan, { type: "entity.remove", entityType: "milestone", id: "milestone-one" });
+  assert.equal(plan.milestones[0].status, "archived");
+  assert.equal(plan.tasks[0].goalId, "goal-one");
+});
+
 test("schedule edits remove newly ineligible work and create newly eligible work", () => {
   let plan = PlanningModel.emptyProjection();
   plan = apply(plan, { type: "routine.create", routine: { id: "routine-scope", title: "Study",
@@ -237,4 +264,22 @@ test("dismissed adaptive proposals stay suppressed for a required interval", () 
   assert.equal(suppressed.suppressed, true);
   assert.equal(suppressed.preview, null);
   assert.equal(available.preview.id, proposal.id);
+});
+
+test("three repeated misses offer one smaller rescheduling Planning Proposal", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-heavy", title: "Deep study",
+    expectedMinutes: 240, startDate: "2026-08-17", endDate: null, restDates: [], carryover: true,
+    schedule: { type: "weekdays", weekdays: [1, 2, 3, 4, 5, 6, 7] },
+    primarySkill: "backend/study", goalId: null, milestoneId: null } });
+  for (const dailyXpDate of ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20"])
+    plan = apply(plan, { type: "day.advance", dailyXpDate });
+
+  assert.equal(plan.proposals.length, 1);
+  assert.equal(plan.proposals[0].kind, "adaptive");
+  assert.equal(plan.proposals[0].status, "pending");
+  assert.equal(plan.proposals[0].commands[0].changes.expectedMinutes, 180);
+
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-20" });
+  assert.equal(plan.proposals.length, 1);
 });

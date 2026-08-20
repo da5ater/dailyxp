@@ -91,10 +91,15 @@ function occurrenceFromRoutine(routine, dailyXpDate, id, occurrenceKey) {
 }
 
 function validateRoutine(projection, routine) {
+  required(routine.primarySkill, "routine.primarySkill");
+  if (typeof routine.carryover !== "boolean") fail("routine.carryover", "must be true or false");
+  var milestone = routine.milestoneId ? findById(projection.milestones, routine.milestoneId) : null;
+  if (routine.milestoneId && !milestone) fail("routine.milestoneId", "must reference a Milestone");
+  if (milestone && !routine.goalId) routine.goalId = milestone.goalId;
+  if (milestone && routine.goalId !== milestone.goalId)
+    fail("routine.hierarchy", "Goal must own the selected Milestone");
   if (routine.goalId && !findById(projection.goals, routine.goalId))
     fail("routine.goalId", "must reference a Goal");
-  if (routine.milestoneId && !findById(projection.milestones, routine.milestoneId))
-    fail("routine.milestoneId", "must reference a Milestone");
   dateValue(routine.startDate, "routine.startDate");
   if (routine.endDate) {
     dateValue(routine.endDate, "routine.endDate");
@@ -125,6 +130,21 @@ function occurrenceEditableChanges(changes) {
   return editable;
 }
 
+function validateTask(projection, task) {
+  required(task.primarySkill, "task.primarySkill");
+  required(task.urgency, "task.urgency");
+  if (!Number.isInteger(task.estimateMinutes) || task.estimateMinutes < 1)
+    fail("task.estimateMinutes", "must be a positive integer");
+  if (task.deadline) dateValue(task.deadline, "task.deadline");
+  var milestone = task.milestoneId ? findById(projection.milestones, task.milestoneId) : null;
+  if (task.milestoneId && !milestone) fail("task.milestoneId", "must reference a Milestone");
+  if (milestone && !task.goalId) task.goalId = milestone.goalId;
+  if (milestone && task.goalId !== milestone.goalId)
+    fail("task.hierarchy", "Goal must own the selected Milestone");
+  if (task.goalId && !findById(projection.goals, task.goalId))
+    fail("task.goalId", "must reference a Goal");
+}
+
 function scheduledOn(routine, dailyXpDate) {
   var date = dateValue(dailyXpDate, "dailyXpDate");
   if (dailyXpDate < routine.startDate || (routine.endDate && dailyXpDate > routine.endDate)) return false;
@@ -151,6 +171,9 @@ function decide(projection, command) {
   var entity;
   if (input.type === "goal.create") {
     entity = initializeEntity(plan, input.goal, "goal");
+    required(entity.primarySkill, "goal.primarySkill");
+    required(entity.reason, "goal.reason");
+    if (entity.targetDate) dateValue(entity.targetDate, "goal.targetDate");
     entity.status = entity.status || "active";
     if (GOAL_STATUSES.indexOf(entity.status) === -1) fail("goal.status", "is invalid");
     return freeze({ events: [intent("goal.created", entity)] });
@@ -160,14 +183,18 @@ function decide(projection, command) {
     if (!findById(plan.goals, entity.goalId)) fail("milestone.goalId", "must reference a Goal");
     if (!entity.measurement || MEASUREMENT_TYPES.indexOf(entity.measurement.type) === -1)
       fail("milestone.measurement", "is invalid");
+    if (!Number.isInteger(entity.significance) || entity.significance < 1)
+      fail("milestone.significance", "must be a positive integer");
+    if (entity.measurement.type !== "binary" &&
+        (typeof entity.measurement.target !== "number" || !isFinite(entity.measurement.target) ||
+          entity.measurement.target <= 0))
+      fail("milestone.measurement.target", "must be a positive number");
     entity.status = "open";
     return freeze({ events: [intent("milestone.created", entity)] });
   }
   if (input.type === "task.create") {
     entity = initializeEntity(plan, input.task, "task");
-    if (entity.goalId && !findById(plan.goals, entity.goalId)) fail("task.goalId", "must reference a Goal");
-    if (entity.milestoneId && !findById(plan.milestones, entity.milestoneId))
-      fail("task.milestoneId", "must reference a Milestone");
+    validateTask(plan, entity);
     entity.status = "open";
     return freeze({ events: [intent("task.created", entity)] });
   }
@@ -194,6 +221,27 @@ function decide(projection, command) {
         events.push(intent("occurrence.created", occurrenceFromRoutine(
           routine, input.dailyXpDate, key, key
         ), key));
+      }
+      var missedCount = plan.occurrences.filter(function(occurrence) {
+        return occurrence.routineId === routine.id && (occurrence.status === "overdue" ||
+          (occurrence.status === "open" && occurrence.dailyXpDate < input.dailyXpDate && routine.carryover));
+      }).length;
+      var proposalId = "adaptive:reschedule:" + routine.id;
+      var priorProposal = findById(plan.proposals, proposalId);
+      var mayOffer = !priorProposal || (priorProposal.status === "dismissed" &&
+        priorProposal.dismissedUntil <= input.dailyXpDate);
+      if (missedCount >= 3 && mayOffer) {
+        events.push(intent("proposal.offered", {
+          id: proposalId,
+          kind: "adaptive",
+          status: "pending",
+          explanation: "Three unfinished occurrences suggest a smaller daily plan.",
+          commands: [{
+            type: "routine.edit", id: routine.id, scope: "today_and_future",
+            dailyXpDate: input.dailyXpDate,
+            changes: { expectedMinutes: Math.max(15, Math.round(routine.expectedMinutes * 0.75)) }
+          }]
+        }));
       }
     });
     return freeze({ events: events });
@@ -328,7 +376,9 @@ function decide(projection, command) {
     if (!removable) fail(input.entityType + ".id", "was not found");
     var hasHistory = removable.status !== "open" && removable.status !== "active";
     if (input.entityType === "milestone")
-      hasHistory = hasHistory || removable.lockedSignificance !== undefined || removable.progress !== undefined;
+      hasHistory = hasHistory || removable.lockedSignificance !== undefined || removable.progress !== undefined ||
+        plan.tasks.some(function(item) { return item.milestoneId === input.id; }) ||
+        plan.routines.some(function(item) { return item.milestoneId === input.id; });
     if (input.entityType === "routine")
       hasHistory = hasHistory || plan.occurrences.some(function(item) { return item.routineId === input.id; });
     if (input.entityType === "goal")
@@ -408,7 +458,8 @@ function projectIntents(projection, intents) {
       var updatedOccurrence = findById(next.occurrences, event.payload.id);
       if (updatedOccurrence && isUntouchedOccurrence(updatedOccurrence))
         applyChanges(updatedOccurrence, event.payload.changes);
-    } else if (event.type === "planning.proposal.dismissed" || event.type === "planning.proposal.accepted") {
+    } else if (event.type === "planning.proposal.offered" || event.type === "planning.proposal.dismissed" ||
+        event.type === "planning.proposal.accepted") {
       next.proposals = replace(next.proposals, event.payload);
     } else if (event.type === "planning.task.transitioned") {
       var transitionedTask = findById(next.tasks, event.payload.id);
