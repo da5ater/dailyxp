@@ -19,6 +19,8 @@ Item {
   readonly property int probeCount: envelope.payload.probeEvents.length
   property var journal: null
   property bool journalReady: false
+  property string systemTimezone: ""
+  readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
   property bool saving: false
   property string errorMessage: ""
@@ -53,6 +55,19 @@ Item {
   function dayBoundaryMinutesFromConfig() {
     var value = Number(pluginSettings().dayBoundaryMinutes)
     return Number.isInteger(value) && value >= 0 && value <= 1439 ? value : 240
+  }
+
+  function acceptTimezonePath(raw) {
+    var path = String(raw || "").trim()
+    var marker = "/zoneinfo/"
+    var index = path.indexOf(marker)
+    var zone = index >= 0 ? path.slice(index + marker.length) : ""
+    if (EventModel.isIanaTimezone(zone)) {
+      systemTimezone = zone
+      return
+    }
+    if (errorMessage === "") errorMessage = "Could not determine the system IANA timezone from /etc/localtime"
+    console.warn("dailyxp/state", errorMessage)
   }
 
   function acceptPrimary(raw) {
@@ -117,16 +132,21 @@ Item {
   }
 
   function addProbe() {
-    if (!ready || !journalReady || saving) return
+    if (!ready || !recordingReady || saving) return
     try {
-      var nowUtc = new Date().toISOString()
+      var now = new Date()
+      var nowUtc = now.toISOString()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
       var eventId = EventModel.uuidV4()
       var domainEvent = EventModel.createEvent({
         eventId: eventId,
         deviceId: journal.deviceId,
         type: "foundation.probed",
         occurredAtUtc: nowUtc,
-        timezone: EventModel.systemTimezone(),
+        localDateTime: localContext.localDateTime,
+        timezone: localContext.timezone,
+        utcOffsetMinutes: localContext.utcOffsetMinutes,
+        systemTimezoneVerified: true,
         dayBoundaryMinutes: configuredDayBoundaryMinutes,
         occurrenceKey: null,
         payload: { probeId: eventId }
@@ -163,6 +183,19 @@ Item {
       root._backupRead = false
       primaryFile.reload()
       backupFile.reload()
+    }
+  }
+
+  Process {
+    id: timezonePathProcess
+    command: ["readlink", "-f", "/etc/localtime"]
+    running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.acceptTimezonePath(text)
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && root.systemTimezone === "") root.acceptTimezonePath("")
     }
   }
 
@@ -204,5 +237,8 @@ Item {
     onSaveFailed: function(error) { root.failSave("backup", error) }
   }
 
-  Component.onCompleted: ensureStateDir.running = true
+  Component.onCompleted: {
+    ensureStateDir.running = true
+    timezonePathProcess.running = true
+  }
 }

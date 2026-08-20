@@ -40,6 +40,28 @@ test("freezes UTC, timezone, offset, local time, and DailyXP date on an event", 
   assert.equal(Object.isFrozen(created), true);
 });
 
+test("derives a verified local context from the system clock", () => {
+  const timezone = EventModel.systemTimezone();
+  const instant = new Date("2026-08-20T00:30:00.000Z");
+  const context = EventModel.localSystemContext(instant, timezone);
+  const created = EventModel.createEvent({
+    eventId: EVENT_ID,
+    deviceId: DEVICE_ID,
+    type: "foundation.probed",
+    occurredAtUtc: instant.toISOString(),
+    localDateTime: context.localDateTime,
+    timezone: context.timezone,
+    utcOffsetMinutes: context.utcOffsetMinutes,
+    systemTimezoneVerified: true,
+    dayBoundaryMinutes: 240,
+    occurrenceKey: null,
+    payload: {}
+  });
+
+  assert.equal(created.context.timezone, timezone);
+  assert.equal(created.context.utcOffsetMinutes, context.utcOffsetMinutes);
+});
+
 test("computes the DailyXP date without consulting the current timezone", () => {
   assert.equal(EventModel.dailyXpDate("2026-08-20T03:59:59.999", 240), "2026-08-19");
   assert.equal(EventModel.dailyXpDate("2026-08-20T04:00:00.000", 240), "2026-08-20");

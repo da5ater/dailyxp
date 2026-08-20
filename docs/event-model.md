@@ -55,9 +55,12 @@ both envelopes are damaged, or the embedded journal is invalid or unsupported,
 startup stays available with an actionable error and does not write either
 source file. The panel disables recording until a valid journal is ready.
 
-The runtime uses the system IANA timezone and reads `dayBoundaryMinutes` from
-the plugin entry in `shell.json`, defaulting to 240 (04:00). The value is
-captured on each new event; changing it affects future events only.
+The QML runtime has no `Intl` API, so the service resolves the `/etc/localtime`
+target with unprivileged coreutils `readlink`, then derives wall time and offset
+from the system `Date`. It refuses recording when it cannot prove an IANA zone.
+It reads `dayBoundaryMinutes` from the plugin entry in `shell.json`, defaulting
+to 240 (04:00). The value is captured on each new event; changing it affects
+future events only.
 
 ## Verification
 

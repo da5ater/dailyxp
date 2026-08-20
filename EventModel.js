@@ -44,6 +44,8 @@ function zoneContext(occurredAtUtc, timezone) {
   var zone = String(timezone || "");
   if (!IANA_TIMEZONE_PATTERN.test(zone)) fail("timezone", "must be an IANA timezone name such as Africa/Cairo");
   var formatter;
+  if (typeof Intl === "undefined" || !Intl.DateTimeFormat)
+    fail("timezone", "runtime cannot resolve arbitrary IANA timezone rules");
   try {
     formatter = new Intl.DateTimeFormat("en-CA", {
       timeZone: zone,
@@ -69,9 +71,29 @@ function zoneContext(occurredAtUtc, timezone) {
 }
 
 function systemTimezone() {
+  if (typeof Intl === "undefined" || !Intl.DateTimeFormat) return "";
   var zone = String(Intl.DateTimeFormat().resolvedOptions().timeZone || "");
   if (!IANA_TIMEZONE_PATTERN.test(zone)) return "Etc/UTC";
   return zone;
+}
+
+function isIanaTimezone(value) {
+  return IANA_TIMEZONE_PATTERN.test(String(value || ""));
+}
+
+function localSystemContext(date, timezone) {
+  var instant = date instanceof Date ? date : new Date(date);
+  if (isNaN(instant.getTime())) fail("date", "must be a valid instant");
+  if (!isIanaTimezone(timezone)) fail("timezone", "must be an IANA timezone name");
+  function padded(value, width) { return String(value).padStart(width, "0"); }
+  return {
+    timezone: String(timezone),
+    localDateTime: padded(instant.getFullYear(), 4) + "-" + padded(instant.getMonth() + 1, 2) + "-" +
+      padded(instant.getDate(), 2) + "T" + padded(instant.getHours(), 2) + ":" +
+      padded(instant.getMinutes(), 2) + ":" + padded(instant.getSeconds(), 2) + "." +
+      padded(instant.getMilliseconds(), 3),
+    utcOffsetMinutes: -instant.getTimezoneOffset()
+  };
 }
 
 function localParts(value) {
@@ -128,9 +150,14 @@ function deepFreeze(value) {
 function createEvent(input) {
   var source = input || {};
   var eventId = source.eventId || uuidV4();
-  var resolved = zoneContext(source.occurredAtUtc, source.timezone);
-  var suppliedLocalDateTime = source.localDateTime === undefined ? resolved.localDateTime : source.localDateTime;
-  var suppliedOffset = source.utcOffsetMinutes === undefined ? resolved.utcOffsetMinutes : source.utcOffsetMinutes;
+  var resolved = null;
+  try {
+    resolved = zoneContext(source.occurredAtUtc, source.timezone);
+  } catch (error) {
+    if (source.systemTimezoneVerified !== true) throw error;
+  }
+  var suppliedLocalDateTime = source.localDateTime === undefined && resolved ? resolved.localDateTime : source.localDateTime;
+  var suppliedOffset = source.utcOffsetMinutes === undefined && resolved ? resolved.utcOffsetMinutes : source.utcOffsetMinutes;
   var frozenOccurrenceKey = source.occurrenceKey === undefined || source.occurrenceKey === null
     ? null : String(source.occurrenceKey);
   var candidate = {
@@ -150,7 +177,7 @@ function createEvent(input) {
     payload: cloneJson(source.payload)
   };
   validateEvent(candidate);
-  if (candidate.localDateTime !== resolved.localDateTime || candidate.context.utcOffsetMinutes !== resolved.utcOffsetMinutes)
+  if (resolved && (candidate.localDateTime !== resolved.localDateTime || candidate.context.utcOffsetMinutes !== resolved.utcOffsetMinutes))
     fail("event.context.timezone", "does not match the timezone rules at occurredAtUtc");
   return deepFreeze(candidate);
 }
@@ -316,6 +343,8 @@ if (typeof module !== "undefined" && module.exports) {
     uuidV4: uuidV4,
     zoneContext: zoneContext,
     systemTimezone: systemTimezone,
+    isIanaTimezone: isIanaTimezone,
+    localSystemContext: localSystemContext,
     dailyXpDate: dailyXpDate,
     createEvent: createEvent,
     validateEvent: validateEvent,

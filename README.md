@@ -12,8 +12,8 @@ workflows arrive in later tickets. The versioned offline journal contract is doc
 ## Requirements
 
 - Omarchy 4 / Quattro with the Omarchy shell plugin host
-- `mkdir` from GNU coreutils, used without root access to create the XDG state
-  directory
+- `mkdir` and `readlink` from GNU coreutils, used without root access to create
+  the XDG state directory and resolve the system IANA timezone
 
 DailyXP starts no external daemon, installer, privileged command, or second
 Quickshell process. Its headless QML service runs once inside the existing

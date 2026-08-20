@@ -86,7 +86,7 @@ Panel {
           text: root.stateStore && root.stateStore.saving ? "Saving…" : "Add persistence probe"
           focusable: true
           bordered: true
-          enabled: root.stateStore && root.stateStore.ready && root.stateStore.journalReady && !root.stateStore.saving
+          enabled: root.stateStore && root.stateStore.ready && root.stateStore.recordingReady && !root.stateStore.saving
           Layout.alignment: Qt.AlignHCenter
           onClicked: root.stateStore.addProbe()
         }
