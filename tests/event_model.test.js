@@ -133,7 +133,8 @@ test("DST and current Day Boundary changes cannot move frozen history", () => {
 });
 
 test("projection maps safely retain prototype-like valid keys", () => {
-  const constructorEvent = event({ type: "constructor", occurrenceKey: "__proto__" });
+  const payload = JSON.parse('{"__proto__":{"kept":true},"constructor":"value","prototype":{"nested":1}}');
+  const constructorEvent = event({ type: "constructor", occurrenceKey: "__proto__", payload });
   const projection = EventModel.rebuildProjection({
     schemaVersion: 1,
     deviceId: DEVICE_ID,
@@ -142,6 +143,12 @@ test("projection maps safely retain prototype-like valid keys", () => {
 
   assert.equal(projection.countsByType.constructor, 1);
   assert.deepEqual(projection.uniqueOccurrenceKeys, ["__proto__"]);
+
+  const journal = EventModel.append(EventModel.createJournal(DEVICE_ID), constructorEvent);
+  const restored = EventModel.loadJournal(EventModel.exportJournal(journal));
+  assert.equal(restored.ok, true);
+  assert.deepEqual(restored.journal.events[0].payload, payload);
+  assert.equal(Object.prototype.hasOwnProperty.call(restored.journal.events[0].payload, "__proto__"), true);
 });
 
 test("occurrence identity is based on its frozen date, not later settings", () => {

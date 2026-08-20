@@ -137,7 +137,11 @@ function cloneJson(value) {
   if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map(cloneJson);
   var copy = {};
-  Object.keys(value).forEach(function(key) { copy[key] = cloneJson(value[key]); });
+  Object.keys(value).forEach(function(key) {
+    Object.defineProperty(copy, key, {
+      value: cloneJson(value[key]), writable: true, enumerable: true, configurable: true
+    });
+  });
   return copy;
 }
 
