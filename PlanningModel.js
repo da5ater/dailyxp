@@ -148,12 +148,14 @@ function validateRoutine(projection, routine) {
   }
 }
 
-function occurrenceEditableChanges(changes) {
-  var editable = {};
-  ["title", "expectedMinutes", "primarySkill", "goalId", "milestoneId"].forEach(function(key) {
-    if (Object.prototype.hasOwnProperty.call(changes, key)) editable[key] = clone(changes[key]);
-  });
-  return editable;
+function occurrenceSnapshot(routine) {
+  return {
+    title: routine.title,
+    expectedMinutes: routine.expectedMinutes,
+    primarySkill: routine.primarySkill,
+    goalId: routine.goalId || null,
+    milestoneId: routine.milestoneId || null
+  };
 }
 
 function validateTask(projection, task) {
@@ -168,6 +170,7 @@ function validateTask(projection, task) {
 
 function validateProposal(proposal) {
   required(proposal.id, "proposal.id");
+  required(proposal.explanation, "proposal.explanation");
   if (["template", "adaptive"].indexOf(proposal.kind) === -1) fail("proposal.kind", "is invalid");
   if (!Array.isArray(proposal.commands)) fail("proposal.commands", "must be an array");
 }
@@ -322,7 +325,7 @@ function decide(projection, command) {
       "schedule", "primarySkill", "goalId", "milestoneId"
     ], "routine.changes");
     validateRoutine(plan, effectiveRoutine);
-    var occurrenceChanges = occurrenceEditableChanges(changes);
+    var occurrenceChanges = occurrenceSnapshot(effectiveRoutine);
     if (input.scope !== "today") {
       effectiveRoutine.revision += 1;
       editEvents.push(intent("routine.updated", effectiveRoutine));
@@ -405,7 +408,7 @@ function decide(projection, command) {
       "title", "estimateMinutes", "urgency", "deadline", "primarySkill", "goalId", "milestoneId"
     ], "task.changes");
     validateTask(plan, updatedTask);
-    return freeze({ events: [intent("task.updated", { id: input.id, changes: clone(input.changes || {}) })] });
+    return freeze({ events: [intent("task.updated", updatedTask)] });
   }
   if (input.type === "goal.transition") {
     var goal = findById(plan.goals, input.id);
@@ -532,8 +535,7 @@ function projectIntents(projection, intents) {
       var transitionedTask = findById(next.tasks, event.payload.id);
       if (transitionedTask) transitionedTask.status = event.payload.status;
     } else if (event.type === "planning.task.updated") {
-      var updatedTask = findById(next.tasks, event.payload.id);
-      if (updatedTask) applyChanges(updatedTask, event.payload.changes);
+      next.tasks = replace(next.tasks, event.payload);
     } else if (event.type === "planning.goal.transitioned") {
       var transitionedGoal = findById(next.goals, event.payload.id);
       if (transitionedGoal) transitionedGoal.status = event.payload.status;

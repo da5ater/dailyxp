@@ -244,6 +244,31 @@ test("Goal and Task edits preserve required fields and hierarchy", () => {
     changes: { status: "completed" } }), /task.changes/);
 });
 
+test("edit events persist Goal links derived from selected Milestones", () => {
+  let plan = PlanningModel.emptyProjection();
+  plan = apply(plan, { type: "goal.create", goal: { id: "goal-derived", title: "Derived Goal",
+    status: "active", targetDate: null, primarySkill: "backend/study", reason: "Keep hierarchy" } });
+  plan = apply(plan, { type: "milestone.create", milestone: { id: "milestone-derived",
+    goalId: "goal-derived", title: "Derived milestone", measurement: { type: "binary" }, significance: 2 } });
+  plan = apply(plan, { type: "task.create", task: { id: "task-derived", title: "Standalone",
+    estimateMinutes: 30, urgency: "normal", deadline: null, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  plan = apply(plan, { type: "task.edit", id: "task-derived",
+    changes: { milestoneId: "milestone-derived" } });
+  assert.equal(plan.tasks[0].goalId, "goal-derived");
+
+  plan = apply(plan, { type: "routine.create", routine: { id: "routine-derived", title: "Routine",
+    expectedMinutes: 30, startDate: "2026-08-20", endDate: null, restDates: [], carryover: false,
+    schedule: { type: "weekdays", weekdays: [4] }, primarySkill: "backend/study",
+    goalId: null, milestoneId: null } });
+  plan = apply(plan, { type: "day.advance", dailyXpDate: "2026-08-20" });
+  plan = apply(plan, { type: "routine.edit", id: "routine-derived", scope: "today",
+    dailyXpDate: "2026-08-20", changes: { milestoneId: "milestone-derived" } });
+  assert.equal(plan.routines[0].goalId, null);
+  assert.equal(plan.occurrences[0].goalId, "goal-derived");
+  assert.equal(plan.occurrences[0].milestoneId, "milestone-derived");
+});
+
 test("schedule edits remove newly ineligible work and create newly eligible work", () => {
   let plan = PlanningModel.emptyProjection();
   plan = apply(plan, { type: "routine.create", routine: { id: "routine-scope", title: "Study",
@@ -301,6 +326,9 @@ test("dismissed adaptive proposals stay suppressed for a required interval", () 
   assert.equal(suppressed.suppressed, true);
   assert.equal(suppressed.preview, null);
   assert.equal(available.preview.id, proposal.id);
+  assert.throws(() => PlanningModel.decide(plan, { type: "proposal.preview",
+    proposal: { id: "no-reason", kind: "adaptive", commands: [] }, dailyXpDate: "2026-08-28" }),
+  /proposal.explanation/);
 });
 
 test("three repeated misses offer one smaller rescheduling Planning Proposal", () => {
