@@ -17,8 +17,18 @@ Mohamed owns product decisions, approval, and the final decision to merge.
 - Use chat for product-decision batches, genuine blockers, and approval-ready
   pull-request handoffs.
 - A technical ticket is delivered through a feature branch and draft pull
-  request. Review it against both repository standards and its ticket, fix
-  findings, and repeat review until no blocking findings remain.
+  request. After implementation and verification, run the `simplify` skill on
+  the ticket's changed code, then run applicable codebase-improvement skills
+  before formal review. These passes must preserve accepted behavior and ticket
+  scope. Record significant findings and fixes on the technical issue.
+- An architecture-improvement pass may recommend follow-up work, but it must not
+  silently expand the active ticket. Correctness, security, data-loss, and
+  acceptance-criteria risks found by that pass are fixed before review; broader
+  refactors return to Mohamed as a decision or a separately approved technical
+  ticket.
+- After the improvement passes, review the pull request against both repository
+  standards and its ticket, fix findings, and repeat review until no blocking
+  findings remain.
 - Branch creation, commits, pushes, and draft pull requests are authorized for
   approved tickets. Merging always requires Mohamed to explicitly say `merge`.
 - Every architecture, implementation, and code review involving AWS must ask
