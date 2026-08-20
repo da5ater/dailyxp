@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.da5ater.dailyxp",
+  "name": "DailyXP",
+  "version": "0.1.0",
+  "author": "Mohamed Osama Mohamed Khater",
+  "description": "Gamify focused work, goals, habits, recovery, and friendly competition.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "DailyXP",
+    "description": "DailyXP progress and quick actions",
+    "category": "Productivity",
+    "allowMultiple": false
+  }
+}
