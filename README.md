@@ -6,7 +6,8 @@ habits, recovery, social competition, and a persistent comeback story.
 This repository currently contains the installable Omarchy Quattro foundation:
 a bar widget, its nested panel, and a fault-tolerant local state primitive. The
 probe button is intentionally temporary; product workflows arrive in later
-tickets.
+tickets. The versioned offline journal contract is documented in
+[`docs/event-model.md`](docs/event-model.md).
 
 ## Requirements
 
