@@ -67,7 +67,16 @@ BarWidget {
       if (!root.stateStore) return "unavailable"
       var applied = root.stateStore.ensureCurrentPlanningDay()
       if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
-      return applied ? "ok" : "busy"
+      return applied ? "requested" : "not-started"
+    }
+    function planningDayStatus(): string {
+      if (!root.stateStore) return JSON.stringify({ available: false })
+      return JSON.stringify({
+        available: true,
+        saving: root.stateStore.saving,
+        error: root.stateStore.errorMessage,
+        lastAdvancedDailyXpDate: root.stateStore.planningProjection.lastAdvancedDailyXpDate
+      })
     }
     function open(): void { root.open() }
     function close(): void { root.close() }
