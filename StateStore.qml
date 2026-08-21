@@ -9,6 +9,7 @@ import "PlanningJournal.js" as PlanningJournal
 import "PlanningModel.js" as PlanningModel
 import "ProgressionJournal.js" as ProgressionJournal
 import "ProgressionModel.js" as ProgressionModel
+import "RecoveryModel.js" as RecoveryModel
 import "SessionJournal.js" as SessionJournal
 import "SessionModel.js" as SessionModel
 import "StateModel.js" as StateModel
@@ -35,6 +36,7 @@ Item {
   property var sessionConfirmation: null
   property var habitProjection: HabitModel.emptyProjection()
   property var progressionProjection: ProgressionModel.emptyProjection()
+  property var recoveryProjection: RecoveryModel.emptyProjection()
   property var storyProjection: StoryModel.emptyProjection()
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
@@ -148,6 +150,7 @@ Item {
     sessionProjection = SessionModel.project(journal.events)
     habitProjection = HabitModel.project(journal.events)
     progressionProjection = ProgressionModel.project(journal.events)
+    recoveryProjection = RecoveryModel.project(journal.events)
     storyProjection = StoryModel.project(journal.events, {
       goals: planningProjection.goals,
       milestones: planningProjection.milestones,
@@ -511,6 +514,8 @@ Item {
         ? HabitModel.project(root._pendingJournal.events) : HabitModel.emptyProjection()
       root.progressionProjection = root._pendingJournal
         ? ProgressionModel.project(root._pendingJournal.events) : ProgressionModel.emptyProjection()
+      root.recoveryProjection = root._pendingJournal
+        ? RecoveryModel.project(root._pendingJournal.events) : RecoveryModel.emptyProjection()
       root.storyProjection = root._pendingJournal
         ? StoryModel.project(root._pendingJournal.events, {
             goals: root.planningProjection.goals,
