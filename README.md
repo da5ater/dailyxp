@@ -11,6 +11,9 @@ documented in [`docs/event-model.md`](docs/event-model.md). The PLAN-001 model
 now provides durable Goals, Milestones, Tasks, Routines, Task Occurrences,
 carryover, and consent-gated proposals; see
 [`docs/planning-model.md`](docs/planning-model.md).
+FOCUS-001 adds restart-safe selected work and focused Sessions with pause,
+resume, confirmation, correction, inactivity, cross-boundary, and competitive
+cap rules; see [`docs/session-model.md`](docs/session-model.md).
 
 ## Requirements
 
@@ -76,6 +79,12 @@ confirmation:
 ```sh
 omarchy-shell io.github.da5ater.dailyxp ensurePlanningDay
 omarchy-shell io.github.da5ater.dailyxp planningDayStatus
+```
+
+Inspect the current selected work and Session state without opening the panel:
+
+```sh
+omarchy-shell io.github.da5ater.dailyxp sessionStatus
 ```
 
 ## License
