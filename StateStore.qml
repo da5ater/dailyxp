@@ -249,8 +249,10 @@ Item {
         }
         input.dailySlices = SessionModel.dailySlicesAt(sessionProjection.activeSession, input.atUtc,
           function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+        var correctionHorizonUtc = new Date(
+          new Date(input.atUtc).getTime() + 24 * 60 * 60000).toISOString()
         input.sliceTimeline = SessionModel.dailyXpTimelineAt(
-          sessionProjection.activeSession.startedAtUtc, input.atUtc,
+          sessionProjection.activeSession.startedAtUtc, correctionHorizonUtc,
           function(atUtc) { return root.sessionDailyXpDate(atUtc) })
       }
       if (input.type === "session.correct" && input.dailySlices === undefined) {

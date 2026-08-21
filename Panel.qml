@@ -40,8 +40,8 @@ Panel {
     })
   }
 
-  function startSession() {
-    var task = selectedTask()
+  function startSession(forceFree) {
+    var task = forceFree === true ? null : selectedTask()
     var freePlanned = Number(freePlanField.text)
     var freePlannedMinutes = Number.isInteger(freePlanned) && freePlanned > 0 ? freePlanned : null
     stateStore.applySessionCommand({
@@ -132,7 +132,7 @@ Panel {
       ? recentSession.focusedMilliseconds + deltaMinutes * 60000 : exactMilliseconds
     try {
       segments = SessionModel.resizeFocusedSegments(
-        segments, targetMilliseconds, recentSession.finishedAtUtc)
+        segments, targetMilliseconds, new Date().toISOString())
     } catch (error) {
       return null
     }
@@ -474,7 +474,6 @@ Panel {
 
           TextField {
             id: freePlanField
-            visible: !root.selection
             width: Style.space(140)
             placeholderText: "planned min (blank = open)"
             foreground: root.contentForeground
@@ -489,7 +488,17 @@ Panel {
             bordered: true
             enabled: root.stateStore && root.stateStore.recordingReady && !root.stateStore.saving
             Layout.alignment: Qt.AlignHCenter
-            onClicked: root.startSession()
+            onClicked: root.startSession(false)
+          }
+
+          Button {
+            visible: root.selection
+            text: "Start free Session"
+            focusable: true
+            bordered: false
+            enabled: root.stateStore && root.stateStore.recordingReady && !root.stateStore.saving
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: root.startSession(true)
           }
 
           Button {

@@ -566,3 +566,37 @@ test("frozen timeline re-slices a correction across its original Day Boundary", 
     { dailyXpDate: "2026-08-21", milliseconds: 10 * 60000 }
   ]);
 });
+
+test("a frozen correction horizon attributes an extension and updates its finish", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: {
+      id: "session-extension", taskId: null, primarySkill: "general/focus",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T03:40:00.000Z"
+    }
+  }).projection;
+  const timeline = SessionModel.dailyXpTimelineAt(
+    "2026-08-21T03:40:00.000Z", "2026-08-22T03:50:00.000Z",
+    atUtc => atUtc < "2026-08-21T04:00:00.000Z" ? "2026-08-20" : "2026-08-21");
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T03:50:00.000Z",
+    sliceContext: { timezone: "Africa/Cairo", dayBoundaryMinutes: 240 },
+    sliceTimeline: timeline,
+    dailySlices: [{ dailyXpDate: "2026-08-20", milliseconds: 10 * 60000 }]
+  }).projection;
+  const segments = [{
+    startedAtUtc: "2026-08-21T03:40:00.000Z", endedAtUtc: "2026-08-21T04:10:00.000Z"
+  }];
+  state = apply(state, {
+    type: "session.correct", id: "session-extension", atUtc: "2026-08-21T05:00:00.000Z",
+    segments: segments,
+    dailySlices: SessionModel.dailySlicesFromTimeline(segments, timeline),
+    competitiveChangeConfirmed: true
+  }).projection;
+
+  assert.equal(state.sessions[0].finishedAtUtc, "2026-08-21T04:10:00.000Z");
+  assert.deepEqual(state.sessions[0].dailySlices, [
+    { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 10 * 60000 }
+  ]);
+});
