@@ -167,6 +167,23 @@ Panel {
     requestCorrection(0, { plannedMinutes: revised === 0 ? null : revised })
   }
 
+  function requestExactCorrection(durationText, skillText, plannedText) {
+    if (!recentSession) return
+    var targetMinutes = Number(durationText)
+    if (!isFinite(targetMinutes) || targetMinutes <= 0) return
+    var skill = String(skillText || "").trim()
+    var planned = String(plannedText || "").trim().toLowerCase()
+    var changes = ({})
+    if (skill !== "") changes.primarySkill = skill
+    if (planned === "open") changes.plannedMinutes = null
+    else if (planned !== "") {
+      var plannedMinutes = Number(planned)
+      if (!Number.isInteger(plannedMinutes) || plannedMinutes < 1) return
+      changes.plannedMinutes = plannedMinutes
+    }
+    requestCorrection(targetMinutes - recentSession.focusedMilliseconds / 60000, changes)
+  }
+
   function continueCorrection(plannedDecision, confirmCompetitiveChange) {
     if (!pendingCorrectionCommand) return
     var command = JSON.parse(JSON.stringify(pendingCorrectionCommand))
@@ -251,6 +268,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: correctionDuration.activeFocus || correctionSkill.activeFocus || correctionPlanned.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -278,7 +296,9 @@ Panel {
 
         Text {
           visible: root.activeSession && root.activeSession.plannedMinutes !== null
-          text: visible ? "Plan: " + root.activeSession.plannedMinutes + " minutes" : ""
+          text: visible ? (root.sessionSummary && root.sessionSummary.plannedDurationPassed
+            ? "Plan passed · choose overtime credit when finishing"
+            : "Plan: " + root.activeSession.plannedMinutes + " minutes") : ""
           color: root.sessionSummary && root.sessionSummary.plannedDurationPassed ? Color.urgent : root.contentForeground
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.bodySmall
@@ -361,6 +381,7 @@ Panel {
               })
             }
           }
+
         }
 
         ColumnLayout {
@@ -478,6 +499,40 @@ Panel {
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.bodySmall
             Layout.alignment: Qt.AlignHCenter
+          }
+
+          RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            TextField {
+              id: correctionDuration
+              width: Style.space(82)
+              placeholderText: "exact min"
+              foreground: root.contentForeground
+              font.family: root.contentFontFamily
+              inputMethodHints: Qt.ImhFormattedNumbersOnly
+            }
+            TextField {
+              id: correctionSkill
+              width: Style.space(110)
+              placeholderText: "skill (optional)"
+              foreground: root.contentForeground
+              font.family: root.contentFontFamily
+            }
+            TextField {
+              id: correctionPlanned
+              width: Style.space(82)
+              placeholderText: "plan/open"
+              foreground: root.contentForeground
+              font.family: root.contentFontFamily
+            }
+            Button {
+              text: "Apply exact"
+              focusable: true
+              bordered: true
+              enabled: root.stateStore && !root.stateStore.saving && correctionDuration.text !== ""
+              onClicked: root.requestExactCorrection(
+                correctionDuration.text, correctionSkill.text, correctionPlanned.text)
+            }
           }
 
           RowLayout {

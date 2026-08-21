@@ -9,9 +9,11 @@ Task or awards XP.
 ## Selection and lifecycle
 
 Selecting a Task records intent without starting elapsed time. One scheduled
-reminder may become due and may be dismissed; starting the selected Task
-satisfies it. A Session may instead be free, may change its Task attachment,
-and may be planned or open-ended. Only one Session can be active. Running
+reminder may become due as an actionable desktop notification: Start begins
+the selected Task, Change Task opens the panel, and Dismiss records that
+choice. Starting the selected Task satisfies it. A Session may instead be free,
+may change its Task attachment and primary Skill, and may be planned or
+open-ended. Only one Session can be active. Running
 intervals start and end at persisted UTC instants, so pause, resume, shell
 restart, and offline time cannot double count focused duration.
 
@@ -27,8 +29,9 @@ Focused history and competitive eligibility remain separate:
   time while retaining per-day competitive slices.
 
 The runtime derives exact slices from the system timezone and configured Day
-Boundary. Frozen event context prevents later timezone, daylight-saving, or
-Day Boundary changes from rewriting history.
+Boundary, then freezes that timezone and boundary on the Session. Corrections
+reuse the frozen slicing context, so travel, daylight-saving, or later settings
+cannot rewrite historical competitive attribution.
 
 Finished Sessions can be corrected freely for 24 hours. Later changes are
 stored as explicit adjustments. Any change to competitive duration requires
@@ -41,8 +44,10 @@ the panel; left-click opens the compact Session controls. The controls use
 immediate host-button feedback and avoid decorative motion because starting,
 pausing, and resuming are frequent actions. The panel exposes Task selection,
 planned/open-ended choice, free Session start, attachment changes,
-pause/resume, finish, discard, reminder dismissal, recent history correction,
-and reason-specific confirmation choices.
+pause/resume, finish, discard, reminder dismissal, finished-history navigation,
+exact duration/Skill/planned correction, and reason-specific confirmation
+choices. Planned overtime is never competitively credited while running; the
+panel makes clear that the choice occurs before credit is awarded at Finish.
 
 For deterministic inspection through Omarchy IPC:
 

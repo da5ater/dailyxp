@@ -100,9 +100,11 @@ test("a free Session can change attachment or be discarded without completing wo
   }).projection;
 
   state = apply(state, {
-    type: "session.change_task", taskId: "task-dailyxp", atUtc: "2026-08-21T10:05:00.000Z"
+    type: "session.change_task", taskId: "task-dailyxp", primarySkill: "backend/build",
+    atUtc: "2026-08-21T10:05:00.000Z"
   }).projection;
   assert.equal(state.activeSession.taskId, "task-dailyxp");
+  assert.equal(state.activeSession.primarySkill, "backend/build");
 
   state = apply(state, { type: "session.discard", atUtc: "2026-08-21T10:10:00.000Z" }).projection;
   assert.equal(state.activeSession, null);
@@ -458,4 +460,58 @@ test("correction segments normalize excluded inactivity before changing duration
   assert.equal(state.sessions[0].focusedMilliseconds, 45 * 60000);
   assert.equal(state.sessions[0].competitiveMilliseconds, 45 * 60000);
   assert.deepEqual(state.sessions[0].inactiveIntervals, []);
+});
+
+test("included inactivity remains focused during a later correction", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: {
+      id: "session-included-inactivity", taskId: null, primarySkill: "general/focus",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T08:00:00.000Z"
+    }
+  }).projection;
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T09:00:00.000Z",
+    inactivityDecision: "include",
+    inactiveIntervals: [{
+      startedAtUtc: "2026-08-21T08:20:00.000Z", endedAtUtc: "2026-08-21T08:30:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 60 * 60000 }]
+  }).projection;
+
+  assert.equal(state.sessions[0].focusedMilliseconds, 60 * 60000);
+  assert.deepEqual(state.sessions[0].inactiveIntervals, []);
+  assert.equal(state.sessions[0].inactivityDecision, "include");
+  assert.equal(state.sessions[0].observedInactivityIntervals.length, 1);
+  assert.equal(SessionModel.focusedSegments(state.sessions[0], state.sessions[0].finishedAtUtc)
+    .reduce((total, segment) => total + new Date(segment.endedAtUtc).getTime() -
+      new Date(segment.startedAtUtc).getTime(), 0),
+  60 * 60000);
+});
+
+test("Session corrections retain their frozen timezone and Day Boundary", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: {
+      id: "session-frozen-slice", taskId: null, primarySkill: "general/focus",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T01:30:00.000Z"
+    }
+  }).projection;
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T02:30:00.000Z",
+    sliceContext: { timezone: "Africa/Cairo", dayBoundaryMinutes: 240 },
+    dailySlices: [{ dailyXpDate: "2026-08-20", milliseconds: 60 * 60000 }]
+  }).projection;
+  state = apply(state, {
+    type: "session.correct", id: "session-frozen-slice", atUtc: "2026-08-21T03:00:00.000Z",
+    sliceContext: { timezone: "America/New_York", dayBoundaryMinutes: 0 },
+    segments: [{
+      startedAtUtc: "2026-08-21T01:30:00.000Z", endedAtUtc: "2026-08-21T02:20:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-20", milliseconds: 50 * 60000 }],
+    competitiveChangeConfirmed: true
+  }).projection;
+
+  assert.deepEqual(state.sessions[0].sliceContext,
+    { timezone: "Africa/Cairo", dayBoundaryMinutes: 240 });
 });

@@ -3,6 +3,7 @@
 
 var PROJECTION_SCHEMA_VERSION = 1;
 var DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+var TIMEZONE_PATTERN = /^[A-Za-z_+-]+(?:\/[A-Za-z0-9_+.-]+)+$/;
 
 function fail(field, reason) {
   throw new Error(field + ": " + reason);
@@ -192,6 +193,16 @@ function validatedDailySlices(values, focusedMilliseconds) {
   return result;
 }
 
+function validatedSliceContext(value) {
+  if (value === undefined || value === null) return null;
+  if (!value || !TIMEZONE_PATTERN.test(String(value.timezone || "")))
+    fail("sliceContext.timezone", "must be an IANA timezone name");
+  if (!Number.isInteger(value.dayBoundaryMinutes) || value.dayBoundaryMinutes < 0 ||
+      value.dayBoundaryMinutes > 1439)
+    fail("sliceContext.dayBoundaryMinutes", "must be an integer from 0 through 1439");
+  return { timezone: value.timezone, dayBoundaryMinutes: value.dayBoundaryMinutes };
+}
+
 function primaryDailyXpDate(slices) {
   if (slices.length === 0) return null;
   return slices.slice().sort(function(left, right) {
@@ -321,6 +332,7 @@ function correctionOutcome(state, input) {
   validateCorrectionTimeline(state, session.id, revised.segments, changedAt);
   var revisedFields = revisedSessionFields(session, input.changes);
   var slices = validatedDailySlices(input.dailySlices, revised.focusedMilliseconds);
+  var sliceContext = validatedSliceContext(session.sliceContext || input.sliceContext);
   var plannedDecision = input.plannedDurationDecision || session.plannedDurationDecision;
   var plannedOvertime = revisedFields.plannedMinutes === null ? 0 :
     Math.max(0, revised.focusedMilliseconds - revisedFields.plannedMinutes * 60000);
@@ -370,6 +382,7 @@ function correctionOutcome(state, input) {
     competitiveAdjustments: competitiveAdjustments,
     plannedDurationDecision: plannedDecision,
     dailySlices: slices,
+    sliceContext: sliceContext,
     dailyXpDate: primaryDailyXpDate(slices),
     competitiveDeltaMilliseconds: competitiveDelta
   })] });
@@ -397,6 +410,7 @@ function finishOutcome(state, input) {
   if (overtime > 0 && decisions.indexOf(input.plannedDurationDecision) === -1)
     missingReasons.push("planned-duration");
   var slices = validatedDailySlices(input.dailySlices, focused);
+  var sliceContext = validatedSliceContext(input.sliceContext);
   var competitive = focused;
   if (overtime > 0 && input.plannedDurationDecision === "exclude-overtime") {
     competitive -= overtime;
@@ -422,8 +436,11 @@ function finishOutcome(state, input) {
     competitiveByDailyXpDate: allocation.byDate,
     plannedDurationDecision: input.plannedDurationDecision || null,
     rawFocusedMilliseconds: rawFocused,
-    inactiveIntervals: inactivity.intervals,
+    inactiveIntervals: input.inactivityDecision === "exclude" ? inactivity.intervals : [],
+    observedInactivityIntervals: inactivity.intervals,
+    inactivityDecision: inactivity.milliseconds > 0 ? input.inactivityDecision : null,
     dailySlices: slices,
+    sliceContext: sliceContext,
     dailyXpDate: primaryDailyXpDate(slices),
     competitiveAdjustments: adjustments
   })] });
@@ -500,8 +517,10 @@ function decide(projection, command) {
     if (!state.activeSession) fail("activeSession", "is required");
     ensureForward(state.activeSession, input.atUtc);
     if (input.taskId !== null) required(input.taskId, "taskId");
+    if (input.primarySkill !== undefined) required(input.primarySkill, "primarySkill");
     return freeze({ events: [intent("task.changed", {
-      id: state.activeSession.id, taskId: input.taskId, atUtc: input.atUtc
+      id: state.activeSession.id, taskId: input.taskId,
+      primarySkill: input.primarySkill, atUtc: input.atUtc
     })] });
   }
   if (input.type === "session.discard") {
@@ -596,8 +615,11 @@ function projectIntents(projection, intents) {
       next.activeSession.rawFocusedMilliseconds = event.payload.rawFocusedMilliseconds === undefined
         ? next.activeSession.focusedMilliseconds : event.payload.rawFocusedMilliseconds;
       next.activeSession.inactiveIntervals = clone(event.payload.inactiveIntervals || []);
+      next.activeSession.observedInactivityIntervals = clone(event.payload.observedInactivityIntervals || []);
+      next.activeSession.inactivityDecision = event.payload.inactivityDecision || null;
       next.activeSession.competitiveByDailyXpDate = clone(event.payload.competitiveByDailyXpDate || {});
       next.activeSession.dailySlices = clone(event.payload.dailySlices || []);
+      next.activeSession.sliceContext = clone(event.payload.sliceContext || null);
       next.activeSession.dailyXpDate = event.payload.dailyXpDate || null;
       next.activeSession.competitiveAdjustments = clone(event.payload.competitiveAdjustments || []);
       next.activeSession.plannedDurationDecision = event.payload.plannedDurationDecision || null;
@@ -609,6 +631,8 @@ function projectIntents(projection, intents) {
     } else if (event.type === "session.task.changed" && next.activeSession &&
         next.activeSession.id === event.payload.id) {
       next.activeSession.taskId = event.payload.taskId;
+      if (event.payload.primarySkill !== undefined)
+        next.activeSession.primarySkill = event.payload.primarySkill;
       next.activeSession.lastTransitionAtUtc = event.payload.atUtc;
     } else if (event.type === "session.discarded" && next.activeSession &&
         next.activeSession.id === event.payload.id) {
@@ -633,6 +657,7 @@ function projectIntents(projection, intents) {
         revisedSession.competitiveAdjustments = clone(event.payload.competitiveAdjustments);
         revisedSession.plannedDurationDecision = event.payload.plannedDurationDecision;
         revisedSession.dailySlices = clone(event.payload.dailySlices);
+        revisedSession.sliceContext = clone(event.payload.sliceContext || null);
         revisedSession.dailyXpDate = event.payload.dailyXpDate;
         revisedSession.lastRevisionKind = event.payload.kind;
         next.adjustments.push(clone(event.payload));

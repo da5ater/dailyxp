@@ -33,6 +33,8 @@ Item {
   property bool ready: false
   property bool saving: false
   property string errorMessage: ""
+  property string notifiedSelectionKey: ""
+  property string _reminderAction: ""
   readonly property int configuredDayBoundaryMinutes: dayBoundaryMinutesFromConfig()
   readonly property int configuredSelectionReminderMinutes: integerSetting("selectionReminderMinutes", 10, 0, 1440)
   readonly property int configuredInactivitySeconds: integerSetting("inactivitySeconds", 300, 60, 86400)
@@ -205,16 +207,23 @@ Item {
     }
   }
 
-  function sessionDailyXpDate(atUtc) {
-    var localContext = EventModel.localSystemContext(new Date(atUtc), systemTimezone)
-    return EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
+  function sessionDailyXpDate(atUtc, sliceContext) {
+    var context = sliceContext || {
+      timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes
+    }
+    var localContext = EventModel.zoneContext(atUtc, context.timezone)
+    return EventModel.dailyXpDate(localContext.localDateTime, context.dayBoundaryMinutes)
+  }
+
+  function planningTask(taskId) {
+    if (taskId === null || taskId === undefined) return null
+    var tasks = planningProjection.tasks || []
+    for (var i = 0; i < tasks.length; i += 1) if (tasks[i].id === taskId) return tasks[i]
+    return null
   }
 
   function planningTaskExists(taskId) {
-    if (taskId === null || taskId === undefined) return true
-    var tasks = planningProjection.tasks || []
-    for (var i = 0; i < tasks.length; i += 1) if (tasks[i].id === taskId) return true
-    return false
+    return taskId === null || taskId === undefined || planningTask(taskId) !== null
   }
 
   function validateSessionTaskReferences(command) {
@@ -233,13 +242,29 @@ Item {
       validateSessionTaskReferences(input)
       if (input.type === "selection.change" && input.reminderDelayMinutes === undefined)
         input.reminderDelayMinutes = configuredSelectionReminderMinutes
-      if (input.type === "session.finish" && input.dailySlices === undefined && sessionProjection.activeSession)
+      if (input.type === "session.change_task" && input.taskId !== null) {
+        var changedTask = planningTask(input.taskId)
+        input.primarySkill = changedTask.primarySkill
+      }
+      if (input.type === "session.finish" && input.dailySlices === undefined && sessionProjection.activeSession) {
+        input.sliceContext = {
+          timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes
+        }
         input.dailySlices = SessionModel.dailySlicesAt(sessionProjection.activeSession, input.atUtc,
-          function(atUtc) { return root.sessionDailyXpDate(atUtc) })
-      if (input.type === "session.correct" && input.dailySlices === undefined)
+          function(atUtc) { return root.sessionDailyXpDate(atUtc, input.sliceContext) })
+      }
+      if (input.type === "session.correct" && input.dailySlices === undefined) {
+        var correctedSession = null
+        var sessions = sessionProjection.sessions || []
+        for (var i = 0; i < sessions.length; i += 1)
+          if (sessions[i].id === input.id) correctedSession = sessions[i]
+        input.sliceContext = correctedSession && correctedSession.sliceContext
+          ? correctedSession.sliceContext
+          : { timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes }
         input.dailySlices = SessionModel.dailySlicesAt({
           segments: input.segments || [], inactiveIntervals: []
-        }, input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+        }, input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc, input.sliceContext) })
+      }
       var result = SessionModel.decide(sessionProjection, input)
       sessionConfirmation = result.confirmation || null
       if (result.events.length === 0) return true
@@ -275,8 +300,42 @@ Item {
 
   function checkSelectionReminder() {
     var selection = sessionProjection.selection
-    if (!selection || selection.reminderStatus !== "scheduled") return
-    applySessionCommand({ type: "selection.reminder.due", atUtc: new Date().toISOString() })
+    if (!selection) return
+    if (selection.reminderStatus === "scheduled") {
+      var nowUtc = new Date().toISOString()
+      if (new Date(nowUtc).getTime() < new Date(selection.reminderDueAtUtc).getTime()) return
+      applySessionCommand({ type: "selection.reminder.due", atUtc: nowUtc })
+      return
+    }
+    if (selection.reminderStatus !== "due" || notifiedSelectionKey === selection.selectedAtUtc ||
+        selectionReminderProcess.running) return
+    var task = planningTask(selection.taskId)
+    _reminderAction = ""
+    notifiedSelectionKey = selection.selectedAtUtc
+    selectionReminderProcess.command = [
+      "notify-send", "--app-name=DailyXP", "--urgency=normal", "--expire-time=0",
+      "--action=start=Start", "--action=change=Change Task", "--action=dismiss=Dismiss",
+      "Ready to focus?", task ? task.title : "Your selected Task is waiting."
+    ]
+    selectionReminderProcess.running = true
+  }
+
+  function handleSelectionReminderAction(action) {
+    var selectedAction = String(action || "").trim()
+    var selection = sessionProjection.selection
+    if (!selection || selection.reminderStatus !== "due") return
+    if (selectedAction === "start") {
+      var task = planningTask(selection.taskId)
+      if (!task) return
+      applySessionCommand({ type: "session.start", session: {
+        id: EventModel.uuidV4(), taskId: task.id, primarySkill: task.primarySkill,
+        plannedMinutes: task.estimateMinutes, startedAtUtc: new Date().toISOString()
+      } })
+    } else if (selectedAction === "change") {
+      Quickshell.execDetached(["omarchy-shell", "shell", "summon", "io.github.da5ater.dailyxp", "{}"])
+    } else {
+      applySessionCommand({ type: "selection.reminder.dismiss", atUtc: new Date().toISOString() })
+    }
   }
 
   function ensureCurrentPlanningDay() {
@@ -326,6 +385,16 @@ Item {
     }
   }
 
+  Process {
+    id: selectionReminderProcess
+    running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root._reminderAction = text
+    }
+    onExited: root.handleSelectionReminderAction(root._reminderAction)
+  }
+
   FileView {
     id: primaryFile
     path: root.primaryPath
@@ -350,6 +419,7 @@ Item {
       root.saving = false
       root.persisted()
       Qt.callLater(root.ensureCurrentPlanningDay)
+      Qt.callLater(root.checkSelectionReminder)
     }
     onSaveFailed: function(error) { root.failSave("primary", error) }
   }

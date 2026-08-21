@@ -20,6 +20,7 @@ cap rules; see [`docs/session-model.md`](docs/session-model.md).
 - Omarchy 4 / Quattro with the Omarchy shell plugin host
 - `mkdir` and `readlink` from GNU coreutils, used without root access to create
   the XDG state directory and resolve the system IANA timezone
+- `notify-send`, included by Omarchy, for actionable local Session reminders
 
 DailyXP starts no external daemon, installer, privileged command, or second
 Quickshell process. Its headless QML service runs once inside the existing
