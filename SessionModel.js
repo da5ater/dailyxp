@@ -194,6 +194,61 @@ function dailySlicesAt(session, atUtc, dateAtUtc) {
   }));
 }
 
+function dailyXpTimelineAt(startedAtUtc, endedAtUtc, dateAtUtc) {
+  if (typeof dateAtUtc !== "function") fail("dateAtUtc", "must be a function");
+  var cursor = utcMilliseconds(startedAtUtc, "startedAtUtc");
+  var end = utcMilliseconds(endedAtUtc, "endedAtUtc");
+  if (end <= cursor) fail("endedAtUtc", "must follow startedAtUtc");
+  function dateAt(milliseconds) {
+    var value = String(dateAtUtc(new Date(milliseconds).toISOString()) || "");
+    if (!DATE_PATTERN.test(value)) fail("dateAtUtc", "must return YYYY-MM-DD");
+    return value;
+  }
+  var timeline = [];
+  while (cursor < end) {
+    var currentDate = dateAt(cursor);
+    var low = cursor + 1;
+    var high = Math.min(end, cursor + 6 * 60 * 60000);
+    while (high < end && dateAt(high - 1) === currentDate)
+      high = Math.min(end, high + 6 * 60 * 60000);
+    if (dateAt(high - 1) === currentDate) low = high;
+    else while (low < high) {
+      var middle = Math.floor((low + high) / 2);
+      if (dateAt(middle) === currentDate) low = middle + 1;
+      else high = middle;
+    }
+    timeline.push({
+      dailyXpDate: currentDate,
+      startedAtUtc: new Date(cursor).toISOString(),
+      endedAtUtc: new Date(low).toISOString()
+    });
+    cursor = low;
+  }
+  return freeze(timeline);
+}
+
+function dailySlicesFromTimeline(values, timeline) {
+  var validated = validatedClosedSegments(values);
+  if (!Array.isArray(timeline) || timeline.length === 0)
+    fail("sliceTimeline", "must be a nonempty array");
+  var totals = Object.create(null);
+  validated.segments.forEach(function(segment) {
+    var segmentStart = utcMilliseconds(segment.startedAtUtc, "segments.startedAtUtc");
+    var segmentEnd = utcMilliseconds(segment.endedAtUtc, "segments.endedAtUtc");
+    timeline.forEach(function(bucket) {
+      var bucketStart = utcMilliseconds(bucket.startedAtUtc, "sliceTimeline.startedAtUtc");
+      var bucketEnd = utcMilliseconds(bucket.endedAtUtc, "sliceTimeline.endedAtUtc");
+      if (!DATE_PATTERN.test(String(bucket.dailyXpDate || "")) || bucketEnd <= bucketStart)
+        fail("sliceTimeline", "must contain valid dated intervals");
+      var overlap = Math.max(0, Math.min(segmentEnd, bucketEnd) - Math.max(segmentStart, bucketStart));
+      if (overlap > 0) totals[bucket.dailyXpDate] = (totals[bucket.dailyXpDate] || 0) + overlap;
+    });
+  });
+  return freeze(Object.keys(totals).sort().map(function(date) {
+    return { dailyXpDate: date, milliseconds: totals[date] };
+  }));
+}
+
 function validatedDailySlices(values, focusedMilliseconds) {
   if (values === undefined) return [];
   if (!Array.isArray(values) || values.length === 0) fail("dailySlices", "must be a nonempty array");
@@ -345,13 +400,16 @@ function revisedSessionFields(session, changes) {
   return revised;
 }
 
-function validateCorrectionTimeline(state, sessionId, segments, changedAt) {
+function validateCorrectionTimeline(state, session, segments, changedAt) {
   segments.forEach(function(segment) {
     if (utcMilliseconds(segment.endedAtUtc, "segments.endedAtUtc") > changedAt)
       fail("segments", "must not end after the correction");
+    if (utcMilliseconds(segment.startedAtUtc, "segments.startedAtUtc") <
+        utcMilliseconds(session.startedAtUtc, "session.startedAtUtc"))
+      fail("segments", "must not precede the recorded Session start");
   });
   (state.sessions || []).forEach(function(other) {
-    if (other.id === sessionId || other.status !== "finished") return;
+    if (other.id === session.id || other.status !== "finished") return;
     (other.segments || []).forEach(function(otherSegment) {
       var otherStart = utcMilliseconds(otherSegment.startedAtUtc, "otherSession.startedAtUtc");
       var otherEnd = utcMilliseconds(otherSegment.endedAtUtc, "otherSession.endedAtUtc");
@@ -372,7 +430,7 @@ function correctionOutcome(state, input) {
   if (changedAt < utcMilliseconds(session.finishedAtUtc, "session.finishedAtUtc"))
     fail("atUtc", "must not precede Session finish");
   var revised = validatedClosedSegments(input.segments);
-  validateCorrectionTimeline(state, session.id, revised.segments, changedAt);
+  validateCorrectionTimeline(state, session, revised.segments, changedAt);
   var revisedFields = revisedSessionFields(session, input.changes);
   var slices = validatedDailySlices(input.dailySlices, revised.focusedMilliseconds);
   var sliceContext = validatedSliceContext(session.sliceContext || input.sliceContext);
@@ -409,6 +467,11 @@ function correctionOutcome(state, input) {
     } });
   var kind = changedAt <= utcMilliseconds(session.finishedAtUtc, "session.finishedAtUtc") + 24 * 60 * 60000
     ? "correction" : "adjustment";
+  var revisedFinishedAtUtc = revised.segments[revised.segments.length - 1].endedAtUtc;
+  var sliceTimeline = clone(session.sliceTimeline || []);
+  if (sliceTimeline.length > 0 && utcMilliseconds(revisedFinishedAtUtc, "finishedAtUtc") >
+      utcMilliseconds(sliceTimeline[sliceTimeline.length - 1].endedAtUtc, "sliceTimeline.endedAtUtc"))
+    sliceTimeline = [];
   return freeze({ events: [intent(kind === "correction" ? "corrected" : "adjusted", {
     id: session.id,
     atUtc: input.atUtc,
@@ -417,6 +480,7 @@ function correctionOutcome(state, input) {
     primarySkill: revisedFields.primarySkill,
     plannedMinutes: revisedFields.plannedMinutes,
     segments: revised.segments,
+    finishedAtUtc: revisedFinishedAtUtc,
     focusedMilliseconds: revised.focusedMilliseconds,
     competitiveMilliseconds: competitive,
     competitiveByDailyXpDate: allocation.byDate,
@@ -426,6 +490,7 @@ function correctionOutcome(state, input) {
     plannedDurationDecision: plannedDecision,
     dailySlices: slices,
     sliceContext: sliceContext,
+    sliceTimeline: sliceTimeline,
     dailyXpDate: primaryDailyXpDate(slices),
     competitiveDeltaMilliseconds: competitiveDelta
   })] });
@@ -484,6 +549,7 @@ function finishOutcome(state, input) {
     inactivityDecision: inactivity.milliseconds > 0 ? input.inactivityDecision : null,
     dailySlices: slices,
     sliceContext: sliceContext,
+    sliceTimeline: clone(input.sliceTimeline || []),
     dailyXpDate: primaryDailyXpDate(slices),
     competitiveAdjustments: adjustments
   })] });
@@ -663,6 +729,7 @@ function projectIntents(projection, intents) {
       next.activeSession.competitiveByDailyXpDate = clone(event.payload.competitiveByDailyXpDate || {});
       next.activeSession.dailySlices = clone(event.payload.dailySlices || []);
       next.activeSession.sliceContext = clone(event.payload.sliceContext || null);
+      next.activeSession.sliceTimeline = clone(event.payload.sliceTimeline || []);
       next.activeSession.dailyXpDate = event.payload.dailyXpDate || null;
       next.activeSession.competitiveAdjustments = clone(event.payload.competitiveAdjustments || []);
       next.activeSession.plannedDurationDecision = event.payload.plannedDurationDecision || null;
@@ -689,6 +756,7 @@ function projectIntents(projection, intents) {
       var revisedSession = findSession(next.sessions, event.payload.id);
       if (revisedSession) {
         revisedSession.segments = clone(event.payload.segments);
+        revisedSession.finishedAtUtc = event.payload.finishedAtUtc;
         revisedSession.taskId = event.payload.taskId;
         revisedSession.primarySkill = event.payload.primarySkill;
         revisedSession.plannedMinutes = event.payload.plannedMinutes;
@@ -701,6 +769,7 @@ function projectIntents(projection, intents) {
         revisedSession.plannedDurationDecision = event.payload.plannedDurationDecision;
         revisedSession.dailySlices = clone(event.payload.dailySlices);
         revisedSession.sliceContext = clone(event.payload.sliceContext || null);
+        revisedSession.sliceTimeline = clone(event.payload.sliceTimeline || []);
         revisedSession.dailyXpDate = event.payload.dailyXpDate;
         revisedSession.lastRevisionKind = event.payload.kind;
         next.adjustments.push(clone(event.payload));
@@ -738,6 +807,8 @@ if (typeof module !== "undefined" && module.exports) {
     decide: decide,
     summaryAt: summaryAt,
     dailySlicesAt: dailySlicesAt,
+    dailyXpTimelineAt: dailyXpTimelineAt,
+    dailySlicesFromTimeline: dailySlicesFromTimeline,
     revisedDailySlices: revisedDailySlices,
     focusedSegments: focusedSegments,
     resizeFocusedSegments: resizeFocusedSegments,

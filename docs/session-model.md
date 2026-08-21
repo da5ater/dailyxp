@@ -30,8 +30,9 @@ Focused history and competitive eligibility remain separate:
 
 The runtime derives exact slices from the system timezone and configured Day
 Boundary, then freezes that timezone and boundary on the Session. Corrections
-reuse the frozen slicing context, so travel, daylight-saving, or later settings
-cannot rewrite historical competitive attribution.
+intersect edited segments with the Session's exact frozen UTC day timeline, so
+travel, daylight-saving, or later settings cannot rewrite historical
+competitive attribution or misplace a cross-boundary edit.
 
 Finished Sessions can be corrected freely for 24 hours. Later changes are
 stored as explicit adjustments. Any change to competitive duration requires

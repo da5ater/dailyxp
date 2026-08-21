@@ -151,6 +151,7 @@ test("planned overtime changes competitive eligibility only after confirmation",
     dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 80 * 60000 }]
   }).projection;
   assert.equal(state.sessions[0].focusedMilliseconds, 80 * 60000);
+  assert.equal(state.sessions[0].finishedAtUtc, "2026-08-21T09:20:00.000Z");
   assert.equal(state.sessions[0].rawFocusedMilliseconds, 80 * 60000);
   assert.equal(state.sessions[0].competitiveMilliseconds, 60 * 60000);
   assert.equal(state.sessions[0].plannedDurationDecision, "exclude-overtime");
@@ -545,5 +546,23 @@ test("exact resizing truncates across pause segments to the requested total", ()
   ], 45 * 60000, "2026-08-21T10:00:00.000Z"), [
     { startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-21T08:30:00.000Z" },
     { startedAtUtc: "2026-08-21T09:00:00.000Z", endedAtUtc: "2026-08-21T09:15:00.000Z" }
+  ]);
+});
+
+test("frozen timeline re-slices a correction across its original Day Boundary", () => {
+  const timeline = SessionModel.dailyXpTimelineAt(
+    "2026-08-21T03:40:00.000Z", "2026-08-21T04:30:00.000Z",
+    atUtc => atUtc < "2026-08-21T04:00:00.000Z" ? "2026-08-20" : "2026-08-21");
+  assert.deepEqual(timeline, [
+    { dailyXpDate: "2026-08-20", startedAtUtc: "2026-08-21T03:40:00.000Z",
+      endedAtUtc: "2026-08-21T04:00:00.000Z" },
+    { dailyXpDate: "2026-08-21", startedAtUtc: "2026-08-21T04:00:00.000Z",
+      endedAtUtc: "2026-08-21T04:30:00.000Z" }
+  ]);
+  assert.deepEqual(SessionModel.dailySlicesFromTimeline([{
+    startedAtUtc: "2026-08-21T03:40:00.000Z", endedAtUtc: "2026-08-21T04:10:00.000Z"
+  }], timeline), [
+    { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 10 * 60000 }
   ]);
 });

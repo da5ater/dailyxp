@@ -249,6 +249,9 @@ Item {
         }
         input.dailySlices = SessionModel.dailySlicesAt(sessionProjection.activeSession, input.atUtc,
           function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+        input.sliceTimeline = SessionModel.dailyXpTimelineAt(
+          sessionProjection.activeSession.startedAtUtc, input.atUtc,
+          function(atUtc) { return root.sessionDailyXpDate(atUtc) })
       }
       if (input.type === "session.correct" && input.dailySlices === undefined) {
         var correctedSession = null
@@ -261,8 +264,10 @@ Item {
           correctedFocused += new Date(correctedSegments[s].endedAtUtc).getTime() -
             new Date(correctedSegments[s].startedAtUtc).getTime()
         input.sliceContext = correctedSession ? correctedSession.sliceContext : null
-        input.dailySlices = correctedSession && correctedSession.dailySlices &&
-          correctedSession.dailySlices.length > 0
+        input.dailySlices = correctedSession && correctedSession.sliceTimeline &&
+          correctedSession.sliceTimeline.length > 0
+          ? SessionModel.dailySlicesFromTimeline(correctedSegments, correctedSession.sliceTimeline)
+          : correctedSession && correctedSession.dailySlices && correctedSession.dailySlices.length > 0
           ? SessionModel.revisedDailySlices(correctedSession.dailySlices, correctedFocused)
           : SessionModel.dailySlicesAt({ segments: correctedSegments, inactiveIntervals: [] },
             input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc) })

@@ -132,7 +132,7 @@ Panel {
       ? recentSession.focusedMilliseconds + deltaMinutes * 60000 : exactMilliseconds
     try {
       segments = SessionModel.resizeFocusedSegments(
-        segments, targetMilliseconds, new Date().toISOString())
+        segments, targetMilliseconds, recentSession.finishedAtUtc)
     } catch (error) {
       return null
     }
