@@ -465,7 +465,8 @@ function correctionOutcome(state, input) {
       focusedDeltaMilliseconds: revised.focusedMilliseconds - session.focusedMilliseconds,
       competitiveDeltaMilliseconds: competitiveDelta
     } });
-  var kind = changedAt <= utcMilliseconds(session.finishedAtUtc, "session.finishedAtUtc") + 24 * 60 * 60000
+  var auditFinishAtUtc = session.originalFinishedAtUtc || session.finishedAtUtc;
+  var kind = changedAt <= utcMilliseconds(auditFinishAtUtc, "originalFinishedAtUtc") + 24 * 60 * 60000
     ? "correction" : "adjustment";
   var revisedFinishedAtUtc = revised.segments[revised.segments.length - 1].endedAtUtc;
   var sliceTimeline = clone(session.sliceTimeline || []);
@@ -735,6 +736,7 @@ function projectIntents(projection, intents) {
       next.activeSession.plannedDurationDecision = event.payload.plannedDurationDecision || null;
       next.activeSession.status = "finished";
       next.activeSession.finishedAtUtc = event.payload.atUtc;
+      next.activeSession.originalFinishedAtUtc = event.payload.atUtc;
       next.activeSession.lastTransitionAtUtc = event.payload.atUtc;
       next.sessions.push(next.activeSession);
       next.activeSession = null;

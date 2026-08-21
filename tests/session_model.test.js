@@ -595,8 +595,42 @@ test("a frozen correction horizon attributes an extension and updates its finish
   }).projection;
 
   assert.equal(state.sessions[0].finishedAtUtc, "2026-08-21T04:10:00.000Z");
+  assert.equal(state.sessions[0].originalFinishedAtUtc, "2026-08-21T03:50:00.000Z");
   assert.deepEqual(state.sessions[0].dailySlices, [
     { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 },
     { dailyXpDate: "2026-08-21", milliseconds: 10 * 60000 }
   ]);
+});
+
+test("correcting the finish instant never rolls the 24-hour free-edit deadline", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: {
+      id: "session-audit-deadline", taskId: null, primarySkill: "general/focus",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T08:00:00.000Z"
+    }
+  }).projection;
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T09:00:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 60 * 60000 }]
+  }).projection;
+  state = apply(state, {
+    type: "session.correct", id: "session-audit-deadline", atUtc: "2026-08-22T08:00:00.000Z",
+    segments: [{
+      startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-22T08:00:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 24 * 60 * 60000 }],
+    competitiveChangeConfirmed: true, dailyCapAcknowledged: true
+  }).projection;
+  assert.equal(state.sessions[0].lastRevisionKind, "correction");
+  state = apply(state, {
+    type: "session.correct", id: "session-audit-deadline", atUtc: "2026-08-22T10:00:00.000Z",
+    segments: [{
+      startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-22T08:00:00.000Z"
+    }],
+    changes: { primarySkill: "backend/study" },
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 24 * 60 * 60000 }]
+  }).projection;
+  assert.equal(state.sessions[0].lastRevisionKind, "adjustment");
+  assert.equal(state.sessions[0].originalFinishedAtUtc, "2026-08-21T09:00:00.000Z");
 });
