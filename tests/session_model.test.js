@@ -515,3 +515,35 @@ test("Session corrections retain their frozen timezone and Day Boundary", () => 
   assert.deepEqual(state.sessions[0].sliceContext,
     { timezone: "Africa/Cairo", dayBoundaryMinutes: 240 });
 });
+
+test("revised duration keeps frozen DailyXP attribution without consulting current settings", () => {
+  assert.deepEqual(SessionModel.revisedDailySlices([
+    { dailyXpDate: "2026-08-20", milliseconds: 30 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 30 * 60000 }
+  ], 75 * 60000), [
+    { dailyXpDate: "2026-08-20", milliseconds: 30 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 45 * 60000 }
+  ]);
+  assert.deepEqual(SessionModel.revisedDailySlices([
+    { dailyXpDate: "2026-08-20", milliseconds: 30 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 30 * 60000 }
+  ], 20 * 60000), [
+    { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 }
+  ]);
+});
+
+test("exact resizing truncates across pause segments to the requested total", () => {
+  assert.deepEqual(SessionModel.resizeFocusedSegments([
+    { startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-21T08:30:00.000Z" },
+    { startedAtUtc: "2026-08-21T09:00:00.000Z", endedAtUtc: "2026-08-21T09:30:00.000Z" }
+  ], 20 * 60000, "2026-08-21T10:00:00.000Z"), [
+    { startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-21T08:20:00.000Z" }
+  ]);
+  assert.deepEqual(SessionModel.resizeFocusedSegments([
+    { startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-21T08:30:00.000Z" },
+    { startedAtUtc: "2026-08-21T09:00:00.000Z", endedAtUtc: "2026-08-21T09:30:00.000Z" }
+  ], 45 * 60000, "2026-08-21T10:00:00.000Z"), [
+    { startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-21T08:30:00.000Z" },
+    { startedAtUtc: "2026-08-21T09:00:00.000Z", endedAtUtc: "2026-08-21T09:15:00.000Z" }
+  ]);
+});

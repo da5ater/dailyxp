@@ -128,6 +128,32 @@ function focusedSegments(session, atUtc) {
   }));
 }
 
+function resizeFocusedSegments(values, targetMilliseconds, latestEndAtUtc) {
+  var validated = validatedClosedSegments(values);
+  if (!Number.isInteger(targetMilliseconds) || targetMilliseconds < 1000)
+    fail("targetMilliseconds", "must be an integer of at least one second");
+  var latestEnd = utcMilliseconds(latestEndAtUtc, "latestEndAtUtc");
+  var remaining = targetMilliseconds;
+  var resized = [];
+  for (var i = 0; i < validated.segments.length && remaining > 0; i += 1) {
+    var start = utcMilliseconds(validated.segments[i].startedAtUtc, "segments.startedAtUtc");
+    var end = utcMilliseconds(validated.segments[i].endedAtUtc, "segments.endedAtUtc");
+    var accepted = Math.min(end - start, remaining);
+    resized.push({
+      startedAtUtc: validated.segments[i].startedAtUtc,
+      endedAtUtc: new Date(start + accepted).toISOString()
+    });
+    remaining -= accepted;
+  }
+  if (remaining > 0) {
+    var last = resized[resized.length - 1];
+    var extendedEnd = utcMilliseconds(last.endedAtUtc, "segments.endedAtUtc") + remaining;
+    if (extendedEnd > latestEnd) fail("targetMilliseconds", "would extend into the future");
+    last.endedAtUtc = new Date(extendedEnd).toISOString();
+  }
+  return freeze(resized);
+}
+
 function dailySlicesAt(session, atUtc, dateAtUtc) {
   if (typeof dateAtUtc !== "function") fail("dateAtUtc", "must be a function");
   var totals = {};
@@ -208,6 +234,23 @@ function primaryDailyXpDate(slices) {
   return slices.slice().sort(function(left, right) {
     return right.milliseconds - left.milliseconds || left.dailyXpDate.localeCompare(right.dailyXpDate);
   })[0].dailyXpDate;
+}
+
+function revisedDailySlices(values, focusedMilliseconds) {
+  if (!Number.isInteger(focusedMilliseconds) || focusedMilliseconds < 1)
+    fail("focusedMilliseconds", "must be a positive integer");
+  if (!Array.isArray(values) || values.length === 0)
+    fail("dailySlices", "must contain frozen historical attribution");
+  var remaining = focusedMilliseconds;
+  var revised = [];
+  values.forEach(function(value) {
+    if (remaining === 0) return;
+    var accepted = Math.min(value.milliseconds, remaining);
+    revised.push({ dailyXpDate: value.dailyXpDate, milliseconds: accepted });
+    remaining -= accepted;
+  });
+  if (remaining > 0) revised[revised.length - 1].milliseconds += remaining;
+  return freeze(revised);
 }
 
 function validatedInactiveIntervals(session, values, finishAtUtc) {
@@ -695,7 +738,9 @@ if (typeof module !== "undefined" && module.exports) {
     decide: decide,
     summaryAt: summaryAt,
     dailySlicesAt: dailySlicesAt,
+    revisedDailySlices: revisedDailySlices,
     focusedSegments: focusedSegments,
+    resizeFocusedSegments: resizeFocusedSegments,
     projectIntents: projectIntents,
     project: project
   };

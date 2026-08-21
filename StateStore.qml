@@ -207,12 +207,9 @@ Item {
     }
   }
 
-  function sessionDailyXpDate(atUtc, sliceContext) {
-    var context = sliceContext || {
-      timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes
-    }
-    var localContext = EventModel.zoneContext(atUtc, context.timezone)
-    return EventModel.dailyXpDate(localContext.localDateTime, context.dayBoundaryMinutes)
+  function sessionDailyXpDate(atUtc) {
+    var localContext = EventModel.localSystemContext(new Date(atUtc), systemTimezone)
+    return EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
   }
 
   function planningTask(taskId) {
@@ -251,19 +248,24 @@ Item {
           timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes
         }
         input.dailySlices = SessionModel.dailySlicesAt(sessionProjection.activeSession, input.atUtc,
-          function(atUtc) { return root.sessionDailyXpDate(atUtc, input.sliceContext) })
+          function(atUtc) { return root.sessionDailyXpDate(atUtc) })
       }
       if (input.type === "session.correct" && input.dailySlices === undefined) {
         var correctedSession = null
         var sessions = sessionProjection.sessions || []
         for (var i = 0; i < sessions.length; i += 1)
           if (sessions[i].id === input.id) correctedSession = sessions[i]
-        input.sliceContext = correctedSession && correctedSession.sliceContext
-          ? correctedSession.sliceContext
-          : { timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes }
-        input.dailySlices = SessionModel.dailySlicesAt({
-          segments: input.segments || [], inactiveIntervals: []
-        }, input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc, input.sliceContext) })
+        var correctedFocused = 0
+        var correctedSegments = input.segments || []
+        for (var s = 0; s < correctedSegments.length; s += 1)
+          correctedFocused += new Date(correctedSegments[s].endedAtUtc).getTime() -
+            new Date(correctedSegments[s].startedAtUtc).getTime()
+        input.sliceContext = correctedSession ? correctedSession.sliceContext : null
+        input.dailySlices = correctedSession && correctedSession.dailySlices &&
+          correctedSession.dailySlices.length > 0
+          ? SessionModel.revisedDailySlices(correctedSession.dailySlices, correctedFocused)
+          : SessionModel.dailySlicesAt({ segments: correctedSegments, inactiveIntervals: [] },
+            input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc) })
       }
       var result = SessionModel.decide(sessionProjection, input)
       sessionConfirmation = result.confirmation || null
@@ -320,10 +322,16 @@ Item {
     selectionReminderProcess.running = true
   }
 
-  function handleSelectionReminderAction(action) {
+  function handleSelectionReminderAction(action, exitCode) {
     var selectedAction = String(action || "").trim()
     var selection = sessionProjection.selection
     if (!selection || selection.reminderStatus !== "due") return
+    if (exitCode !== 0) {
+      notifiedSelectionKey = ""
+      errorMessage = "Could not show the DailyXP reminder"
+      console.warn("dailyxp/reminder", errorMessage)
+      return
+    }
     if (selectedAction === "start") {
       var task = planningTask(selection.taskId)
       if (!task) return
@@ -392,7 +400,9 @@ Item {
       waitForEnd: true
       onStreamFinished: root._reminderAction = text
     }
-    onExited: root.handleSelectionReminderAction(root._reminderAction)
+    onExited: function(exitCode) {
+      root.handleSelectionReminderAction(root._reminderAction, exitCode)
+    }
   }
 
   FileView {

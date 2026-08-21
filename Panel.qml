@@ -42,13 +42,15 @@ Panel {
 
   function startSession() {
     var task = selectedTask()
+    var freePlanned = Number(freePlanField.text)
+    var freePlannedMinutes = Number.isInteger(freePlanned) && freePlanned > 0 ? freePlanned : null
     stateStore.applySessionCommand({
       type: "session.start",
       session: {
         id: EventModel.uuidV4(),
         taskId: task ? task.id : null,
         primarySkill: task ? task.primarySkill : "general/focus",
-        plannedMinutes: task && usePlannedDuration ? task.estimateMinutes : null,
+        plannedMinutes: task ? (usePlannedDuration ? task.estimateMinutes : null) : freePlannedMinutes,
         startedAtUtc: new Date().toISOString()
       }
     })
@@ -121,18 +123,18 @@ Panel {
     return count
   }
 
-  function correctionCommand(deltaMinutes, changes) {
+  function correctionCommand(deltaMinutes, changes, exactMilliseconds) {
     if (!recentSession || recentSession.status !== "finished") return null
     var segments = JSON.parse(JSON.stringify(
       SessionModel.focusedSegments(recentSession, recentSession.finishedAtUtc)))
     if (segments.length === 0) return null
-    if (deltaMinutes !== 0) {
-      var last = segments[segments.length - 1]
-      var currentEnd = new Date(last.endedAtUtc).getTime()
-      var revisedEnd = currentEnd + deltaMinutes * 60000
-      revisedEnd = Math.max(new Date(last.startedAtUtc).getTime() + 1000, Math.min(revisedEnd, Date.now()))
-      if (revisedEnd === currentEnd) return null
-      last.endedAtUtc = new Date(revisedEnd).toISOString()
+    var targetMilliseconds = exactMilliseconds === undefined
+      ? recentSession.focusedMilliseconds + deltaMinutes * 60000 : exactMilliseconds
+    try {
+      segments = SessionModel.resizeFocusedSegments(
+        segments, targetMilliseconds, new Date().toISOString())
+    } catch (error) {
+      return null
     }
     return {
       type: "session.correct", id: recentSession.id, atUtc: new Date().toISOString(),
@@ -140,8 +142,8 @@ Panel {
     }
   }
 
-  function requestCorrection(deltaMinutes, changes) {
-    pendingCorrectionCommand = correctionCommand(deltaMinutes, changes)
+  function requestCorrection(deltaMinutes, changes, exactMilliseconds) {
+    pendingCorrectionCommand = correctionCommand(deltaMinutes, changes, exactMilliseconds)
     if (!pendingCorrectionCommand) return
     stateStore.applySessionCommand(pendingCorrectionCommand)
     if (!stateStore.sessionConfirmation) pendingCorrectionCommand = null
@@ -181,7 +183,9 @@ Panel {
       if (!Number.isInteger(plannedMinutes) || plannedMinutes < 1) return
       changes.plannedMinutes = plannedMinutes
     }
-    requestCorrection(targetMinutes - recentSession.focusedMilliseconds / 60000, changes)
+    var targetMilliseconds = targetMinutes * 60000
+    if (!Number.isInteger(targetMilliseconds)) return
+    requestCorrection(0, changes, targetMilliseconds)
   }
 
   function continueCorrection(plannedDecision, confirmCompetitiveChange) {
@@ -268,7 +272,8 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: correctionDuration.activeFocus || correctionSkill.activeFocus || correctionPlanned.activeFocus
+      blocked: freePlanField.activeFocus || correctionDuration.activeFocus ||
+        correctionSkill.activeFocus || correctionPlanned.activeFocus
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -465,6 +470,17 @@ Panel {
             bordered: root.usePlannedDuration
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.usePlannedDuration = !root.usePlannedDuration
+          }
+
+          TextField {
+            id: freePlanField
+            visible: !root.selection
+            width: Style.space(140)
+            placeholderText: "planned min (blank = open)"
+            foreground: root.contentForeground
+            font.family: root.contentFontFamily
+            inputMethodHints: Qt.ImhDigitsOnly
+            Layout.alignment: Qt.AlignHCenter
           }
 
           Button {
