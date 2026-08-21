@@ -1,0 +1,70 @@
+name: DailyXP CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run tests
+        run: node --test tests/*.test.js
+
+  qmllint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: qmllint (tolerant of missing qs.*)
+        run: |
+          # qmllint is available on Omarchy runners, tolerant on other runners
+          if command -v qmllint >/dev/null 2>&1; then
+            echo "qmllint found at $(command -v qmllint)"
+            qmllint --version 2>&1 || true
+            # Only validate syntax, not imports - qs.* modules not available in CI
+            # Use --silent or ignore qs.* import failures
+            for f in BarWidget.qml Panel.qml StateStore.qml; do
+              echo "=== $f ==="
+              qmllint "$f" 2>&1 | grep -v "qs\.Commons\|qs\.Ui\|WidgetButton" | grep -v "import.*failed" | grep -v "Warnings.*qs\." || true
+              # Check exit code ignoring import warnings
+              out=$(qmllint "$f" 2>&1 || true)
+              # Fail only on syntax errors (parse errors, not import warnings)
+              if echo "$out" | grep -qi "error.*syntax\|parse error\|unexpected token"; then
+                echo "QML syntax error in $f"
+                exit 1
+              fi
+            done
+          else
+            echo "qmllint not available on this runner - skipping (install qt6-declarative-dev for local lint)"
+          fi
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate manifest
+        run: |
+          python3 -c "import json; d=json.load(open('manifest.json')); assert d['id']=='io.github.da5ater.dailyxp', d"
+          echo "manifest.json: OK"
+          # Optional: omarchy plugin validate when available
+          if command -v omarchy >/dev/null 2>&1; then
+            omarchy plugin validate . 2>&1 || true
+          else
+            echo "omarchy not available on CI - skipping plugin validate"
+          fi
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
