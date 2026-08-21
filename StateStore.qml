@@ -3,6 +3,8 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import "EventModel.js" as EventModel
+import "HabitJournal.js" as HabitJournal
+import "HabitModel.js" as HabitModel
 import "PlanningJournal.js" as PlanningJournal
 import "PlanningModel.js" as PlanningModel
 import "SessionJournal.js" as SessionJournal
@@ -28,6 +30,7 @@ Item {
   property var proposalPreview: null
   property var sessionProjection: SessionModel.emptyProjection()
   property var sessionConfirmation: null
+  property var habitProjection: HabitModel.emptyProjection()
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
@@ -83,6 +86,7 @@ Item {
     if (EventModel.isIanaTimezone(zone)) {
       systemTimezone = zone
       ensureCurrentPlanningDay()
+      ensureCurrentHabitDay()
       return
     }
     if (errorMessage === "") errorMessage = "Could not determine the system IANA timezone from /etc/localtime"
@@ -137,8 +141,10 @@ Item {
     journal = loaded.journal
     planningProjection = PlanningModel.project(journal.events)
     sessionProjection = SessionModel.project(journal.events)
+    habitProjection = HabitModel.project(journal.events)
     journalReady = true
     ensureCurrentPlanningDay()
+    ensureCurrentHabitDay()
   }
 
   function persistNext(nextEnvelope, nextJournal) {
@@ -361,6 +367,38 @@ Item {
     return applyPlanningCommand({ type: "day.advance", dailyXpDate: dailyXpDate })
   }
 
+  function ensureCurrentHabitDay() {
+    if (!ready || !recordingReady || saving) return false
+    var now = new Date()
+    var localContext = EventModel.localSystemContext(now, systemTimezone)
+    var dailyXpDate = EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
+    return applyHabitCommand({ type: "habit.day.advance", dailyXpDate: dailyXpDate })
+  }
+
+  function applyHabitCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = HabitModel.decide(habitProjection, command)
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = HabitJournal.appendIntents(journal, result.events, {
+        occurredAtUtc: now.toISOString(),
+        localDateTime: localContext.localDateTime,
+        timezone: localContext.timezone,
+        utcOffsetMinutes: localContext.utcOffsetMinutes,
+        systemTimezoneVerified: true,
+        dayBoundaryMinutes: configuredDayBoundaryMinutes
+      }, EventModel)
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP habit: " + error
+      console.warn("dailyxp/habit", errorMessage)
+      return false
+    }
+  }
+
   function failSave(stage, error) {
     saving = false
     _pendingEnvelope = null
@@ -428,6 +466,8 @@ Item {
         ? PlanningModel.project(root._pendingJournal.events) : PlanningModel.emptyProjection()
       root.sessionProjection = root._pendingJournal
         ? SessionModel.project(root._pendingJournal.events) : SessionModel.emptyProjection()
+      root.habitProjection = root._pendingJournal
+        ? HabitModel.project(root._pendingJournal.events) : HabitModel.emptyProjection()
       root.journalReady = true
       root._primaryRaw = root._pendingPrimaryRaw
       root._pendingEnvelope = null
@@ -436,6 +476,7 @@ Item {
       root.saving = false
       root.persisted()
       Qt.callLater(root.ensureCurrentPlanningDay)
+      Qt.callLater(root.ensureCurrentHabitDay)
       Qt.callLater(root.checkSelectionReminder)
     }
     onSaveFailed: function(error) { root.failSave("primary", error) }
@@ -461,7 +502,10 @@ Item {
     repeat: true
     running: root.ready
     triggeredOnStart: false
-    onTriggered: root.ensureCurrentPlanningDay()
+    onTriggered: {
+      root.ensureCurrentPlanningDay()
+      root.ensureCurrentHabitDay()
+    }
   }
 
   IdleMonitor {
