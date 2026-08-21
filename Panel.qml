@@ -16,14 +16,14 @@ Panel {
   property var stateStore: null
   property bool usePlannedDuration: true
   property var pendingCorrectionCommand: null
+  property int correctionSessionOffset: 0
   readonly property var barIdentity: hostWidget || root
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   property string nowUtc: new Date().toISOString()
   readonly property var activeSession: stateStore ? stateStore.sessionProjection.activeSession : null
   readonly property var selection: stateStore ? stateStore.sessionProjection.selection : null
-  readonly property var recentSession: stateStore && stateStore.sessionProjection.sessions.length > 0
-    ? stateStore.sessionProjection.sessions[stateStore.sessionProjection.sessions.length - 1] : null
+  readonly property var recentSession: correctionSession()
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, nowUtc) : null
 
@@ -103,26 +103,68 @@ Panel {
     })
   }
 
-  function correctionCommand(deltaMinutes) {
+  function correctionSession() {
+    if (!stateStore) return null
+    var sessions = stateStore.sessionProjection.sessions || []
+    var finished = []
+    for (var i = sessions.length - 1; i >= 0; i -= 1)
+      if (sessions[i].status === "finished") finished.push(sessions[i])
+    return correctionSessionOffset < finished.length ? finished[correctionSessionOffset] : null
+  }
+
+  function finishedSessionCount() {
+    if (!stateStore) return 0
+    var sessions = stateStore.sessionProjection.sessions || []
+    var count = 0
+    for (var i = 0; i < sessions.length; i += 1)
+      if (sessions[i].status === "finished") count += 1
+    return count
+  }
+
+  function correctionCommand(deltaMinutes, changes) {
     if (!recentSession || recentSession.status !== "finished") return null
-    var segments = JSON.parse(JSON.stringify(recentSession.segments || []))
+    var segments = JSON.parse(JSON.stringify(
+      SessionModel.focusedSegments(recentSession, recentSession.finishedAtUtc)))
     if (segments.length === 0) return null
-    var last = segments[segments.length - 1]
-    var currentEnd = new Date(last.endedAtUtc).getTime()
-    var revisedEnd = currentEnd + deltaMinutes * 60000
-    revisedEnd = Math.max(new Date(last.startedAtUtc).getTime() + 1000, Math.min(revisedEnd, Date.now()))
-    if (revisedEnd === currentEnd) return null
-    last.endedAtUtc = new Date(revisedEnd).toISOString()
+    if (deltaMinutes !== 0) {
+      var last = segments[segments.length - 1]
+      var currentEnd = new Date(last.endedAtUtc).getTime()
+      var revisedEnd = currentEnd + deltaMinutes * 60000
+      revisedEnd = Math.max(new Date(last.startedAtUtc).getTime() + 1000, Math.min(revisedEnd, Date.now()))
+      if (revisedEnd === currentEnd) return null
+      last.endedAtUtc = new Date(revisedEnd).toISOString()
+    }
     return {
-      type: "session.correct", id: recentSession.id, atUtc: new Date().toISOString(), segments: segments
+      type: "session.correct", id: recentSession.id, atUtc: new Date().toISOString(),
+      segments: segments, changes: changes
     }
   }
 
-  function requestCorrection(deltaMinutes) {
-    pendingCorrectionCommand = correctionCommand(deltaMinutes)
+  function requestCorrection(deltaMinutes, changes) {
+    pendingCorrectionCommand = correctionCommand(deltaMinutes, changes)
     if (!pendingCorrectionCommand) return
     stateStore.applySessionCommand(pendingCorrectionCommand)
     if (!stateStore.sessionConfirmation) pendingCorrectionCommand = null
+  }
+
+  function correctionTaskChange() {
+    if (!recentSession || !stateStore) return
+    var tasks = stateStore.planningProjection.tasks || []
+    var nextTask = null
+    if (recentSession.taskId === null && tasks.length > 0) nextTask = tasks[0]
+    else for (var i = 0; i < tasks.length; i += 1)
+      if (tasks[i].id === recentSession.taskId && i + 1 < tasks.length) nextTask = tasks[i + 1]
+    requestCorrection(0, {
+      taskId: nextTask ? nextTask.id : null,
+      primarySkill: nextTask ? nextTask.primarySkill : "general/focus"
+    })
+  }
+
+  function correctionPlannedChange(deltaMinutes) {
+    if (!recentSession) return
+    var current = recentSession.plannedMinutes === null ? 0 : recentSession.plannedMinutes
+    var revised = Math.max(0, current + deltaMinutes)
+    requestCorrection(0, { plannedMinutes: revised === 0 ? null : revised })
   }
 
   function continueCorrection(plannedDecision, confirmCompetitiveChange) {
@@ -166,7 +208,8 @@ Panel {
   function recentSessionText() {
     if (!recentSession) return ""
     var revision = recentSession.lastRevisionKind ? " · " + recentSession.lastRevisionKind : ""
-    return "Last Session: " + formatElapsed(recentSession.focusedMilliseconds) + revision
+    return "Session " + recentSession.id.slice(0, 8) + " · " +
+      formatElapsed(recentSession.focusedMilliseconds) + revision
   }
 
   function open() {
@@ -444,14 +487,58 @@ Panel {
               focusable: true
               bordered: false
               enabled: root.stateStore && !root.stateStore.saving
-              onClicked: root.requestCorrection(-5)
+              onClicked: root.requestCorrection(-5, undefined)
             }
             Button {
               text: "+5 minutes"
               focusable: true
               bordered: false
               enabled: root.stateStore && !root.stateStore.saving
-              onClicked: root.requestCorrection(5)
+              onClicked: root.requestCorrection(5, undefined)
+            }
+          }
+
+
+          RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Button {
+              text: "Older"
+              focusable: true
+              bordered: false
+              enabled: root.correctionSessionOffset + 1 < root.finishedSessionCount()
+              onClicked: root.correctionSessionOffset += 1
+            }
+            Button {
+              text: "Newer"
+              focusable: true
+              bordered: false
+              enabled: root.correctionSessionOffset > 0
+              onClicked: root.correctionSessionOffset -= 1
+            }
+          }
+
+          RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Button {
+              text: root.recentSession && root.recentSession.taskId ? "Change Task / Skill" : "Attach Task / Skill"
+              focusable: true
+              bordered: false
+              enabled: root.stateStore && !root.stateStore.saving
+              onClicked: root.correctionTaskChange()
+            }
+            Button {
+              text: "−5 planned"
+              focusable: true
+              bordered: false
+              enabled: root.stateStore && !root.stateStore.saving
+              onClicked: root.correctionPlannedChange(-5)
+            }
+            Button {
+              text: "+5 planned"
+              focusable: true
+              bordered: false
+              enabled: root.stateStore && !root.stateStore.saving
+              onClicked: root.correctionPlannedChange(5)
             }
           }
         }

@@ -423,3 +423,39 @@ test("daily slices reject impossible calendar dates", () => {
     dailySlices: [{ dailyXpDate: "2026-02-30", milliseconds: 60 * 60000 }]
   }), /dailySlices.dailyXpDate: must be a real calendar date/);
 });
+
+test("correction segments normalize excluded inactivity before changing duration", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: {
+      id: "session-inactive-correction", taskId: null, primarySkill: "general/focus",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T08:00:00.000Z"
+    }
+  }).projection;
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T09:00:00.000Z",
+    inactivityDecision: "exclude",
+    inactiveIntervals: [{
+      startedAtUtc: "2026-08-21T08:20:00.000Z", endedAtUtc: "2026-08-21T08:30:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 50 * 60000 }]
+  }).projection;
+
+  const focusedSegments = SessionModel.focusedSegments(state.sessions[0], state.sessions[0].finishedAtUtc);
+  assert.deepEqual(focusedSegments, [
+    { startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: "2026-08-21T08:20:00.000Z" },
+    { startedAtUtc: "2026-08-21T08:30:00.000Z", endedAtUtc: "2026-08-21T09:00:00.000Z" }
+  ]);
+  const revisedSegments = JSON.parse(JSON.stringify(focusedSegments));
+  revisedSegments[1].endedAtUtc = "2026-08-21T08:55:00.000Z";
+  state = apply(state, {
+    type: "session.correct", id: "session-inactive-correction", atUtc: "2026-08-21T09:05:00.000Z",
+    segments: revisedSegments,
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 45 * 60000 }],
+    competitiveChangeConfirmed: true
+  }).projection;
+
+  assert.equal(state.sessions[0].focusedMilliseconds, 45 * 60000);
+  assert.equal(state.sessions[0].competitiveMilliseconds, 45 * 60000);
+  assert.deepEqual(state.sessions[0].inactiveIntervals, []);
+});

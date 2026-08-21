@@ -118,6 +118,15 @@ function activePieces(session, atUtc) {
   return pieces;
 }
 
+function focusedSegments(session, atUtc) {
+  return freeze(activePieces(session, atUtc).map(function(piece) {
+    return {
+      startedAtUtc: new Date(piece.start).toISOString(),
+      endedAtUtc: new Date(piece.end).toISOString()
+    };
+  }));
+}
+
 function dailySlicesAt(session, atUtc, dateAtUtc) {
   if (typeof dateAtUtc !== "function") fail("dateAtUtc", "must be a function");
   var totals = {};
@@ -661,6 +670,7 @@ if (typeof module !== "undefined" && module.exports) {
     decide: decide,
     summaryAt: summaryAt,
     dailySlicesAt: dailySlicesAt,
+    focusedSegments: focusedSegments,
     projectIntents: projectIntents,
     project: project
   };
