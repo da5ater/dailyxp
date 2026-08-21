@@ -34,6 +34,11 @@ A repeated behavior recorded by completion or count rather than elapsed time.
 **Daily Target**:
 A person's intended amount of focused time for one DailyXP day.
 
+**Planning Proposal**:
+A previewable, editable set of potential commitments from a template or an
+adaptive recommendation. Only acceptance changes the person's plan.
+_Avoid_: Suggestion, Template (for the shared decision object)
+
 **Day Boundary**:
 The configurable local time at which one DailyXP day ends and the next begins.
 

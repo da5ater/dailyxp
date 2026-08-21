@@ -6,8 +6,11 @@ habits, recovery, social competition, and a persistent comeback story.
 This repository currently contains the installable Omarchy Quattro foundation:
 a bar widget, its nested panel, and one headless in-shell state service shared
 by every monitor. The probe button is intentionally temporary; product
-workflows arrive in later tickets. The versioned offline journal contract is documented in
-[`docs/event-model.md`](docs/event-model.md).
+workflows arrive in later tickets. The versioned offline journal contract is
+documented in [`docs/event-model.md`](docs/event-model.md). The PLAN-001 model
+now provides durable Goals, Milestones, Tasks, Routines, Task Occurrences,
+carryover, and consent-gated proposals; see
+[`docs/planning-model.md`](docs/planning-model.md).
 
 ## Requirements
 
@@ -63,6 +66,16 @@ The temporary foundation probe can also be exercised without pointer input:
 
 ```sh
 omarchy-shell io.github.da5ater.dailyxp addProbe
+```
+
+The idempotent planning-day lifecycle can be requested independently. When an
+advance is needed, the request starts an asynchronous atomic save, so read its
+status afterward rather than treating the request response as persistence
+confirmation:
+
+```sh
+omarchy-shell io.github.da5ater.dailyxp ensurePlanningDay
+omarchy-shell io.github.da5ater.dailyxp planningDayStatus
 ```
 
 ## License
