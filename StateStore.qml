@@ -7,6 +7,8 @@ import "HabitJournal.js" as HabitJournal
 import "HabitModel.js" as HabitModel
 import "PlanningJournal.js" as PlanningJournal
 import "PlanningModel.js" as PlanningModel
+import "ProgressionJournal.js" as ProgressionJournal
+import "ProgressionModel.js" as ProgressionModel
 import "SessionJournal.js" as SessionJournal
 import "SessionModel.js" as SessionModel
 import "StateModel.js" as StateModel
@@ -31,6 +33,7 @@ Item {
   property var sessionProjection: SessionModel.emptyProjection()
   property var sessionConfirmation: null
   property var habitProjection: HabitModel.emptyProjection()
+  property var progressionProjection: ProgressionModel.emptyProjection()
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
@@ -142,6 +145,7 @@ Item {
     planningProjection = PlanningModel.project(journal.events)
     sessionProjection = SessionModel.project(journal.events)
     habitProjection = HabitModel.project(journal.events)
+    progressionProjection = ProgressionModel.project(journal.events)
     journalReady = true
     ensureCurrentPlanningDay()
     ensureCurrentHabitDay()
@@ -399,6 +403,30 @@ Item {
     }
   }
 
+  function applyProgressionCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = ProgressionModel.decide(progressionProjection, command)
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = ProgressionJournal.appendIntents(journal, result.events, {
+        occurredAtUtc: now.toISOString(),
+        localDateTime: localContext.localDateTime,
+        timezone: localContext.timezone,
+        utcOffsetMinutes: localContext.utcOffsetMinutes,
+        systemTimezoneVerified: true,
+        dayBoundaryMinutes: configuredDayBoundaryMinutes
+      }, EventModel)
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP progression: " + error
+      console.warn("dailyxp/progression", errorMessage)
+      return false
+    }
+  }
+
   function failSave(stage, error) {
     saving = false
     _pendingEnvelope = null
@@ -468,6 +496,8 @@ Item {
         ? SessionModel.project(root._pendingJournal.events) : SessionModel.emptyProjection()
       root.habitProjection = root._pendingJournal
         ? HabitModel.project(root._pendingJournal.events) : HabitModel.emptyProjection()
+      root.progressionProjection = root._pendingJournal
+        ? ProgressionModel.project(root._pendingJournal.events) : ProgressionModel.emptyProjection()
       root.journalReady = true
       root._primaryRaw = root._pendingPrimaryRaw
       root._pendingEnvelope = null
