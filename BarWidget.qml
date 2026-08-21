@@ -131,7 +131,6 @@ BarWidget {
     function toggle(): void { root.togglePanel() }
   }
 
-  // Apple: respond on pointer-down, 1.0 damping no bounce, gaming: squash & stretch, animate: feedback 120ms ease-out, hover-gated + reduced-motion
   WidgetButton {
     id: button
     anchors.fill: parent
@@ -142,19 +141,10 @@ BarWidget {
     hasVisualContent: true
     horizontalMargin: 8.75
     verticalPadding: 8.75
-    // Material: subtle translucent highlight on hover — gaming squash & stretch
-    property bool _pressed: false
-    scale: _pressed ? 0.97 : 1.0
-    transformOrigin: Item.Center
-    Behavior on scale {
-      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-    }
     onPressed: function(mouseButton) {
-      button._pressed = true
       if (mouseButton === Qt.LeftButton) root.togglePanel()
       else if (mouseButton === Qt.RightButton) root.toggleSessionRunState()
     }
-    onReleased: button._pressed = false
   }
 
   Timer {
