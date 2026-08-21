@@ -12,6 +12,7 @@ import "ProgressionModel.js" as ProgressionModel
 import "SessionJournal.js" as SessionJournal
 import "SessionModel.js" as SessionModel
 import "StateModel.js" as StateModel
+import "StoryModel.js" as StoryModel
 
 Item {
   id: root
@@ -34,6 +35,7 @@ Item {
   property var sessionConfirmation: null
   property var habitProjection: HabitModel.emptyProjection()
   property var progressionProjection: ProgressionModel.emptyProjection()
+  property var storyProjection: StoryModel.emptyProjection()
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
@@ -146,6 +148,17 @@ Item {
     sessionProjection = SessionModel.project(journal.events)
     habitProjection = HabitModel.project(journal.events)
     progressionProjection = ProgressionModel.project(journal.events)
+    storyProjection = StoryModel.project(journal.events, {
+      goals: planningProjection.goals,
+      milestones: planningProjection.milestones,
+      occurrences: planningProjection.occurrences,
+      sessions: sessionProjection.sessions,
+      habits: habitProjection.habits,
+      habitCompletions: habitProjection.completions,
+      dailySummaries: habitProjection.dailySummaries,
+      lastAdvanced: habitProjection.lastAdvancedDailyXpDate || planningProjection.lastAdvancedDailyXpDate,
+      momentum: progressionProjection.momentum
+    })
     journalReady = true
     ensureCurrentPlanningDay()
     ensureCurrentHabitDay()
@@ -498,6 +511,18 @@ Item {
         ? HabitModel.project(root._pendingJournal.events) : HabitModel.emptyProjection()
       root.progressionProjection = root._pendingJournal
         ? ProgressionModel.project(root._pendingJournal.events) : ProgressionModel.emptyProjection()
+      root.storyProjection = root._pendingJournal
+        ? StoryModel.project(root._pendingJournal.events, {
+            goals: root.planningProjection.goals,
+            milestones: root.planningProjection.milestones,
+            occurrences: root.planningProjection.occurrences,
+            sessions: root.sessionProjection.sessions,
+            habits: root.habitProjection.habits,
+            habitCompletions: root.habitProjection.completions,
+            dailySummaries: root.habitProjection.dailySummaries,
+            lastAdvanced: root.habitProjection.lastAdvancedDailyXpDate || root.planningProjection.lastAdvancedDailyXpDate,
+            momentum: root.progressionProjection.momentum
+          }) : StoryModel.emptyProjection()
       root.journalReady = true
       root._primaryRaw = root._pendingPrimaryRaw
       root._pendingEnvelope = null
