@@ -254,10 +254,13 @@ test("finished Sessions allow 24-hour corrections and preserve later changes as 
     type: "session.correct", id: "session-correct", atUtc: "2026-08-22T07:59:00.000Z",
     segments: revisedSegments,
     dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 45 * 60000 }],
-    competitiveChangeConfirmed: true
+    competitiveChangeConfirmed: true,
+    changes: { taskId: "task-revised", primarySkill: "backend/build" }
   }).projection;
   assert.equal(state.sessions[0].focusedMilliseconds, 45 * 60000);
   assert.equal(state.sessions[0].lastRevisionKind, "correction");
+  assert.equal(state.sessions[0].taskId, "task-revised");
+  assert.equal(state.sessions[0].primarySkill, "backend/build");
 
   state = apply(state, {
     type: "session.correct", id: "session-correct", atUtc: "2026-08-22T09:01:00.000Z",
@@ -271,6 +274,12 @@ test("finished Sessions allow 24-hour corrections and preserve later changes as 
   assert.equal(state.sessions[0].lastRevisionKind, "adjustment");
   assert.deepEqual(state.adjustments.map(item => item.kind), ["correction", "adjustment"]);
   assert.equal(state.adjustments[1].competitiveDeltaMilliseconds, -5 * 60000);
+  assert.throws(() => SessionModel.decide(state, {
+    type: "session.correct", id: "session-correct", atUtc: "2026-08-22T09:02:00.000Z",
+    segments: revisedSegments,
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 45 * 60000 }],
+    changes: { status: "discarded" }
+  }), /changes: cannot change status/);
 });
 
 test("inactivity detection survives restart and only excludes time after a user decision", () => {

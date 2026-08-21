@@ -73,6 +73,19 @@ Panel {
       String(seconds).padStart(2, "0")
   }
 
+  function statusText() {
+    if (activeSession) return formatElapsed(sessionSummary.focusedMilliseconds)
+    if (!selection) return "Selection declares intent. Time starts only when you press Start."
+    var task = selectedTask()
+    return "Selected: " + (task ? task.title : selection.taskId)
+  }
+
+  function startButtonText() {
+    if (!selection) return "Start free Session"
+    if (selection.reminderStatus === "due") return "Start selected Session"
+    return "Start selected"
+  }
+
   function open() {
     root.controller.show()
     Qt.callLater(function() {
@@ -130,10 +143,7 @@ Panel {
         }
 
         Text {
-          text: root.activeSession
-            ? root.formatElapsed(root.sessionSummary.focusedMilliseconds)
-            : (root.selection ? "Selected: " + (root.selectedTask() ? root.selectedTask().title : root.selection.taskId)
-              : "Selection declares intent. Time starts only when you press Start.")
+          text: root.statusText()
           color: root.contentForeground
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.body
@@ -166,8 +176,9 @@ Panel {
             text: "Finish"
             focusable: true
             bordered: true
-            enabled: root.stateStore && !root.stateStore.saving &&
-              !root.activeSession.pendingInactivityStartedAtUtc
+            enabled: root.activeSession
+              ? root.stateStore && !root.stateStore.saving && !root.activeSession.pendingInactivityStartedAtUtc
+              : false
             onClicked: root.finishSession(undefined)
           }
 
@@ -266,8 +277,7 @@ Panel {
           }
 
           Button {
-            text: root.selection && root.selection.reminderStatus === "due" ? "Start selected Session" :
-              (root.selection ? "Start selected" : "Start free Session")
+            text: root.startButtonText()
             focusable: true
             bordered: true
             enabled: root.stateStore && root.stateStore.recordingReady && !root.stateStore.saving

@@ -30,6 +30,18 @@ BarWidget {
     stateStore.applySessionCommand({ type: type, atUtc: new Date().toISOString() })
   }
 
+  function buttonText() {
+    if (!activeSession) return root.vertical ? "󰓎" : "DailyXP"
+    var icon = activeSession.status === "running" ? "󰐊 " : "󰏤 "
+    return icon + formatElapsed(sessionSummary.focusedMilliseconds)
+  }
+
+  function buttonTooltip() {
+    if (activeSession)
+      return activeSession.status === "running" ? "Right-click to pause Session" : "Right-click to resume Session"
+    return stateStore && stateStore.ready ? "Open DailyXP" : "Loading DailyXP"
+  }
+
   function open() {
     if (panelLoader.item) panelLoader.item.open()
   }
@@ -123,13 +135,9 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.activeSession
-      ? (root.activeSession.status === "running" ? "󰐊 " : "󰏤 ") + root.formatElapsed(root.sessionSummary.focusedMilliseconds)
-      : (root.vertical ? "󰓎" : "DailyXP")
+    text: root.buttonText()
     labelVisible: true
-    tooltipText: root.activeSession
-      ? (root.activeSession.status === "running" ? "Right-click to pause Session" : "Right-click to resume Session")
-      : (root.stateStore && root.stateStore.ready ? "Open DailyXP" : "Loading DailyXP")
+    tooltipText: root.buttonTooltip()
     hasVisualContent: true
     horizontalMargin: 8.75
     verticalPadding: 8.75

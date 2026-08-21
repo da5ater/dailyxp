@@ -257,6 +257,25 @@ function validatedClosedSegments(values) {
   return { segments: segments, focusedMilliseconds: focused };
 }
 
+function revisedSessionFields(session, changes) {
+  var revised = {
+    taskId: session.taskId,
+    primarySkill: session.primarySkill,
+    plannedMinutes: session.plannedMinutes
+  };
+  Object.keys(changes || {}).forEach(function(key) {
+    if (["taskId", "primarySkill", "plannedMinutes"].indexOf(key) === -1)
+      fail("changes", "cannot change " + key);
+    revised[key] = changes[key];
+  });
+  if (revised.taskId !== null) required(revised.taskId, "changes.taskId");
+  required(revised.primarySkill, "changes.primarySkill");
+  if (revised.plannedMinutes !== null &&
+      (!Number.isInteger(revised.plannedMinutes) || revised.plannedMinutes < 1))
+    fail("changes.plannedMinutes", "must be null or a positive integer");
+  return revised;
+}
+
 function correctionOutcome(state, input) {
   var session = findSession(state.sessions || [], input.id);
   if (!session || session.status !== "finished") fail("session.id", "must reference a finished Session");
@@ -264,10 +283,11 @@ function correctionOutcome(state, input) {
   if (changedAt < utcMilliseconds(session.finishedAtUtc, "session.finishedAtUtc"))
     fail("atUtc", "must not precede Session finish");
   var revised = validatedClosedSegments(input.segments);
+  var revisedFields = revisedSessionFields(session, input.changes);
   var slices = validatedDailySlices(input.dailySlices, revised.focusedMilliseconds);
   var budget = revised.focusedMilliseconds;
-  if (session.plannedMinutes !== null && session.plannedDurationDecision === "exclude-overtime")
-    budget = Math.min(budget, session.plannedMinutes * 60000);
+  if (revisedFields.plannedMinutes !== null && session.plannedDurationDecision === "exclude-overtime")
+    budget = Math.min(budget, revisedFields.plannedMinutes * 60000);
   var otherSessions = state.sessions.filter(function(item) { return item.id !== session.id; });
   var allocation = competitiveAllocation({ sessions: otherSessions }, slices, budget);
   var competitive = budget - allocation.capExcludedMilliseconds;
@@ -284,6 +304,9 @@ function correctionOutcome(state, input) {
     id: session.id,
     atUtc: input.atUtc,
     kind: kind,
+    taskId: revisedFields.taskId,
+    primarySkill: revisedFields.primarySkill,
+    plannedMinutes: revisedFields.plannedMinutes,
     segments: revised.segments,
     focusedMilliseconds: revised.focusedMilliseconds,
     competitiveMilliseconds: competitive,
@@ -541,6 +564,9 @@ function projectIntents(projection, intents) {
       var revisedSession = findSession(next.sessions, event.payload.id);
       if (revisedSession) {
         revisedSession.segments = clone(event.payload.segments);
+        revisedSession.taskId = event.payload.taskId;
+        revisedSession.primarySkill = event.payload.primarySkill;
+        revisedSession.plannedMinutes = event.payload.plannedMinutes;
         revisedSession.focusedMilliseconds = event.payload.focusedMilliseconds;
         revisedSession.competitiveMilliseconds = event.payload.competitiveMilliseconds;
         revisedSession.competitiveByDailyXpDate = clone(event.payload.competitiveByDailyXpDate);
