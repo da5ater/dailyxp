@@ -31,7 +31,7 @@ BarWidget {
   }
 
   function buttonText() {
-    if (!activeSession) return root.vertical ? "󰓎" : "DailyXP"
+    if (!activeSession || !sessionSummary) return root.vertical ? "󰓎" : "DailyXP"
     var icon = activeSession.status === "running" ? "󰐊 " : "󰏤 "
     return icon + formatElapsed(sessionSummary.focusedMilliseconds)
   }
