@@ -1,9 +1,12 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import "EventModel.js" as EventModel
 import "PlanningJournal.js" as PlanningJournal
 import "PlanningModel.js" as PlanningModel
+import "SessionJournal.js" as SessionJournal
+import "SessionModel.js" as SessionModel
 import "StateModel.js" as StateModel
 
 Item {
@@ -23,12 +26,18 @@ Item {
   property bool journalReady: false
   property var planningProjection: PlanningModel.emptyProjection()
   property var proposalPreview: null
+  property var sessionProjection: SessionModel.emptyProjection()
+  property var sessionConfirmation: null
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
   property bool saving: false
   property string errorMessage: ""
+  property string notifiedSelectionKey: ""
+  property string _reminderAction: ""
   readonly property int configuredDayBoundaryMinutes: dayBoundaryMinutesFromConfig()
+  readonly property int configuredSelectionReminderMinutes: integerSetting("selectionReminderMinutes", 10, 0, 1440)
+  readonly property int configuredInactivitySeconds: integerSetting("inactivitySeconds", 300, 60, 86400)
 
   property string _primaryRaw: ""
   property string _backupRaw: ""
@@ -59,6 +68,11 @@ Item {
   function dayBoundaryMinutesFromConfig() {
     var value = Number(pluginSettings().dayBoundaryMinutes)
     return Number.isInteger(value) && value >= 0 && value <= 1439 ? value : 240
+  }
+
+  function integerSetting(name, fallback, minimum, maximum) {
+    var value = Number(pluginSettings()[name])
+    return Number.isInteger(value) && value >= minimum && value <= maximum ? value : fallback
   }
 
   function acceptTimezonePath(raw) {
@@ -122,6 +136,7 @@ Item {
     }
     journal = loaded.journal
     planningProjection = PlanningModel.project(journal.events)
+    sessionProjection = SessionModel.project(journal.events)
     journalReady = true
     ensureCurrentPlanningDay()
   }
@@ -192,6 +207,152 @@ Item {
     }
   }
 
+  function sessionDailyXpDate(atUtc) {
+    var localContext = EventModel.localSystemContext(new Date(atUtc), systemTimezone)
+    return EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
+  }
+
+  function planningTask(taskId) {
+    if (taskId === null || taskId === undefined) return null
+    var tasks = planningProjection.tasks || []
+    for (var i = 0; i < tasks.length; i += 1) if (tasks[i].id === taskId) return tasks[i]
+    return null
+  }
+
+  function planningTaskExists(taskId) {
+    return taskId === null || taskId === undefined || planningTask(taskId) !== null
+  }
+
+  function validateSessionTaskReferences(command) {
+    var taskId = null
+    if (command.type === "selection.change" || command.type === "session.change_task") taskId = command.taskId
+    else if (command.type === "session.start" && command.session) taskId = command.session.taskId
+    else if (command.type === "session.correct" && command.changes &&
+        command.changes.taskId !== undefined) taskId = command.changes.taskId
+    if (!planningTaskExists(taskId)) throw new Error("taskId must reference a current Task")
+  }
+
+  function applySessionCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var input = JSON.parse(JSON.stringify(command || ({})))
+      validateSessionTaskReferences(input)
+      if (input.type === "selection.change" && input.reminderDelayMinutes === undefined)
+        input.reminderDelayMinutes = configuredSelectionReminderMinutes
+      if (input.type === "session.change_task" && input.taskId !== null) {
+        var changedTask = planningTask(input.taskId)
+        input.primarySkill = changedTask.primarySkill
+      }
+      if (input.type === "session.finish" && input.dailySlices === undefined && sessionProjection.activeSession) {
+        input.sliceContext = {
+          timezone: systemTimezone, dayBoundaryMinutes: configuredDayBoundaryMinutes
+        }
+        input.dailySlices = SessionModel.dailySlicesAt(sessionProjection.activeSession, input.atUtc,
+          function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+        var correctionHorizonUtc = new Date(
+          new Date(input.atUtc).getTime() + 24 * 60 * 60000).toISOString()
+        input.sliceTimeline = SessionModel.dailyXpTimelineAt(
+          sessionProjection.activeSession.startedAtUtc, correctionHorizonUtc,
+          function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+      }
+      if (input.type === "session.correct" && input.dailySlices === undefined) {
+        var correctedSession = null
+        var sessions = sessionProjection.sessions || []
+        for (var i = 0; i < sessions.length; i += 1)
+          if (sessions[i].id === input.id) correctedSession = sessions[i]
+        var correctedFocused = 0
+        var correctedSegments = input.segments || []
+        for (var s = 0; s < correctedSegments.length; s += 1)
+          correctedFocused += new Date(correctedSegments[s].endedAtUtc).getTime() -
+            new Date(correctedSegments[s].startedAtUtc).getTime()
+        input.sliceContext = correctedSession ? correctedSession.sliceContext : null
+        input.dailySlices = correctedSession && correctedSession.sliceTimeline &&
+          correctedSession.sliceTimeline.length > 0
+          ? SessionModel.dailySlicesFromTimeline(correctedSegments, correctedSession.sliceTimeline)
+          : correctedSession && correctedSession.dailySlices && correctedSession.dailySlices.length > 0
+          ? SessionModel.revisedDailySlices(correctedSession.dailySlices, correctedFocused)
+          : SessionModel.dailySlicesAt({ segments: correctedSegments, inactiveIntervals: [] },
+            input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+      }
+      var result = SessionModel.decide(sessionProjection, input)
+      sessionConfirmation = result.confirmation || null
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = SessionJournal.appendIntents(journal, result.events, {
+        occurredAtUtc: now.toISOString(),
+        localDateTime: localContext.localDateTime,
+        timezone: localContext.timezone,
+        utcOffsetMinutes: localContext.utcOffsetMinutes,
+        systemTimezoneVerified: true,
+        dayBoundaryMinutes: configuredDayBoundaryMinutes
+      }, EventModel)
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP Session: " + error
+      console.warn("dailyxp/session", errorMessage)
+      return false
+    }
+  }
+
+  function handleSessionInactivity() {
+    var active = sessionProjection.activeSession
+    if (!active || active.status !== "running") return
+    var nowUtc = new Date().toISOString()
+    if (sessionIdleMonitor.isIdle && !active.pendingInactivityStartedAtUtc)
+      applySessionCommand({ type: "session.inactivity.detect", atUtc: nowUtc })
+    else if (!sessionIdleMonitor.isIdle && active.pendingInactivityStartedAtUtc &&
+        !active.pendingInactivityEndedAtUtc)
+      applySessionCommand({ type: "session.inactivity.return", atUtc: nowUtc })
+  }
+
+  function checkSelectionReminder() {
+    var selection = sessionProjection.selection
+    if (!selection) return
+    if (selection.reminderStatus === "scheduled") {
+      var nowUtc = new Date().toISOString()
+      if (new Date(nowUtc).getTime() < new Date(selection.reminderDueAtUtc).getTime()) return
+      applySessionCommand({ type: "selection.reminder.due", atUtc: nowUtc })
+      return
+    }
+    if (selection.reminderStatus !== "due" || notifiedSelectionKey === selection.selectedAtUtc ||
+        selectionReminderProcess.running) return
+    var task = planningTask(selection.taskId)
+    _reminderAction = ""
+    notifiedSelectionKey = selection.selectedAtUtc
+    selectionReminderProcess.command = [
+      "notify-send", "--app-name=DailyXP", "--urgency=normal", "--expire-time=0",
+      "--action=start=Start", "--action=change=Change Task", "--action=dismiss=Dismiss",
+      "Ready to focus?", task ? task.title : "Your selected Task is waiting."
+    ]
+    selectionReminderProcess.running = true
+  }
+
+  function handleSelectionReminderAction(action, exitCode) {
+    var selectedAction = String(action || "").trim()
+    var selection = sessionProjection.selection
+    if (!selection || selection.reminderStatus !== "due") return
+    if (exitCode !== 0) {
+      notifiedSelectionKey = ""
+      errorMessage = "Could not show the DailyXP reminder"
+      console.warn("dailyxp/reminder", errorMessage)
+      return
+    }
+    if (selectedAction === "start") {
+      var task = planningTask(selection.taskId)
+      if (!task) return
+      applySessionCommand({ type: "session.start", session: {
+        id: EventModel.uuidV4(), taskId: task.id, primarySkill: task.primarySkill,
+        plannedMinutes: task.estimateMinutes, startedAtUtc: new Date().toISOString()
+      } })
+    } else if (selectedAction === "change") {
+      Quickshell.execDetached(["omarchy-shell", "shell", "summon", "io.github.da5ater.dailyxp", "{}"])
+    } else {
+      applySessionCommand({ type: "selection.reminder.dismiss", atUtc: new Date().toISOString() })
+    }
+  }
+
   function ensureCurrentPlanningDay() {
     if (!ready || !recordingReady || saving) return false
     var now = new Date()
@@ -239,6 +400,18 @@ Item {
     }
   }
 
+  Process {
+    id: selectionReminderProcess
+    running: false
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root._reminderAction = text
+    }
+    onExited: function(exitCode) {
+      root.handleSelectionReminderAction(root._reminderAction, exitCode)
+    }
+  }
+
   FileView {
     id: primaryFile
     path: root.primaryPath
@@ -253,6 +426,8 @@ Item {
       root.journal = root._pendingJournal
       root.planningProjection = root._pendingJournal
         ? PlanningModel.project(root._pendingJournal.events) : PlanningModel.emptyProjection()
+      root.sessionProjection = root._pendingJournal
+        ? SessionModel.project(root._pendingJournal.events) : SessionModel.emptyProjection()
       root.journalReady = true
       root._primaryRaw = root._pendingPrimaryRaw
       root._pendingEnvelope = null
@@ -261,6 +436,7 @@ Item {
       root.saving = false
       root.persisted()
       Qt.callLater(root.ensureCurrentPlanningDay)
+      Qt.callLater(root.checkSelectionReminder)
     }
     onSaveFailed: function(error) { root.failSave("primary", error) }
   }
@@ -286,6 +462,26 @@ Item {
     running: root.ready
     triggeredOnStart: false
     onTriggered: root.ensureCurrentPlanningDay()
+  }
+
+  IdleMonitor {
+    id: sessionIdleMonitor
+    enabled: root.ready && root.sessionProjection.activeSession &&
+      root.sessionProjection.activeSession.status === "running"
+    timeout: root.configuredInactivitySeconds
+    respectInhibitors: true
+    onIsIdleChanged: root.handleSessionInactivity()
+  }
+
+  Timer {
+    interval: 15000
+    repeat: true
+    running: root.ready
+    triggeredOnStart: false
+    onTriggered: {
+      root.checkSelectionReminder()
+      root.handleSessionInactivity()
+    }
   }
 
   Component.onCompleted: {

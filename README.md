@@ -11,12 +11,16 @@ documented in [`docs/event-model.md`](docs/event-model.md). The PLAN-001 model
 now provides durable Goals, Milestones, Tasks, Routines, Task Occurrences,
 carryover, and consent-gated proposals; see
 [`docs/planning-model.md`](docs/planning-model.md).
+FOCUS-001 adds restart-safe selected work and focused Sessions with pause,
+resume, confirmation, correction, inactivity, cross-boundary, and competitive
+cap rules; see [`docs/session-model.md`](docs/session-model.md).
 
 ## Requirements
 
 - Omarchy 4 / Quattro with the Omarchy shell plugin host
 - `mkdir` and `readlink` from GNU coreutils, used without root access to create
   the XDG state directory and resolve the system IANA timezone
+- `notify-send`, included by Omarchy, for actionable local Session reminders
 
 DailyXP starts no external daemon, installer, privileged command, or second
 Quickshell process. Its headless QML service runs once inside the existing
@@ -76,6 +80,12 @@ confirmation:
 ```sh
 omarchy-shell io.github.da5ater.dailyxp ensurePlanningDay
 omarchy-shell io.github.da5ater.dailyxp planningDayStatus
+```
+
+Inspect the current selected work and Session state without opening the panel:
+
+```sh
+omarchy-shell io.github.da5ater.dailyxp sessionStatus
 ```
 
 ## License
