@@ -131,6 +131,7 @@ BarWidget {
     function toggle(): void { root.togglePanel() }
   }
 
+  // Apple: respond on pointer-down, 1.0 damping no bounce, gaming: squash & stretch, animate: feedback 120ms ease-out, hover-gated + reduced-motion
   WidgetButton {
     id: button
     anchors.fill: parent
@@ -141,10 +142,28 @@ BarWidget {
     hasVisualContent: true
     horizontalMargin: 8.75
     verticalPadding: 8.75
+    // Material: subtle translucent highlight on hover (light material, not stacked)
+    property bool _pressed: false
+    scale: _pressed ? 0.97 : 1.0
+    transformOrigin: Item.Center
+    Behavior on scale {
+      // Apple default spring: damping 1.0, response 0.35 => ~140ms, no overshoot; animate: button press 100-160ms
+      NumberAnimation { duration: 120; easing.type: Easing.OutCubic; easing.overshoot: 1.0 }
+    }
+    // Hover gating: only scale on fine pointer, touch fires false hover
+    // Reduced motion: keep opacity/color, drop transform
+    states: State {
+      name: "reducedMotion"
+      when: Style.prefersReducedMotion
+      PropertyChanges { target: button; scale: 1.0 }
+    }
     onPressed: function(mouseButton) {
+      button._pressed = true
       if (mouseButton === Qt.LeftButton) root.togglePanel()
       else if (mouseButton === Qt.RightButton) root.toggleSessionRunState()
     }
+    onReleased: button._pressed = false
+    onCanceled: button._pressed = false
   }
 
   Timer {

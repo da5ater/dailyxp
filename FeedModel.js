@@ -7,7 +7,11 @@ var PROFILES={ Focused:{master:0.3}, Adventurous:{master:0.8}, Quiet:{master:0.1
 function shouldPlay(settings, event, atHour){
   if(!settings) return false;
   if(settings.masterVolume===0) return false;
-  if(settings.quietHours && atHour>=settings.quietHours.start && atHour<settings.quietHours.end) return false;
+  if(settings.quietHours) {
+    var s=settings.quietHours.start, e=settings.quietHours.end;
+    var inQuiet = s < e ? (atHour>=s && atHour<e) : (atHour>=s || atHour<e);
+    if(inQuiet) return false;
+  }
   if(settings.categoryVolumes && settings.categoryVolumes[event.category]===0) return false;
   if(settings.reducedMotion && event.needsMotion) return false;
   // visual equivalent always remains (accessibility)

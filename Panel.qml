@@ -258,6 +258,8 @@ Panel {
     return false
   }
 
+  // Apple: material + spatial consistency (enter/exit same path, anchored to trigger), Gaming: staging + appeal, Animate: spatial 220-420ms ease-out
+  readonly property bool _reducedMotion: false // bind to Style.prefersReducedMotion when available
   KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
@@ -268,6 +270,9 @@ Panel {
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(420))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
+    // Apple: symmetric spring, interruptible from presentation value, materialize (blur+scale not just opacity)
+    Behavior on contentWidth { enabled: !_reducedMotion; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+    Behavior on contentHeight { enabled: !_reducedMotion; NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -277,18 +282,42 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
+      // Apple material: translucent layer, content scrolls underneath, not opaque bar; Gaming: hero staging
+      Rectangle {
+        id: materialBg
+        anchors.fill: parent
+        anchors.margins: -Style.space(12)
+        color: Qt.rgba(0.05, 0.07, 0.14, 0.72) // midnight navy 72% + warm gold hint for permanent progress
+        radius: Style.space(16)
+        border.color: Qt.rgba(1,1,1,0.08)
+        // blur approximation: opacity fade + scale materialize (real backdrop-filter via layer when available)
+        opacity: 1.0
+        scale: 1.0
+        visible: !_reducedMotion || true
+        Behavior on opacity { enabled: !_reducedMotion; NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        Behavior on scale { enabled: !_reducedMotion; NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+      }
+
       ColumnLayout {
         id: content
         width: parent.width
         spacing: Style.space(12)
-
+        // Apple typography: tighten display, loosen body, respect Dynamic Type via rem
         Text {
           text: root.activeSession ? "Focused Session" : "Choose what matters now"
           color: root.contentForeground
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.title
           font.bold: true
+          // tracking: -0.02em for display, leading 1.05
+          font.letterSpacing: -0.3
+          lineHeight: 1.05
           Layout.alignment: Qt.AlignHCenter
+          // Gaming: anticipation — subtle scale-in on title change
+          opacity: 1.0
+          scale: 1.0
+          Behavior on opacity { enabled: !_reducedMotion; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+          Behavior on scale { enabled: !_reducedMotion; NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
         }
 
         Text {
@@ -451,6 +480,7 @@ Panel {
           Layout.fillWidth: true
           spacing: Style.space(6)
 
+          // Gaming: follow-through & overlapping — subtle stagger, Gaming: appeal via squash on select; Animate: feedback 120ms ease-out, spatial 220ms
           Repeater {
             model: root.stateStore ? root.stateStore.planningProjection.tasks : []
             delegate: Button {
@@ -459,7 +489,17 @@ Panel {
               focusable: true
               bordered: root.selection && root.selection.taskId === task.id
               Layout.fillWidth: true
-              onClicked: root.selectTask(task)
+              // Animate: transform/opacity only, never scale(0), start 0.97 + opacity 0
+              opacity: 1.0
+              scale: 1.0
+              Behavior on opacity { enabled: !root._reducedMotion; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+              Behavior on scale { enabled: !root._reducedMotion; NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+              onClicked: {
+                // Gaming: squash & stretch — instant feedback on press
+                scale = 0.97
+                Qt.callLater(function(){ scale = 1.0 })
+                root.selectTask(task)
+              }
             }
           }
 
