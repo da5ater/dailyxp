@@ -105,10 +105,35 @@ test("every interrupted save boundary recovers a whole generation", () => {
     ["before backup", currentRaw, "", current],
     ["after backup", currentRaw, plan.backupRaw, current],
     ["after primary", plan.primaryRaw, plan.backupRaw, next],
-    ["torn primary", "{torn", plan.backupRaw, current]
+    ["torn primary", "{torn", plan.backupRaw, current],
+    ["torn backup", currentRaw, "{torn", current],
+    ["torn backup after primary", plan.primaryRaw, "{torn", next]
   ];
 
   for (const [name, primaryRaw, backupRaw, expected] of boundaries) {
     assert.deepEqual(StateModel.recover(primaryRaw, backupRaw), expected, name);
   }
+});
+
+test("recovery never invents or duplicates an event across torn writes", () => {
+  const current = StateModel.createEnvelope({ probeEvents: ["probe-1"] }, 4);
+  const next = StateModel.addProbeEvent(current, "probe-2");
+  const plan = StateModel.savePlan(current, next);
+
+  // Torn primary: recovers backup (current), re-applying same probe stays idempotent
+  const recovered = StateModel.recover("{torn", plan.backupRaw);
+  assert.equal(recovered.generation, current.generation);
+  assert.deepEqual(recovered.payload.probeEvents, ["probe-1"]);
+  assert.equal(StateModel.addProbeEvent(recovered, "probe-1"), recovered);
+
+  // Primary wins on equal generation after a torn backup
+  const recoveredFromBackupTorn = StateModel.recover(plan.primaryRaw, "{torn");
+  assert.equal(recoveredFromBackupTorn.generation, next.generation);
+  assert.deepEqual(recoveredFromBackupTorn.payload.probeEvents, ["probe-1", "probe-2"]);
+
+  // Neither slot valid surfaces actionable state without overwriting
+  const damaged = StateModel.recoverDetailed("{torn primary", "{torn backup");
+  assert.equal(damaged.source, "none");
+  assert.equal(damaged.fresh, false);
+  assert.match(damaged.error, /left unchanged/);
 });
