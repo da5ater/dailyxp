@@ -14,12 +14,16 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   property var stateStore: null
+  property bool usePlannedDuration: true
+  property var pendingCorrectionCommand: null
   readonly property var barIdentity: hostWidget || root
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   property string nowUtc: new Date().toISOString()
   readonly property var activeSession: stateStore ? stateStore.sessionProjection.activeSession : null
   readonly property var selection: stateStore ? stateStore.sessionProjection.selection : null
+  readonly property var recentSession: stateStore && stateStore.sessionProjection.sessions.length > 0
+    ? stateStore.sessionProjection.sessions[stateStore.sessionProjection.sessions.length - 1] : null
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, nowUtc) : null
 
@@ -44,7 +48,7 @@ Panel {
         id: EventModel.uuidV4(),
         taskId: task ? task.id : null,
         primarySkill: task ? task.primarySkill : "general/focus",
-        plannedMinutes: task ? task.estimateMinutes : null,
+        plannedMinutes: task && usePlannedDuration ? task.estimateMinutes : null,
         startedAtUtc: new Date().toISOString()
       }
     })
@@ -54,14 +58,81 @@ Panel {
     stateStore.applySessionCommand({ type: type, atUtc: new Date().toISOString() })
   }
 
-  function finishSession(plannedDecision) {
+  function finishSession(plannedDecision, acknowledgeCap) {
     stateStore.applySessionCommand({
       type: "session.finish",
       atUtc: new Date().toISOString(),
       plannedDurationDecision: plannedDecision || undefined,
       inactivityDecision: activeSession && activeSession.inactiveIntervals.length > 0 ? "exclude" : undefined,
-      dailyCapAcknowledged: plannedDecision !== undefined
+      dailyCapAcknowledged: acknowledgeCap === true
     })
+  }
+
+  function hasConfirmationReason(reason) {
+    var confirmation = stateStore ? stateStore.sessionConfirmation : null
+    return confirmation && confirmation.reasons && confirmation.reasons.indexOf(reason) !== -1
+  }
+
+  function confirmationText() {
+    var confirmation = stateStore ? stateStore.sessionConfirmation : null
+    if (!confirmation) return ""
+    var messages = []
+    if (hasConfirmationReason("planned-duration"))
+      messages.push("The planned duration passed. Choose whether overtime receives competitive credit.")
+    if (hasConfirmationReason("daily-cap")) {
+      var excluded = Number(confirmation.dailyCapExcludedMilliseconds || 0) / 60000
+      messages.push("The 12-hour daily cap excludes " + excluded + " minutes from competitive credit. Focused history stays intact.")
+    }
+    if (hasConfirmationReason("correction")) {
+      var delta = Number(confirmation.competitiveDeltaMilliseconds || 0) / 60000
+      messages.push("This correction changes competitive time by " + (delta > 0 ? "+" : "") + delta + " minutes.")
+    }
+    return messages.length > 0 ? messages.join(" ")
+      : "Focused time needs your confirmation before competitive credit changes."
+  }
+
+  function cycleActiveTask() {
+    if (!activeSession || !stateStore) return
+    var tasks = stateStore.planningProjection.tasks || []
+    var nextTaskId = null
+    if (activeSession.taskId === null && tasks.length > 0) nextTaskId = tasks[0].id
+    else for (var i = 0; i < tasks.length; i += 1)
+      if (tasks[i].id === activeSession.taskId && i + 1 < tasks.length) nextTaskId = tasks[i + 1].id
+    stateStore.applySessionCommand({
+      type: "session.change_task", taskId: nextTaskId, atUtc: new Date().toISOString()
+    })
+  }
+
+  function correctionCommand(deltaMinutes) {
+    if (!recentSession || recentSession.status !== "finished") return null
+    var segments = JSON.parse(JSON.stringify(recentSession.segments || []))
+    if (segments.length === 0) return null
+    var last = segments[segments.length - 1]
+    var currentEnd = new Date(last.endedAtUtc).getTime()
+    var revisedEnd = currentEnd + deltaMinutes * 60000
+    revisedEnd = Math.max(new Date(last.startedAtUtc).getTime() + 1000, Math.min(revisedEnd, Date.now()))
+    if (revisedEnd === currentEnd) return null
+    last.endedAtUtc = new Date(revisedEnd).toISOString()
+    return {
+      type: "session.correct", id: recentSession.id, atUtc: new Date().toISOString(), segments: segments
+    }
+  }
+
+  function requestCorrection(deltaMinutes) {
+    pendingCorrectionCommand = correctionCommand(deltaMinutes)
+    if (!pendingCorrectionCommand) return
+    stateStore.applySessionCommand(pendingCorrectionCommand)
+    if (!stateStore.sessionConfirmation) pendingCorrectionCommand = null
+  }
+
+  function continueCorrection(plannedDecision, confirmCompetitiveChange) {
+    if (!pendingCorrectionCommand) return
+    var command = JSON.parse(JSON.stringify(pendingCorrectionCommand))
+    if (plannedDecision !== undefined) command.plannedDurationDecision = plannedDecision
+    if (confirmCompetitiveChange === true) command.competitiveChangeConfirmed = true
+    pendingCorrectionCommand = command
+    stateStore.applySessionCommand(command)
+    if (!stateStore.sessionConfirmation) pendingCorrectionCommand = null
   }
 
   function formatElapsed(milliseconds) {
@@ -84,6 +155,18 @@ Panel {
     if (!selection) return "Start free Session"
     if (selection.reminderStatus === "due") return "Start selected Session"
     return "Start selected"
+  }
+
+  function plannedModeText() {
+    var task = selectedTask()
+    if (!task) return "Open-ended Session"
+    return usePlannedDuration ? "Planned: " + task.estimateMinutes + " minutes" : "Open-ended Session"
+  }
+
+  function recentSessionText() {
+    if (!recentSession) return ""
+    var revision = recentSession.lastRevisionKind ? " · " + recentSession.lastRevisionKind : ""
+    return "Last Session: " + formatElapsed(recentSession.focusedMilliseconds) + revision
   }
 
   function open() {
@@ -159,6 +242,16 @@ Panel {
           Layout.alignment: Qt.AlignHCenter
         }
 
+        Button {
+          visible: root.activeSession && root.stateStore && root.stateStore.planningProjection.tasks.length > 0
+          text: root.activeSession && root.activeSession.taskId ? "Change attached Task" : "Attach a Task"
+          focusable: true
+          bordered: false
+          enabled: root.stateStore && !root.stateStore.saving
+          Layout.alignment: Qt.AlignHCenter
+          onClicked: root.cycleActiveTask()
+        }
+
         RowLayout {
           visible: root.activeSession
           Layout.alignment: Qt.AlignHCenter
@@ -179,7 +272,7 @@ Panel {
             enabled: root.activeSession
               ? root.stateStore && !root.stateStore.saving && !root.activeSession.pendingInactivityStartedAtUtc
               : false
-            onClicked: root.finishSession(undefined)
+            onClicked: root.finishSession(undefined, false)
           }
 
           Button {
@@ -228,12 +321,13 @@ Panel {
         }
 
         ColumnLayout {
-          visible: root.stateStore && root.stateStore.sessionConfirmation && root.activeSession
+          visible: root.stateStore && root.stateStore.sessionConfirmation &&
+            (root.activeSession || root.pendingCorrectionCommand)
           Layout.fillWidth: true
           spacing: Style.space(6)
 
           Text {
-            text: "Focused time needs your confirmation before competitive credit changes."
+            text: root.confirmationText()
             color: Color.urgent
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.bodySmall
@@ -243,19 +337,43 @@ Panel {
           }
 
           RowLayout {
+            visible: root.hasConfirmationReason("planned-duration")
             Layout.alignment: Qt.AlignHCenter
             Button {
               text: "Count overtime"
               focusable: true
               bordered: true
-              onClicked: root.finishSession("include-overtime")
+              onClicked: root.pendingCorrectionCommand
+                ? root.continueCorrection("include-overtime", false)
+                : root.finishSession("include-overtime", true)
             }
             Button {
               text: "Use planned time"
               focusable: true
               bordered: true
-              onClicked: root.finishSession("exclude-overtime")
+              onClicked: root.pendingCorrectionCommand
+                ? root.continueCorrection("exclude-overtime", false)
+                : root.finishSession("exclude-overtime", true)
             }
+          }
+
+          Button {
+            visible: !root.pendingCorrectionCommand && root.hasConfirmationReason("daily-cap") &&
+              !root.hasConfirmationReason("planned-duration")
+            text: "Accept competitive cap"
+            focusable: true
+            bordered: true
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: root.finishSession(undefined, true)
+          }
+
+          Button {
+            visible: root.pendingCorrectionCommand && root.hasConfirmationReason("correction")
+            text: "Apply correction"
+            focusable: true
+            bordered: true
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: root.continueCorrection(undefined, true)
           }
         }
 
@@ -277,6 +395,15 @@ Panel {
           }
 
           Button {
+            visible: root.selection && root.selectedTask()
+            text: root.plannedModeText()
+            focusable: true
+            bordered: root.usePlannedDuration
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: root.usePlannedDuration = !root.usePlannedDuration
+          }
+
+          Button {
             text: root.startButtonText()
             focusable: true
             bordered: true
@@ -294,6 +421,38 @@ Panel {
             onClicked: root.stateStore.applySessionCommand({
               type: "selection.reminder.dismiss", atUtc: new Date().toISOString()
             })
+          }
+        }
+
+        ColumnLayout {
+          visible: !root.activeSession && root.recentSession && root.recentSession.status === "finished"
+          Layout.fillWidth: true
+          spacing: Style.space(6)
+
+          Text {
+            text: root.recentSessionText()
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Button {
+              text: "−5 minutes"
+              focusable: true
+              bordered: false
+              enabled: root.stateStore && !root.stateStore.saving
+              onClicked: root.requestCorrection(-5)
+            }
+            Button {
+              text: "+5 minutes"
+              focusable: true
+              bordered: false
+              enabled: root.stateStore && !root.stateStore.saving
+              onClicked: root.requestCorrection(5)
+            }
           }
         }
 

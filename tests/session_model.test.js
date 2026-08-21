@@ -139,6 +139,23 @@ test("planned overtime changes competitive eligibility only after confirmation",
   assert.deepEqual(state.sessions[0].competitiveAdjustments, [{
     reason: "planned-duration", excludedMilliseconds: 10 * 60000
   }]);
+
+  state = apply(state, {
+    type: "session.correct", id: "session-planned", atUtc: "2026-08-21T10:00:00.000Z",
+    segments: [{
+      startedAtUtc: "2026-08-21T08:00:00.000Z",
+      endedAtUtc: "2026-08-21T09:20:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 80 * 60000 }]
+  }).projection;
+  assert.equal(state.sessions[0].focusedMilliseconds, 80 * 60000);
+  assert.equal(state.sessions[0].rawFocusedMilliseconds, 80 * 60000);
+  assert.equal(state.sessions[0].competitiveMilliseconds, 60 * 60000);
+  assert.equal(state.sessions[0].plannedDurationDecision, "exclude-overtime");
+  assert.deepEqual(state.sessions[0].inactiveIntervals, []);
+  assert.deepEqual(state.sessions[0].competitiveAdjustments, [{
+    reason: "planned-duration", excludedMilliseconds: 20 * 60000
+  }]);
 });
 
 test("confirmed inactivity removes only the agreed interval without recording activity content", () => {
@@ -355,4 +372,54 @@ test("runtime slicing finds an exact DailyXP boundary and removes confirmed inac
     { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 },
     { dailyXpDate: "2026-08-21", milliseconds: 30 * 60000 }
   ]);
+});
+
+test("a correction cannot create future or overlapping Session history", () => {
+  let state = SessionModel.emptyProjection();
+  function finish(id, startedAtUtc, endedAtUtc) {
+    state = apply(state, {
+      type: "session.start",
+      session: { id, taskId: null, primarySkill: "backend/build", plannedMinutes: null, startedAtUtc }
+    }).projection;
+    state = apply(state, {
+      type: "session.finish", atUtc: endedAtUtc,
+      dailySlices: [{
+        dailyXpDate: "2026-08-21",
+        milliseconds: new Date(endedAtUtc).getTime() - new Date(startedAtUtc).getTime()
+      }]
+    }).projection;
+  }
+  finish("session-a", "2026-08-21T08:00:00.000Z", "2026-08-21T09:00:00.000Z");
+  finish("session-b", "2026-08-21T10:00:00.000Z", "2026-08-21T11:00:00.000Z");
+
+  assert.throws(() => SessionModel.decide(state, {
+    type: "session.correct", id: "session-a", atUtc: "2026-08-21T12:00:00.000Z",
+    segments: [{
+      startedAtUtc: "2026-08-21T11:30:00.000Z", endedAtUtc: "2026-08-21T12:30:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 60 * 60000 }]
+  }), /segments: must not end after the correction/);
+
+  assert.throws(() => SessionModel.decide(state, {
+    type: "session.correct", id: "session-a", atUtc: "2026-08-21T12:00:00.000Z",
+    segments: [{
+      startedAtUtc: "2026-08-21T10:30:00.000Z", endedAtUtc: "2026-08-21T10:45:00.000Z"
+    }],
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 15 * 60000 }]
+  }), /segments: must not overlap another Session/);
+});
+
+test("daily slices reject impossible calendar dates", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: {
+      id: "session-calendar", taskId: null, primarySkill: "general/focus",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T08:00:00.000Z"
+    }
+  }).projection;
+
+  assert.throws(() => SessionModel.decide(state, {
+    type: "session.finish", atUtc: "2026-08-21T09:00:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-02-30", milliseconds: 60 * 60000 }]
+  }), /dailySlices.dailyXpDate: must be a real calendar date/);
 });

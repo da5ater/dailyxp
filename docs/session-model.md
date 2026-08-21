@@ -40,8 +40,9 @@ The bar shows live elapsed time. Right-click pauses or resumes without opening
 the panel; left-click opens the compact Session controls. The controls use
 immediate host-button feedback and avoid decorative motion because starting,
 pausing, and resuming are frequent actions. The panel exposes Task selection,
-free Session start, pause/resume, finish, discard, reminder dismissal, and the
-required confirmation choices.
+planned/open-ended choice, free Session start, attachment changes,
+pause/resume, finish, discard, reminder dismissal, recent history correction,
+and reason-specific confirmation choices.
 
 For deterministic inspection through Omarchy IPC:
 

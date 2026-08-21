@@ -166,6 +166,12 @@ function validatedDailySlices(values, focusedMilliseconds) {
   var result = values.map(function(value) {
     if (!value || !DATE_PATTERN.test(String(value.dailyXpDate || "")))
       fail("dailySlices.dailyXpDate", "must be YYYY-MM-DD");
+    var dateParts = value.dailyXpDate.split("-").map(Number);
+    var calendarDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
+    if (calendarDate.getUTCFullYear() !== dateParts[0] ||
+        calendarDate.getUTCMonth() !== dateParts[1] - 1 ||
+        calendarDate.getUTCDate() !== dateParts[2])
+      fail("dailySlices.dailyXpDate", "must be a real calendar date");
     if (!Number.isInteger(value.milliseconds) || value.milliseconds < 1)
       fail("dailySlices.milliseconds", "must be a positive integer");
     if (seen[value.dailyXpDate]) fail("dailySlices.dailyXpDate", "must be unique");
@@ -276,6 +282,26 @@ function revisedSessionFields(session, changes) {
   return revised;
 }
 
+function validateCorrectionTimeline(state, sessionId, segments, changedAt) {
+  segments.forEach(function(segment) {
+    if (utcMilliseconds(segment.endedAtUtc, "segments.endedAtUtc") > changedAt)
+      fail("segments", "must not end after the correction");
+  });
+  (state.sessions || []).forEach(function(other) {
+    if (other.id === sessionId || other.status !== "finished") return;
+    (other.segments || []).forEach(function(otherSegment) {
+      var otherStart = utcMilliseconds(otherSegment.startedAtUtc, "otherSession.startedAtUtc");
+      var otherEnd = utcMilliseconds(otherSegment.endedAtUtc, "otherSession.endedAtUtc");
+      segments.forEach(function(segment) {
+        var start = utcMilliseconds(segment.startedAtUtc, "segments.startedAtUtc");
+        var end = utcMilliseconds(segment.endedAtUtc, "segments.endedAtUtc");
+        if (start < otherEnd && end > otherStart)
+          fail("segments", "must not overlap another Session");
+      });
+    });
+  });
+}
+
 function correctionOutcome(state, input) {
   var session = findSession(state.sessions || [], input.id);
   if (!session || session.status !== "finished") fail("session.id", "must reference a finished Session");
@@ -283,14 +309,33 @@ function correctionOutcome(state, input) {
   if (changedAt < utcMilliseconds(session.finishedAtUtc, "session.finishedAtUtc"))
     fail("atUtc", "must not precede Session finish");
   var revised = validatedClosedSegments(input.segments);
+  validateCorrectionTimeline(state, session.id, revised.segments, changedAt);
   var revisedFields = revisedSessionFields(session, input.changes);
   var slices = validatedDailySlices(input.dailySlices, revised.focusedMilliseconds);
+  var plannedDecision = input.plannedDurationDecision || session.plannedDurationDecision;
+  var plannedOvertime = revisedFields.plannedMinutes === null ? 0 :
+    Math.max(0, revised.focusedMilliseconds - revisedFields.plannedMinutes * 60000);
+  if (plannedOvertime > 0 && ["include-overtime", "exclude-overtime"].indexOf(plannedDecision) === -1)
+    return freeze({ events: [], confirmation: {
+      reasons: ["planned-duration"],
+      focusedDeltaMilliseconds: revised.focusedMilliseconds - session.focusedMilliseconds,
+      competitiveDeltaMilliseconds: null
+    } });
+  if (plannedOvertime === 0) plannedDecision = null;
   var budget = revised.focusedMilliseconds;
-  if (revisedFields.plannedMinutes !== null && session.plannedDurationDecision === "exclude-overtime")
+  var competitiveAdjustments = [];
+  if (plannedDecision === "exclude-overtime") {
     budget = Math.min(budget, revisedFields.plannedMinutes * 60000);
+    competitiveAdjustments.push({
+      reason: "planned-duration", excludedMilliseconds: revised.focusedMilliseconds - budget
+    });
+  }
   var otherSessions = state.sessions.filter(function(item) { return item.id !== session.id; });
   var allocation = competitiveAllocation({ sessions: otherSessions }, slices, budget);
   var competitive = budget - allocation.capExcludedMilliseconds;
+  if (allocation.capExcludedMilliseconds > 0) competitiveAdjustments.push({
+    reason: "daily-cap", excludedMilliseconds: allocation.capExcludedMilliseconds
+  });
   var competitiveDelta = competitive - session.competitiveMilliseconds;
   if (competitiveDelta !== 0 && input.competitiveChangeConfirmed !== true)
     return freeze({ events: [], confirmation: {
@@ -311,7 +356,10 @@ function correctionOutcome(state, input) {
     focusedMilliseconds: revised.focusedMilliseconds,
     competitiveMilliseconds: competitive,
     competitiveByDailyXpDate: allocation.byDate,
-    plannedDurationDecision: input.plannedDurationDecision || null,
+    rawFocusedMilliseconds: revised.focusedMilliseconds,
+    inactiveIntervals: [],
+    competitiveAdjustments: competitiveAdjustments,
+    plannedDurationDecision: plannedDecision,
     dailySlices: slices,
     dailyXpDate: primaryDailyXpDate(slices),
     competitiveDeltaMilliseconds: competitiveDelta
@@ -363,6 +411,7 @@ function finishOutcome(state, input) {
     focusedMilliseconds: focused,
     competitiveMilliseconds: competitive,
     competitiveByDailyXpDate: allocation.byDate,
+    plannedDurationDecision: input.plannedDurationDecision || null,
     rawFocusedMilliseconds: rawFocused,
     inactiveIntervals: inactivity.intervals,
     dailySlices: slices,
@@ -570,6 +619,10 @@ function projectIntents(projection, intents) {
         revisedSession.focusedMilliseconds = event.payload.focusedMilliseconds;
         revisedSession.competitiveMilliseconds = event.payload.competitiveMilliseconds;
         revisedSession.competitiveByDailyXpDate = clone(event.payload.competitiveByDailyXpDate);
+        revisedSession.rawFocusedMilliseconds = event.payload.rawFocusedMilliseconds;
+        revisedSession.inactiveIntervals = clone(event.payload.inactiveIntervals);
+        revisedSession.competitiveAdjustments = clone(event.payload.competitiveAdjustments);
+        revisedSession.plannedDurationDecision = event.payload.plannedDurationDecision;
         revisedSession.dailySlices = clone(event.payload.dailySlices);
         revisedSession.dailyXpDate = event.payload.dailyXpDate;
         revisedSession.lastRevisionKind = event.payload.kind;

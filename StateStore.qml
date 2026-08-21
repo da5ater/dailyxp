@@ -210,15 +210,36 @@ Item {
     return EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
   }
 
+  function planningTaskExists(taskId) {
+    if (taskId === null || taskId === undefined) return true
+    var tasks = planningProjection.tasks || []
+    for (var i = 0; i < tasks.length; i += 1) if (tasks[i].id === taskId) return true
+    return false
+  }
+
+  function validateSessionTaskReferences(command) {
+    var taskId = null
+    if (command.type === "selection.change" || command.type === "session.change_task") taskId = command.taskId
+    else if (command.type === "session.start" && command.session) taskId = command.session.taskId
+    else if (command.type === "session.correct" && command.changes &&
+        command.changes.taskId !== undefined) taskId = command.changes.taskId
+    if (!planningTaskExists(taskId)) throw new Error("taskId must reference a current Task")
+  }
+
   function applySessionCommand(command) {
     if (!ready || !recordingReady || saving) return false
     try {
       var input = JSON.parse(JSON.stringify(command || ({})))
+      validateSessionTaskReferences(input)
       if (input.type === "selection.change" && input.reminderDelayMinutes === undefined)
         input.reminderDelayMinutes = configuredSelectionReminderMinutes
       if (input.type === "session.finish" && input.dailySlices === undefined && sessionProjection.activeSession)
         input.dailySlices = SessionModel.dailySlicesAt(sessionProjection.activeSession, input.atUtc,
           function(atUtc) { return root.sessionDailyXpDate(atUtc) })
+      if (input.type === "session.correct" && input.dailySlices === undefined)
+        input.dailySlices = SessionModel.dailySlicesAt({
+          segments: input.segments || [], inactiveIntervals: []
+        }, input.atUtc, function(atUtc) { return root.sessionDailyXpDate(atUtc) })
       var result = SessionModel.decide(sessionProjection, input)
       sessionConfirmation = result.confirmation || null
       if (result.events.length === 0) return true
