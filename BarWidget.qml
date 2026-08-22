@@ -31,33 +31,45 @@ BarWidget {
     stateStore.applySessionCommand({ type: type, atUtc: new Date().toISOString() })
   }
 
+  readonly property var uxProjection: stateStore ? stateStore.uxProjection : null
+  function surfaceIndicator() {
+    if (uxProjection && uxProjection.currentSurface) {
+      if (uxProjection.currentSurface === "Journey") return " ◇"
+      if (uxProjection.currentSurface === "World") return " ◈"
+    }
+    return ""
+  }
+
   function buttonText() {
     if (activeSession && sessionSummary) {
       var icon = activeSession.status === "running" ? "󰐊 " : "󰏤 "
-      return icon + formatElapsed(sessionSummary.focusedMilliseconds)
+      return icon + formatElapsed(sessionSummary.focusedMilliseconds) + surfaceIndicator()
     }
     if (progressionProjection && progressionProjection.totals) {
       var lvl = "Lv" + progressionProjection.level
       var rank = progressionProjection.storyRank ? " " + progressionProjection.storyRank : ""
       var mom = progressionProjection.momentum ? " · " + progressionProjection.momentum : ""
-      var label = lvl + rank + mom
-      if (root.vertical) return label.length > 14 ? lvl : label
+      var label = lvl + rank + mom + surfaceIndicator()
+      if (root.vertical) return label.length > 18 ? (lvl + surfaceIndicator()) : label
       return label
     }
-    return root.vertical ? "󰓎" : "DailyXP"
+    return (root.vertical ? "󰓎" : "DailyXP") + surfaceIndicator()
   }
 
   function buttonTooltip() {
     if (activeSession)
-      return activeSession.status === "running" ? "Right-click to pause Session" : "Right-click to resume Session"
+      return (activeSession.status === "running" ? "Right-click to pause Session" : "Right-click to resume Session")
+        + (uxProjection ? " · " + uxProjection.currentSurface : "")
     if (progressionProjection && progressionProjection.totals) {
       return "Lv " + progressionProjection.level + " " + progressionProjection.storyRank
         + " · " + progressionProjection.totals.lifetimeXp + " Lifetime"
         + " · " + progressionProjection.totals.seasonXp + " Season"
         + " · Season " + (progressionProjection.seasonId || 1)
         + " · " + (progressionProjection.momentum || "Dormant")
+        + (uxProjection ? " · " + uxProjection.currentSurface : "")
     }
-    return stateStore && stateStore.ready ? "Open DailyXP" : "Loading DailyXP"
+    return (stateStore && stateStore.ready ? "Open DailyXP" : "Loading DailyXP")
+      + (uxProjection ? " · " + uxProjection.currentSurface : "")
   }
 
   function open() {
@@ -185,6 +197,21 @@ BarWidget {
         error: root.stateStore.errorMessage,
         projection: root.stateStore.sessionProjection,
         confirmation: root.stateStore.sessionConfirmation
+      })
+    }
+    function uxCommand(json: string): string {
+      if (!root.stateStore) return "unavailable"
+      var applied = root.stateStore.applyUxCommand(JSON.parse(json))
+      if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
+      return applied ? "requested" : "not-started"
+    }
+    function uxStatus(): string {
+      if (!root.stateStore) return JSON.stringify({ available: false })
+      return JSON.stringify({
+        available: true,
+        saving: root.stateStore.saving,
+        error: root.stateStore.errorMessage,
+        projection: root.stateStore.uxProjection
       })
     }
     function open(): void { root.open() }

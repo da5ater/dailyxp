@@ -6,6 +6,7 @@ import "EventModel.js" as EventModel
 import "SessionModel.js" as SessionModel
 import "ProgressionModel.js" as ProgressionModel
 import "StoryModel.js" as StoryModel
+import "UxModel.js" as UxModel
 
 Panel {
   id: root
@@ -50,6 +51,37 @@ Panel {
     return "active"
   }
   readonly property var recoveryProjection: stateStore ? stateStore.recoveryProjection : null
+  readonly property var uxProjection: stateStore ? stateStore.uxProjection : null
+  readonly property var habitProjection: stateStore ? stateStore.habitProjection : null
+  readonly property var planningProjection: stateStore ? stateStore.planningProjection : null
+  property bool playOverdueExpanded: false
+  function currentSurface() { return uxProjection ? uxProjection.currentSurface : "Play" }
+  function isSheetOpen(sheetId) { return uxProjection && uxProjection.sheets ? uxProjection.sheets.indexOf(sheetId) !== -1 : false }
+  function toggleSheet(sheetId) {
+    if (!stateStore) return
+    var open = isSheetOpen(sheetId)
+    stateStore.applyUxCommand({ type: open ? "ux.sheet.close" : "ux.sheet.open", sheetId: sheetId })
+  }
+  function todayOccurrences() {
+    if (!planningProjection || !planningProjection.occurrences) return []
+    var today = planningProjection.lastAdvancedDailyXpDate
+    if (!today) return []
+    var out = []
+    for (var i = 0; i < planningProjection.occurrences.length; i++) {
+      var o = planningProjection.occurrences[i]
+      if (o.dailyXpDate === today && (o.status === "open" || o.status === "completed")) out.push(o)
+    }
+    return out
+  }
+  function overdueOccurrences() {
+    if (!planningProjection || !planningProjection.occurrences) return []
+    var out = []
+    for (var i = 0; i < planningProjection.occurrences.length; i++) {
+      var o = planningProjection.occurrences[i]
+      if (o.status === "overdue") out.push(o)
+    }
+    return out
+  }
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, nowUtc) : null
 
@@ -285,7 +317,7 @@ Panel {
   }
 
   // Apple: material + spatial consistency (enter/exit same path, anchored to trigger), Gaming: staging + appeal, Animate: spatial 220-420ms ease-out
-  readonly property bool _reducedMotion: false // bind to Style.prefersReducedMotion when available
+  readonly property bool _reducedMotion: (uxProjection && uxProjection.reducedMotion) ? true : false
   KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
@@ -352,7 +384,55 @@ Panel {
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.body
           Layout.alignment: Qt.AlignHCenter
+          Accessible.role: Accessible.StaticText
+          Accessible.name: text
         }
+
+        // UX-001: Play / Journey / World navigation — UxModel-driven, no dashboard
+        RowLayout {
+          Layout.alignment: Qt.AlignHCenter
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+          Repeater {
+            model: ["Play", "Journey", "World"]
+            delegate: Button {
+              text: modelData
+              focusable: true
+              bordered: root.currentSurface() !== modelData
+              Accessible.role: Accessible.Button
+              Accessible.name: modelData + (root.currentSurface() === modelData ? " — current" : "")
+              enabled: root.stateStore && !root.stateStore.saving
+              onClicked: root.stateStore.applyUxCommand({ type: "ux.navigate", surface: modelData })
+            }
+          }
+          Button {
+            text: root._reducedMotion ? "Motion: reduced" : "Motion: full"
+            focusable: true
+            bordered: false
+            Accessible.role: Accessible.Button
+            Accessible.name: text
+            enabled: root.stateStore && !root.stateStore.saving
+            onClicked: root.stateStore.applyUxCommand({ type: "ux.reducedMotion.set", enabled: !root._reducedMotion })
+          }
+        }
+
+        Text {
+          text: root.currentSurface() === "Play" ? "Play — your next action"
+            : root.currentSurface() === "Journey" ? "Journey — your progress & kingdom"
+            : "World — competition (local preview)"
+          color: root.contentForeground
+          opacity: 0.68
+          font.family: root.contentFontFamily
+          font.pixelSize: Style.font.caption || Style.font.bodySmall
+          Layout.alignment: Qt.AlignHCenter
+          Accessible.role: Accessible.StaticText
+        }
+
+        // ——— Play surface — the next meaningful action without a dashboard ———
+        ColumnLayout {
+          visible: root.currentSurface() === "Play"
+          Layout.fillWidth: true
+          spacing: Style.space(8)
 
         Text {
           visible: root.activeSession && root.activeSession.plannedMinutes !== null
@@ -363,6 +443,7 @@ Panel {
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.bodySmall
           Layout.alignment: Qt.AlignHCenter
+          Accessible.role: Accessible.StaticText
         }
 
         Button {
@@ -370,6 +451,7 @@ Panel {
           text: root.activeSession && root.activeSession.taskId ? "Change attached Task" : "Attach a Task"
           focusable: true
           bordered: false
+          Accessible.role: Accessible.Button
           enabled: root.stateStore && !root.stateStore.saving
           Layout.alignment: Qt.AlignHCenter
           onClicked: root.cycleActiveTask()
@@ -384,6 +466,7 @@ Panel {
             text: root.activeSession && root.activeSession.status === "running" ? "Pause" : "Resume"
             focusable: true
             bordered: true
+            Accessible.role: Accessible.Button
             enabled: root.stateStore && !root.stateStore.saving
             onClicked: root.sessionTransition(root.activeSession.status === "running" ? "session.pause" : "session.resume")
           }
@@ -392,6 +475,7 @@ Panel {
             text: "Finish"
             focusable: true
             bordered: true
+            Accessible.role: Accessible.Button
             enabled: root.activeSession
               ? root.stateStore && !root.stateStore.saving && !root.activeSession.pendingInactivityStartedAtUtc
               : false
@@ -402,6 +486,7 @@ Panel {
             text: "Discard"
             focusable: true
             bordered: false
+            Accessible.role: Accessible.Button
             enabled: root.stateStore && !root.stateStore.saving
             onClicked: root.sessionTransition("session.discard")
           }
@@ -420,6 +505,7 @@ Panel {
             wrapMode: Text.Wrap
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
           }
 
           RowLayout {
@@ -428,6 +514,7 @@ Panel {
               text: "Count it"
               focusable: true
               bordered: true
+              Accessible.role: Accessible.Button
               onClicked: root.stateStore.applySessionCommand({
                 type: "session.inactivity.resolve", atUtc: new Date().toISOString(), decision: "include"
               })
@@ -436,6 +523,7 @@ Panel {
               text: "Exclude it"
               focusable: true
               bordered: true
+              Accessible.role: Accessible.Button
               onClicked: root.stateStore.applySessionCommand({
                 type: "session.inactivity.resolve", atUtc: new Date().toISOString(), decision: "exclude"
               })
@@ -458,6 +546,7 @@ Panel {
             wrapMode: Text.Wrap
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
           }
 
           RowLayout {
@@ -467,6 +556,7 @@ Panel {
               text: "Count overtime"
               focusable: true
               bordered: true
+              Accessible.role: Accessible.Button
               onClicked: root.pendingCorrectionCommand
                 ? root.continueCorrection("include-overtime", false)
                 : root.finishSession("include-overtime", true)
@@ -475,6 +565,7 @@ Panel {
               text: "Use planned time"
               focusable: true
               bordered: true
+              Accessible.role: Accessible.Button
               onClicked: root.pendingCorrectionCommand
                 ? root.continueCorrection("exclude-overtime", false)
                 : root.finishSession("exclude-overtime", true)
@@ -487,6 +578,7 @@ Panel {
             text: "Accept competitive cap"
             focusable: true
             bordered: true
+            Accessible.role: Accessible.Button
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.finishSession(undefined, true)
           }
@@ -496,6 +588,7 @@ Panel {
             text: "Apply correction"
             focusable: true
             bordered: true
+            Accessible.role: Accessible.Button
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.continueCorrection(undefined, true)
           }
@@ -506,7 +599,6 @@ Panel {
           Layout.fillWidth: true
           spacing: Style.space(6)
 
-          // Gaming: follow-through & overlapping — subtle stagger, Gaming: appeal via squash on select; Animate: feedback 120ms ease-out, spatial 220ms
           Repeater {
             model: root.stateStore ? root.stateStore.planningProjection.tasks : []
             delegate: Button {
@@ -515,13 +607,12 @@ Panel {
               focusable: true
               bordered: root.selection && root.selection.taskId === task.id
               Layout.fillWidth: true
-              // Animate: transform/opacity only, never scale(0), start 0.97 + opacity 0
               opacity: 1.0
               scale: 1.0
               Behavior on opacity { enabled: !root._reducedMotion; NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
               Behavior on scale { enabled: !root._reducedMotion; NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+              Accessible.role: Accessible.Button
               onClicked: {
-                // Gaming: squash & stretch — instant feedback on press
                 scale = 0.97
                 Qt.callLater(function(){ scale = 1.0 })
                 root.selectTask(task)
@@ -534,6 +625,7 @@ Panel {
             text: root.plannedModeText()
             focusable: true
             bordered: root.usePlannedDuration
+            Accessible.role: Accessible.Button
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.usePlannedDuration = !root.usePlannedDuration
           }
@@ -546,12 +638,14 @@ Panel {
             font.family: root.contentFontFamily
             inputMethodHints: Qt.ImhDigitsOnly
             Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.EditableText
           }
 
           Button {
             text: root.startButtonText()
             focusable: true
             bordered: true
+            Accessible.role: Accessible.Button
             enabled: root.stateStore && root.stateStore.recordingReady && !root.stateStore.saving
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.startSession(false)
@@ -562,6 +656,7 @@ Panel {
             text: "Start free Session"
             focusable: true
             bordered: false
+            Accessible.role: Accessible.Button
             enabled: root.stateStore && root.stateStore.recordingReady && !root.stateStore.saving
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.startSession(true)
@@ -572,6 +667,7 @@ Panel {
             text: "Dismiss reminder"
             focusable: true
             bordered: false
+            Accessible.role: Accessible.Button
             Layout.alignment: Qt.AlignHCenter
             onClicked: root.stateStore.applySessionCommand({
               type: "selection.reminder.dismiss", atUtc: new Date().toISOString()
@@ -590,6 +686,7 @@ Panel {
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.bodySmall
             Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.StaticText
           }
 
           RowLayout {
@@ -601,6 +698,7 @@ Panel {
               foreground: root.contentForeground
               font.family: root.contentFontFamily
               inputMethodHints: Qt.ImhFormattedNumbersOnly
+              Accessible.role: Accessible.EditableText
             }
             TextField {
               id: correctionSkill
@@ -608,6 +706,7 @@ Panel {
               placeholderText: "skill (optional)"
               foreground: root.contentForeground
               font.family: root.contentFontFamily
+              Accessible.role: Accessible.EditableText
             }
             TextField {
               id: correctionPlanned
@@ -615,11 +714,13 @@ Panel {
               placeholderText: "plan/open"
               foreground: root.contentForeground
               font.family: root.contentFontFamily
+              Accessible.role: Accessible.EditableText
             }
             Button {
               text: "Apply exact"
               focusable: true
               bordered: true
+              Accessible.role: Accessible.Button
               enabled: root.stateStore && !root.stateStore.saving && correctionDuration.text !== ""
               onClicked: root.requestExactCorrection(
                 correctionDuration.text, correctionSkill.text, correctionPlanned.text)
@@ -632,6 +733,7 @@ Panel {
               text: "−5 minutes"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.stateStore && !root.stateStore.saving
               onClicked: root.requestCorrection(-5, undefined)
             }
@@ -639,6 +741,7 @@ Panel {
               text: "+5 minutes"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.stateStore && !root.stateStore.saving
               onClicked: root.requestCorrection(5, undefined)
             }
@@ -651,6 +754,7 @@ Panel {
               text: "Older"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.correctionSessionOffset + 1 < root.finishedSessionCount()
               onClicked: root.correctionSessionOffset += 1
             }
@@ -658,6 +762,7 @@ Panel {
               text: "Newer"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.correctionSessionOffset > 0
               onClicked: root.correctionSessionOffset -= 1
             }
@@ -669,6 +774,7 @@ Panel {
               text: root.recentSession && root.recentSession.taskId ? "Change Task / Skill" : "Attach Task / Skill"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.stateStore && !root.stateStore.saving
               onClicked: root.correctionTaskChange()
             }
@@ -676,6 +782,7 @@ Panel {
               text: "−5 planned"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.stateStore && !root.stateStore.saving
               onClicked: root.correctionPlannedChange(-5)
             }
@@ -683,11 +790,172 @@ Panel {
               text: "+5 planned"
               focusable: true
               bordered: false
+              Accessible.role: Accessible.Button
               enabled: root.stateStore && !root.stateStore.saving
               onClicked: root.correctionPlannedChange(5)
             }
           }
         }
+
+        // Play — Today's occurrences + habits (PRD: one current activity is dominant, today visible without dashboard)
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(6)
+          Text {
+            text: "Today"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+            Accessible.role: Accessible.StaticText
+          }
+          Text {
+            visible: root.todayOccurrences().length === 0 && (!root.habitProjection || !root.habitProjection.habits || root.habitProjection.habits.length === 0)
+            text: "No tasks scheduled for today. Add a Routine or Task to see it here."
+            color: root.contentForeground
+            opacity: 0.62
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            Accessible.role: Accessible.StaticText
+          }
+          Repeater {
+            model: root.todayOccurrences()
+            delegate: RowLayout {
+              property var occ: modelData
+              Layout.fillWidth: true
+              spacing: Style.space(8)
+              Text {
+                text: occ ? occ.title : ""
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.bodySmall
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                Accessible.role: Accessible.StaticText
+              }
+              Text {
+                text: occ ? occ.status : ""
+                color: root.contentForeground
+                opacity: 0.62
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption || Style.font.bodySmall
+                Accessible.role: Accessible.StaticText
+              }
+            }
+          }
+          Repeater {
+            model: root.habitProjection ? root.habitProjection.habits : []
+            delegate: RowLayout {
+              property var habit: modelData
+              Layout.fillWidth: true
+              spacing: Style.space(8)
+              Text {
+                text: habit ? ("◇ " + habit.title) : ""
+                color: root.contentForeground
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.bodySmall
+                Layout.fillWidth: true
+                Accessible.role: Accessible.StaticText
+              }
+              Text {
+                text: habit ? habit.status : ""
+                color: root.contentForeground
+                opacity: 0.62
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption || Style.font.bodySmall
+                Accessible.role: Accessible.StaticText
+              }
+            }
+          }
+        }
+
+        // Play — collapsed overdue area (folds, not intimidiating backlog)
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(4)
+          visible: root.overdueOccurrences().length > 0
+          Button {
+            text: (root.playOverdueExpanded ? "▾ Overdue (" + root.overdueOccurrences().length + ")" : "▸ Overdue (" + root.overdueOccurrences().length + ") — collapsed")
+            focusable: true
+            bordered: false
+            Accessible.role: Accessible.Button
+            Layout.fillWidth: true
+            onClicked: root.playOverdueExpanded = !root.playOverdueExpanded
+          }
+          ColumnLayout {
+            visible: root.playOverdueExpanded
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+            Repeater {
+              model: root.overdueOccurrences()
+              delegate: Text {
+                property var occ: modelData
+                text: occ ? (occ.title + " · " + occ.dailyXpDate + " · overdue") : ""
+                color: root.contentForeground
+                opacity: 0.72
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption || Style.font.bodySmall
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                Accessible.role: Accessible.StaticText
+              }
+            }
+            Text {
+              text: "Overdue folds — complete, reschedule, skip, dismiss, archive, or merge into today's equivalent. No duplicate XP."
+              color: root.contentForeground
+              opacity: 0.52
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              Accessible.role: Accessible.StaticText
+            }
+          }
+        }
+
+        } // end Play surface
+
+        // ——— Journey surface — crest/level/rank, kingdom, achievements (no dashboard) ———
+        ColumnLayout {
+          visible: root.currentSurface() === "Journey"
+          Layout.fillWidth: true
+          spacing: Style.space(10)
+
+          Button {
+            text: root.isSheetOpen("progress-detail") ? "Hide progress detail" : "Show progress detail"
+            focusable: true
+            bordered: false
+            Accessible.role: Accessible.Button
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: root.toggleSheet("progress-detail")
+          }
+
+          ColumnLayout {
+            visible: root.isSheetOpen("progress-detail")
+            Layout.fillWidth: true
+            spacing: Style.space(4)
+            Rectangle { height: 1; color: Qt.rgba(1,1,1,0.08); Layout.fillWidth: true }
+            Text {
+              text: "Focused sheet — progress detail. Opened from Journey, closed without losing place. Interruptible."
+              color: root.contentForeground
+              opacity: 0.62
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              Accessible.role: Accessible.StaticText
+            }
+            Button {
+              text: "Close sheet"
+              focusable: true
+              bordered: true
+              Accessible.role: Accessible.Button
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: root.toggleSheet("progress-detail")
+            }
+          }
 
         // progression-ledger — PROG-001 executable surface: level/rank, Momentum, ledger with previewable calculation, Habit cap + Season farming guard, season reset
         ColumnLayout {
@@ -707,6 +975,7 @@ Panel {
             font.pixelSize: Style.font.titleSmall || Style.font.title
             font.bold: true
             Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.StaticText
           }
 
           Text {
@@ -1144,14 +1413,54 @@ Panel {
             horizontalAlignment: Text.AlignHCenter
           }
 
-          // Achievements (cosmetic)
-          Text {
+          // Achievements (cosmetic) — icon + label, not color-only
+          RowLayout {
             visible: root.storyProjection && root.storyProjection.achievements && root.storyProjection.achievements.length > 0
-            text: {
-              var a = root.storyProjection.achievements
-              if (!a || a.length === 0) return ""
-              return "Achievements: " + a.map(function(x){ return x.title }).join(" · ")
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+            Text {
+              text: "◆"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              Accessible.role: Accessible.StaticText
             }
+            Text {
+              text: {
+                var a = root.storyProjection.achievements
+                if (!a || a.length === 0) return ""
+                return "Achievements: " + a.map(function(x){ return x.title }).join(" · ")
+              }
+              color: root.contentForeground
+              opacity: 0.64
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              Accessible.role: Accessible.StaticText
+            }
+          }
+
+          } // end kingdom section
+          } // end Journey surface
+
+        // ——— World surface — fixture/division placeholder, honest unavailable state ———
+        ColumnLayout {
+          visible: root.currentSurface() === "World"
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+          Rectangle { height: 1; color: Qt.rgba(1,1,1,0.08); Layout.fillWidth: true }
+          Text {
+            text: "World"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.titleSmall || Style.font.title
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.StaticText
+          }
+          Text {
+            text: "Fixture · Division · nearby ranks · Skill leagues — cloud-backed when available. Local preview keeps state honest."
             color: root.contentForeground
             opacity: 0.64
             font.family: root.contentFontFamily
@@ -1159,24 +1468,38 @@ Panel {
             wrapMode: Text.Wrap
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
+          }
+          Text {
+            text: "Unavailable offline — your local progress, Sessions, Habits, and Recovery remain fully usable."
+            color: root.contentForeground
+            opacity: 0.56
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
           }
         }
 
-
         // recovery — RECOV-001 executable surface: private tracks, backdated start, check-ins, explicit relapse (no shame), restart, deletion scopes
+        // Gated inside Journey as the protected Recovery entry (PRD: separate protected entry)
         ColumnLayout {
+          visible: root.currentSurface() === "Journey"
           Layout.fillWidth: true
           spacing: Style.space(8)
 
           Rectangle { height: 1; color: Qt.rgba(1, 1, 1, 0.08); Layout.fillWidth: true }
 
           Text {
-            text: "Recovery"
+            text: "Recovery — protected entry"
             color: root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.titleSmall || Style.font.title
             font.bold: true
             Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.StaticText
           }
 
           Text {
