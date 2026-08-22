@@ -16,6 +16,7 @@ BarWidget {
   readonly property var activeSession: stateStore ? stateStore.sessionProjection.activeSession : null
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, sessionNowUtc) : null
+  readonly property var progressionProjection: stateStore ? stateStore.progressionProjection : null
 
   function formatElapsed(milliseconds) {
     var totalMinutes = Math.floor(Number(milliseconds || 0) / 60000)
@@ -31,14 +32,31 @@ BarWidget {
   }
 
   function buttonText() {
-    if (!activeSession || !sessionSummary) return root.vertical ? "󰓎" : "DailyXP"
-    var icon = activeSession.status === "running" ? "󰐊 " : "󰏤 "
-    return icon + formatElapsed(sessionSummary.focusedMilliseconds)
+    if (activeSession && sessionSummary) {
+      var icon = activeSession.status === "running" ? "󰐊 " : "󰏤 "
+      return icon + formatElapsed(sessionSummary.focusedMilliseconds)
+    }
+    if (progressionProjection && progressionProjection.totals) {
+      var lvl = "Lv" + progressionProjection.level
+      var rank = progressionProjection.storyRank ? " " + progressionProjection.storyRank : ""
+      var mom = progressionProjection.momentum ? " · " + progressionProjection.momentum : ""
+      var label = lvl + rank + mom
+      if (root.vertical) return label.length > 14 ? lvl : label
+      return label
+    }
+    return root.vertical ? "󰓎" : "DailyXP"
   }
 
   function buttonTooltip() {
     if (activeSession)
       return activeSession.status === "running" ? "Right-click to pause Session" : "Right-click to resume Session"
+    if (progressionProjection && progressionProjection.totals) {
+      return "Lv " + progressionProjection.level + " " + progressionProjection.storyRank
+        + " · " + progressionProjection.totals.lifetimeXp + " Lifetime"
+        + " · " + progressionProjection.totals.seasonXp + " Season"
+        + " · Season " + (progressionProjection.seasonId || 1)
+        + " · " + (progressionProjection.momentum || "Dormant")
+    }
     return stateStore && stateStore.ready ? "Open DailyXP" : "Loading DailyXP"
   }
 
@@ -113,6 +131,21 @@ BarWidget {
       var applied = root.stateStore.applySessionCommand(JSON.parse(json))
       if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
       return applied ? "requested" : "not-started"
+    }
+    function progressionCommand(json: string): string {
+      if (!root.stateStore) return "unavailable"
+      var applied = root.stateStore.applyProgressionCommand(JSON.parse(json))
+      if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
+      return applied ? "requested" : "not-started"
+    }
+    function progressionStatus(): string {
+      if (!root.stateStore) return JSON.stringify({ available: false })
+      return JSON.stringify({
+        available: true,
+        saving: root.stateStore.saving,
+        error: root.stateStore.errorMessage,
+        projection: root.stateStore.progressionProjection
+      })
     }
     function sessionStatus(): string {
       if (!root.stateStore) return JSON.stringify({ available: false })

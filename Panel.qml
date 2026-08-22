@@ -4,6 +4,7 @@ import qs.Commons
 import qs.Ui
 import "EventModel.js" as EventModel
 import "SessionModel.js" as SessionModel
+import "ProgressionModel.js" as ProgressionModel
 
 Panel {
   id: root
@@ -24,6 +25,22 @@ Panel {
   readonly property var activeSession: stateStore ? stateStore.sessionProjection.activeSession : null
   readonly property var selection: stateStore ? stateStore.sessionProjection.selection : null
   readonly property var recentSession: correctionSession()
+
+  readonly property var progressionProjection: stateStore ? stateStore.progressionProjection : null
+  function progressionPreview(entry) {
+    if (!entry) return ""
+    try { return ProgressionModel.previewFor(entry) } catch (e) { return entry.reason || "" }
+  }
+  function progressionLevelText() {
+    var proj = progressionProjection
+    if (!proj) return "Level 1 \u00b7 Wanderer"
+    return "Level " + proj.level + " \u00b7 " + proj.storyRank
+  }
+  function progressionTotalsText() {
+    var proj = progressionProjection
+    if (!proj || !proj.totals) return "0 Lifetime \u00b7 0 Season"
+    return proj.totals.lifetimeXp + " Lifetime \u00b7 " + proj.totals.seasonXp + " Season"
+  }
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, nowUtc) : null
 
@@ -659,6 +676,151 @@ Panel {
               bordered: false
               enabled: root.stateStore && !root.stateStore.saving
               onClicked: root.correctionPlannedChange(5)
+            }
+          }
+        }
+
+        // progression-ledger — PROG-001 executable surface: level/rank, Momentum, ledger with previewable calculation, Habit cap + Season farming guard, season reset
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          Rectangle {
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.08)
+            Layout.fillWidth: true
+          }
+
+          Text {
+            text: "Progress"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.titleSmall || Style.font.title
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          Text {
+            text: root.progressionLevelText()
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.body
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          Text {
+            text: root.progressionTotalsText()
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          Text {
+            text: root.progressionProjection ? ("Momentum: " + root.progressionProjection.momentum) : "Momentum: Dormant"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          Text {
+            text: "Habit Season capped at 7/day (extras stay personal) \u00b7 Milestone Season 0 prevents farming \u00b7 Season reset preserves Lifetime"
+            color: root.contentForeground
+            opacity: 0.72
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            Button {
+              text: "Reset Season"
+              focusable: true
+              bordered: true
+              enabled: root.stateStore && !root.stateStore.saving && root.progressionProjection && root.progressionProjection.totals && root.progressionProjection.totals.seasonXp > 0
+              onClicked: root.stateStore.applyProgressionCommand({ type: "progression.season.reset" })
+            }
+            Text {
+              visible: root.progressionProjection && root.progressionProjection.seasonId !== undefined
+              text: visible ? ("Season " + root.progressionProjection.seasonId) : ""
+              color: root.contentForeground
+              opacity: 0.6
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+            }
+          }
+
+          Text {
+            visible: !root.progressionProjection || !root.progressionProjection.ledger || root.progressionProjection.ledger.length === 0
+            text: "No ledger entries yet. Complete a Session, habit, or milestone to earn rule-versioned XP."
+            color: root.contentForeground
+            opacity: 0.68
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          ColumnLayout {
+            visible: root.progressionProjection && root.progressionProjection.ledger && root.progressionProjection.ledger.length > 0
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              text: "Ledger \u2014 each award once, previewable calculation"
+              color: root.contentForeground
+              opacity: 0.72
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              Layout.alignment: Qt.AlignHCenter
+            }
+
+            Repeater {
+              model: root.progressionProjection ? root.progressionProjection.ledger : []
+              delegate: ColumnLayout {
+                property var entry: modelData
+                Layout.fillWidth: true
+                spacing: Style.space(2)
+                Text {
+                  text: root.progressionPreview(entry)
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+                Text {
+                  visible: entry && entry.calculation
+                  text: {
+                    if (!entry || !entry.calculation) return ""
+                    var c = entry.calculation
+                    if (c.correction) return "calculation: correction"
+                    if (c.minutes !== undefined) {
+                      var parts = ["base " + c.base + " (1/min \u00b7 " + c.minutes + "m)"]
+                      if (c.plannedBonus) parts.push("planned +" + c.plannedBonus)
+                      if (c.dailyTargetBonus) parts.push("daily-target +" + c.dailyTargetBonus)
+                      return "calculation: " + parts.join(" \u00b7 ")
+                    }
+                    if (c.habitId) return "calculation: habit " + c.habitId + " \u00b7 20 Lifetime"
+                    if (c.significance !== undefined) return "calculation: significance " + c.significance + " \u00b7 " + c.award + " Lifetime, 0 Season (locked)"
+                    if (c.fullSetBonus !== undefined) return "calculation: full set \u00b7 +" + c.fullSetBonus + " Lifetime, 0 Season"
+                    if (c.seasonId !== undefined) return "calculation: Season " + c.seasonId
+                    return "calculation: v" + (entry.ruleVersion || 1)
+                  }
+                  color: root.contentForeground
+                  opacity: 0.58
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+              }
             }
           }
         }
