@@ -4,6 +4,7 @@ import qs.Commons
 import qs.Ui
 import "EventModel.js" as EventModel
 import "SessionModel.js" as SessionModel
+import "ShareModel.js" as ShareModel
 import "ProgressionModel.js" as ProgressionModel
 import "StoryModel.js" as StoryModel
 import "UxModel.js" as UxModel
@@ -1625,6 +1626,326 @@ Panel {
               Accessible.role: Accessible.Button
               Layout.alignment: Qt.AlignHCenter
               onClicked: root.toggleSheet("statistics")
+            }
+          }
+        }
+
+        // share — SHARE-001 executable surface: user-reviewed card preview with
+        // per-field removal, real image export (grabToImage), copy, prepared
+        // posts (never auto-post). Recovery cards only via the protected flow.
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          Rectangle { height: 1; color: Qt.rgba(1,1,1,0.08); Layout.fillWidth: true }
+
+          Text {
+            text: "Share"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.titleSmall || Style.font.title
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.StaticText
+          }
+
+          Button {
+            text: root.isSheetOpen("share") ? "Hide share cards" : "Show share cards"
+            focusable: true
+            bordered: false
+            Accessible.role: Accessible.Button
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: {
+              // Seed a default draft the first time the sheet opens.
+              if (!root.isSheetOpen("share") && !root.stateStore.shareProjection.draft)
+                root.stateStore.applyShareCommand({ type: "share.draft.set", cardType: "skill" })
+              root.toggleSheet("share")
+            }
+          }
+
+          ColumnLayout {
+            visible: root.isSheetOpen("share")
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            // Card type selector — local types only; recovery excluded here.
+            RowLayout {
+              spacing: Style.space(4)
+              Layout.alignment: Qt.AlignHCenter
+              Repeater {
+                model: ["skill", "period", "session", "progression", "habit", "goal"]
+                delegate: Button {
+                  required property var modelData
+                  readonly property bool isCurrent: root.stateStore.shareProjection.draft &&
+                    root.stateStore.shareProjection.draft.cardType === modelData
+                  text: modelData
+                  focusable: true
+                  bordered: !isCurrent
+                  Accessible.role: Accessible.Button
+                  onClicked: root.stateStore.applyShareCommand({ type: "share.draft.set", cardType: modelData })
+                }
+              }
+            }
+
+            // Live preview — exactly what export renders. grabToImage turns THIS item into PNG.
+            Rectangle {
+              id: cardPreviewFrame
+              readonly property var draft: root.stateStore.shareProjection.draft
+              readonly property var previewCard: {
+                if (!draft) return null
+                var data = ShareModel.fieldsFor(draft.cardType, {
+                  insightProjection: root.stateStore.insightProjection,
+                  progressionProjection: root.stateStore.progressionProjection,
+                  planningProjection: root.stateStore.planningProjection,
+                  habitProjection: root.stateStore.habitProjection,
+                  sessionProjection: root.stateStore.sessionProjection
+                })
+                if (!data) return null
+                return ShareModel.createCard(draft.cardType, data, { removeFields: draft.removeFields })
+              }
+              visible: previewCard !== null
+              color: Qt.rgba(0.06, 0.09, 0.16, 0.95)
+              radius: Style.roundingSmall !== undefined ? Style.roundingSmall : 12
+              Layout.fillWidth: true
+              Layout.preferredHeight: cardPreview.implicitHeight + Style.space(24)
+              Accessible.role: Accessible.StaticText
+
+              ColumnLayout {
+                id: cardPreview
+                anchors.centerIn: parent
+                width: parent.width - Style.space(24)
+                spacing: Style.space(6)
+
+                Text {
+                  text: cardPreviewFrame.previewCard ? "DailyXP · " + cardPreviewFrame.previewCard.type : ""
+                  color: root.contentForeground
+                  opacity: 0.7
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  Layout.alignment: Qt.AlignHCenter
+                }
+                Repeater {
+                  model: cardPreviewFrame.previewCard ? Object.keys(cardPreviewFrame.previewCard.fields) : []
+                  delegate: Text {
+                    required property var modelData
+                    property string displayValue: {
+                      var v = cardPreviewFrame.previewCard.fields[modelData]
+                      return modelData === "minutes" || modelData === "totalFocusedMinutes"
+                        ? v + " min focused" : String(v)
+                    }
+                    text: displayValue
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    Layout.alignment: Qt.AlignHCenter
+                  }
+                }
+                Text {
+                  visible: cardPreviewFrame.previewCard ? cardPreviewFrame.previewCard.sample : false
+                  text: "Sample – fictional data"
+                  color: "#e0b34d"
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  font.bold: true
+                  Layout.alignment: Qt.AlignHCenter
+                }
+                Text {
+                  text: "Made with DailyXP"
+                  color: root.contentForeground
+                  opacity: 0.55
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  Layout.alignment: Qt.AlignHCenter
+                }
+              }
+
+              // Sample-mode toggle lives on the frame so it never enters the exported image.
+              Button {
+                readonly property bool sampleOn: root.stateStore.shareProjection.draft &&
+                  root.stateStore.shareProjection.draft.sampleMode
+                text: sampleOn ? "Sample: ON" : "Sample: OFF"
+                focusable: true
+                bordered: true
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                Accessible.role: Accessible.Button
+                onClicked: {
+                  var d = root.stateStore.shareProjection.draft
+                  root.stateStore.applyShareCommand({
+                    type: "share.draft.set", cardType: d.cardType,
+                    removeFields: d.removeFields, sampleMode: !d.sampleMode
+                  })
+                }
+              }
+            }
+
+            Text {
+              visible: root.stateStore.shareProjection.draft &&
+                ShareModel.fieldsFor(root.stateStore.shareProjection.draft.cardType, {
+                  insightProjection: root.stateStore.insightProjection,
+                  progressionProjection: root.stateStore.progressionProjection,
+                  planningProjection: root.stateStore.planningProjection,
+                  habitProjection: root.stateStore.habitProjection,
+                  sessionProjection: root.stateStore.sessionProjection
+                }) === null
+              text: "No data for this card type yet — complete a session or set a goal first."
+              color: root.contentForeground
+              opacity: 0.68
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+              Accessible.role: Accessible.StaticText
+            }
+
+            // Field removal — every field may be removed before export.
+            Flow {
+              readonly property var draft: root.stateStore.shareProjection.draft
+              visible: draft !== null && cardPreviewFrame.previewCard !== null
+              spacing: Style.space(4)
+              Layout.fillWidth: true
+              Repeater {
+                model: cardPreviewFrame.previewCard ? Object.keys(cardPreviewFrame.previewCard.fields) : []
+                delegate: Button {
+                  required property var modelData
+                  readonly property bool removed: root.stateStore.shareProjection.draft &&
+                    root.stateStore.shareProjection.draft.removeFields.indexOf(modelData) !== -1
+                  text: (removed ? "+ restore " : "× remove ") + modelData
+                  focusable: true
+                  bordered: !removed
+                  Accessible.role: Accessible.Button
+                  onClicked: root.stateStore.applyShareCommand({ type: "share.field.toggled", field: modelData })
+                }
+              }
+            }
+
+            // Export actions — save renders the preview to PNG via grabToImage;
+            // copy puts card text on the clipboard; prepared posts open in browser.
+            RowLayout {
+              Layout.alignment: Qt.AlignHCenter
+              spacing: Style.space(4)
+
+              Button {
+                text: "Save image"
+                focusable: true
+                bordered: true
+                enabled: cardPreviewFrame.previewCard !== null
+                Accessible.role: Accessible.Button
+                onClicked: {
+                  var card = cardPreviewFrame.previewCard
+                  root.stateStore.ensureShareDir()
+                  var grab = cardPreviewFrame.grabToImage(function(result) {
+                    var path = root.stateStore.stateDir + "/share/" + card.type + "-" + Date.now() + ".png"
+                    if (result.saveToFile(path)) {
+                      root.stateStore.applyShareCommand({
+                        type: "share.exported", action: "save", savedPath: path,
+                        cardId: card.id, cardType: card.type,
+                        previewedFields: Object.keys(card.fields),
+                        sampleMode: card.sample
+                      })
+                    }
+                  })
+                }
+              }
+
+              Button {
+                text: "Copy text"
+                focusable: true
+                bordered: true
+                enabled: cardPreviewFrame.previewCard !== null
+                Accessible.role: Accessible.Button
+                onClicked: {
+                  var card = cardPreviewFrame.previewCard
+                  var lines = ["DailyXP · " + card.type]
+                  Object.keys(card.fields).forEach(function(k) {
+                    lines.push(k + ": " + card.fields[k])
+                  })
+                  lines.push("Made with DailyXP")
+                  root.stateStore.copyShareCardText(lines.join("\n"))
+                  root.stateStore.applyShareCommand({
+                    type: "share.exported", action: "copy",
+                    cardId: card.id, cardType: card.type,
+                    previewedFields: Object.keys(card.fields),
+                    sampleMode: card.sample
+                  })
+                }
+              }
+
+              Button {
+                text: "Post to X"
+                focusable: true
+                bordered: true
+                enabled: cardPreviewFrame.previewCard !== null
+                Accessible.role: Accessible.Button
+                onClicked: {
+                  var card = cardPreviewFrame.previewCard
+                  root.stateStore.openSharePostUrl(ShareModel.preparedPostUrl("x", card))
+                  root.stateStore.applyShareCommand({
+                    type: "share.exported", action: "preparePost", network: "x",
+                    cardId: card.id, cardType: card.type,
+                    previewedFields: Object.keys(card.fields),
+                    sampleMode: card.sample
+                  })
+                }
+              }
+
+              Button {
+                text: "LinkedIn"
+                focusable: true
+                bordered: true
+                enabled: cardPreviewFrame.previewCard !== null
+                Accessible.role: Accessible.Button
+                onClicked: {
+                  var card = cardPreviewFrame.previewCard
+                  root.stateStore.openSharePostUrl(ShareModel.preparedPostUrl("linkedin", card))
+                  root.stateStore.applyShareCommand({
+                    type: "share.exported", action: "preparePost", network: "linkedin",
+                    cardId: card.id, cardType: card.type,
+                    previewedFields: Object.keys(card.fields),
+                    sampleMode: card.sample
+                  })
+                }
+              }
+
+              Button {
+                text: "Facebook"
+                focusable: true
+                bordered: true
+                enabled: cardPreviewFrame.previewCard !== null
+                Accessible.role: Accessible.Button
+                onClicked: {
+                  var card = cardPreviewFrame.previewCard
+                  root.stateStore.openSharePostUrl(ShareModel.preparedPostUrl("facebook", card))
+                  root.stateStore.applyShareCommand({
+                    type: "share.exported", action: "preparePost", network: "facebook",
+                    cardId: card.id, cardType: card.type,
+                    previewedFields: Object.keys(card.fields),
+                    sampleMode: card.sample
+                  })
+                }
+              }
+            }
+
+            Text {
+              text: "You review before anything leaves. Save and Copy stay local; post buttons open a pre-filled draft you send yourself. Never auto-posts."
+              color: root.contentForeground
+              opacity: 0.62
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+              Accessible.role: Accessible.StaticText
+            }
+
+            Button {
+              text: "Close sheet"
+              focusable: true
+              bordered: true
+              Accessible.role: Accessible.Button
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: root.toggleSheet("share")
             }
           }
         }

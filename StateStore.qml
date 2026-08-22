@@ -13,6 +13,7 @@ import "ProgressionModel.js" as ProgressionModel
 import "RecoveryModel.js" as RecoveryModel
 import "SessionJournal.js" as SessionJournal
 import "SessionModel.js" as SessionModel
+import "ShareModel.js" as ShareModel
 import "StateModel.js" as StateModel
 import "StoryModel.js" as StoryModel
 import "UxModel.js" as UxModel
@@ -43,6 +44,60 @@ Item {
   property var uxProjection: UxModel.emptyProjection()
   // INSIGHT-001 — statistics derived from sibling projections; recovery never an input.
   property var insightProjection: InsightModel.emptyProjection()
+  // SHARE-001 — share-card draft state + last export record.
+  property var shareProjection: ShareModel.emptyProjection()
+
+  function applyShareCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = ShareModel.decide(shareProjection, command)
+      if (result.events.length === 0) return true
+      shareProjection = ShareModel.projectIntents(shareProjection, result.events)
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = journal
+      for (var i = 0; i < result.events.length; i += 1) {
+        var ev = result.events[i]
+        var domainEvent = EventModel.createEvent({
+          eventId: EventModel.uuidV4(),
+          deviceId: nextJournal.deviceId,
+          type: ev.type,
+          occurredAtUtc: now.toISOString(),
+          localDateTime: localContext.localDateTime,
+          timezone: localContext.timezone,
+          utcOffsetMinutes: localContext.utcOffsetMinutes,
+          systemTimezoneVerified: true,
+          dayBoundaryMinutes: configuredDayBoundaryMinutes,
+          occurrenceKey: ev.occurrenceKey || null,
+          payload: ev.payload || {}
+        })
+        nextJournal = EventModel.append(nextJournal, domainEvent)
+      }
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP share state: " + error
+      console.warn("dailyxp/share", errorMessage)
+      return false
+    }
+  }
+
+  // SHARE-001 export plumbing. The panel renders the card preview and calls
+  // saveShareCardImage(item, path) after Item.grabToImage resolves; these
+  // helpers do the OS side. Nothing ever posts automatically.
+  function ensureShareDir() {
+    mkShareDirProcess.command = ["mkdir", "-p", stateDir + "/share"]
+    mkShareDirProcess.running = true
+  }
+
+  function copyShareCardText(text) {
+    copyProcess.command = ["wl-copy", String(text || "")]
+    copyProcess.running = true
+  }
+
+  function openSharePostUrl(url) {
+    Quickshell.execDetached(["xdg-open", String(url)])
+  }
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
@@ -300,6 +355,13 @@ Item {
         insightEvents.push({ type: journal.events[ie].type, payload: journal.events[ie].payload })
     if (insightEvents.length > 0)
       insightProjection = InsightModel.projectIntents(InsightModel.emptyProjection(), insightEvents)
+    // SHARE-001 — restore draft/export state from journal across restarts.
+    var shareEvents = []
+    for (var se = 0; se < journal.events.length; se += 1)
+      if (/^share\./.test(journal.events[se].type))
+        shareEvents.push({ type: journal.events[se].type, payload: journal.events[se].payload })
+    if (shareEvents.length > 0)
+      shareProjection = ShareModel.projectIntents(ShareModel.emptyProjection(), shareEvents)
     insightProjection = InsightModel.snapshot(insightProjection, {
       sessions: slices,
       lifetimeXp: progressionProjection.totals ? progressionProjection.totals.lifetimeXp : 0
@@ -702,6 +764,18 @@ Item {
     onExited: function(exitCode) {
       root.handleSelectionReminderAction(root._reminderAction, exitCode)
     }
+  }
+
+  // SHARE-001 — clipboard write for card text export (wl-copy on Wayland).
+  Process {
+    id: copyProcess
+    running: false
+  }
+
+  // SHARE-001 — one-shot mkdir for the share export directory.
+  Process {
+    id: mkShareDirProcess
+    running: false
   }
 
   FileView {
