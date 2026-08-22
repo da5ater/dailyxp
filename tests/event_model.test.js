@@ -198,3 +198,109 @@ test("bounded version-0 migration produces a backup and deterministic v1 journal
   assert.equal(restored.ok, true);
   assert.equal(EventModel.exportJournal(restored.journal), EventModel.exportJournal(migrated.journal));
 });
+
+test("DST fall-back duplicate wall time keeps distinct events after round-trip", () => {
+  // 2024-11-03 America/New_York: DST ends 02:00 -> 01:00 — 01:30 occurs twice.
+  // 05:30Z is 01:30 EDT (-240), 06:30Z is 01:30 EST (-300). Same wall time, different frozen offsets.
+  const first = event({
+    eventId: "55555555-5555-4555-8555-555555555555",
+    occurredAtUtc: "2024-11-03T05:30:00.000Z",
+    localDateTime: "2024-11-03T01:30:00.000",
+    timezone: "America/New_York",
+    utcOffsetMinutes: -240,
+    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2024-11-02"),
+  });
+  const second = event({
+    eventId: "66666666-6666-4666-8666-666666666666",
+    occurredAtUtc: "2024-11-03T06:30:00.000Z",
+    localDateTime: "2024-11-03T01:30:00.000",
+    timezone: "America/New_York",
+    utcOffsetMinutes: -300,
+    occurrenceKey: EventModel.occurrenceKey("routine/bootdev", "2024-11-02"),
+  });
+
+  let journal = EventModel.createJournal(DEVICE_ID);
+  journal = EventModel.append(journal, first);
+  journal = EventModel.append(journal, second);
+
+  const raw = EventModel.exportJournal(journal);
+  const reloaded = EventModel.loadJournal(raw);
+  assert.equal(reloaded.ok, true);
+  assert.equal(EventModel.exportJournal(reloaded.journal), raw);
+
+  const rebuilt = EventModel.rebuildProjection(reloaded.journal);
+  // Both frozen to 2024-11-02 (< 04:00 boundary) — no shift, no dedup collapse.
+  assert.deepEqual(rebuilt.countsByDailyXpDate, { "2024-11-02": 2 });
+  assert.deepEqual(rebuilt.uniqueOccurrenceKeys, [first.occurrenceKey, second.occurrenceKey]);
+  assert.equal(rebuilt.eventCount, 2);
+  assert.deepEqual(rebuilt.appliedEventIds, [first.eventId, second.eventId]);
+});
+
+test("Day Boundary edit mid-history cannot move completed history — append stays idempotent by eventId", () => {
+  // 03:30 local with 04:00 boundary -> dailyXpDate 2026-08-19; with 00:00 -> 2026-08-20.
+  // A later Day Boundary preference change must not retroactively move the stored event.
+  const original = event({
+    occurredAtUtc: "2026-08-20T00:30:00.000Z",
+    localDateTime: "2026-08-20T03:30:00.000",
+    timezone: "Africa/Cairo",
+    utcOffsetMinutes: 180,
+    dayBoundaryMinutes: 240,
+    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2026-08-19"),
+  });
+  assert.equal(original.dailyXpDate, "2026-08-19");
+
+  // Same eventId re-created with a different dayBoundary would freeze to a different date
+  // if it were a new event — but append dedupes by eventId, so the stored history wins.
+  const variantSameId = EventModel.createEvent({
+    eventId: EVENT_ID,
+    deviceId: DEVICE_ID,
+    type: "foundation.probed",
+    occurredAtUtc: "2026-08-20T00:30:00.000Z",
+    localDateTime: "2026-08-20T03:30:00.000",
+    timezone: "Africa/Cairo",
+    utcOffsetMinutes: 180,
+    dayBoundaryMinutes: 0,
+    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2026-08-20"),
+    payload: { probeId: "probe-1" },
+  });
+  assert.equal(variantSameId.dailyXpDate, "2026-08-20");
+
+  let journal = EventModel.createJournal(DEVICE_ID);
+  journal = EventModel.append(journal, original);
+  const afterVariant = EventModel.append(journal, variantSameId);
+  assert.equal(afterVariant, journal, "same eventId must stay idempotent");
+  assert.equal(afterVariant.events[0].dailyXpDate, "2026-08-19");
+
+  const raw = EventModel.exportJournal(journal);
+  const reloaded = EventModel.loadJournal(raw);
+  assert.equal(reloaded.ok, true);
+  assert.equal(EventModel.exportJournal(reloaded.journal), raw);
+
+  const rebuilt = EventModel.rebuildProjection(reloaded.journal);
+  assert.deepEqual(rebuilt.countsByDailyXpDate, { "2026-08-19": 1 });
+  assert.equal(rebuilt.eventCount, 1);
+  assert.equal(rebuilt.appliedEventIds[0], EVENT_ID);
+
+  // A genuinely new eventId on the same instant with the new boundary freezes independently
+  // and does not mutate the first event's frozen date.
+  const newEvent = EventModel.createEvent({
+    eventId: "77777777-7777-4777-8777-777777777777",
+    deviceId: DEVICE_ID,
+    type: "foundation.probed",
+    occurredAtUtc: "2026-08-20T00:30:00.000Z",
+    localDateTime: "2026-08-20T03:30:00.000",
+    timezone: "Africa/Cairo",
+    utcOffsetMinutes: 180,
+    dayBoundaryMinutes: 0,
+    occurrenceKey: EventModel.occurrenceKey("routine/anki", "2026-08-20"),
+    payload: { probeId: "probe-2" },
+  });
+  const extended = EventModel.append(journal, newEvent);
+  assert.equal(extended.events.length, 2);
+  assert.equal(extended.events[0].dailyXpDate, "2026-08-19");
+  assert.equal(extended.events[1].dailyXpDate, "2026-08-20");
+  const rebuiltExtended = EventModel.rebuildProjection(
+    EventModel.loadJournal(EventModel.exportJournal(extended)).journal,
+  );
+  assert.deepEqual(rebuiltExtended.countsByDailyXpDate, { "2026-08-19": 1, "2026-08-20": 1 });
+});
