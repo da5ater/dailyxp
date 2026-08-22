@@ -106,10 +106,12 @@ function decide(projection, command){
     return freeze({ events:[{ type:"insight.consent.deleted", payload:{ name:i.name } }] });
   }
   // Internal rollback event — emitted by StateStore when persistence fails, never
-  // appended to the journal. Restores consent from the pre-command snapshot.
+  // appended to the journal. Carries the COMPLETE pre-command consent snapshot;
+  // partial restores would silently drop excludes/renames/merges/deletes or
+  // force-enable tracking via the wrong event handler.
   if(i.type === "insight.consent.restore"){
-    var restored = { enabled: !!i.enabled, applicationNames: i.applicationNames || [] };
-    return freeze({ events:[{ type:"insight.consent.enabled", payload: restored }] });
+    var rc = (i.consent && typeof i.consent === "object") ? i.consent : EMPTY_CONSENT();
+    return freeze({ events:[{ type:"insight.consent.restored", payload:{ consent: clone(rc) } }] });
   }
   fail("command.type","is unsupported");
 }
@@ -137,7 +139,21 @@ function projectIntents(projection,intents){
   var next=clone(projection||emptyProjection());
   (intents||[]).forEach(function(e){
     var c = next.consent || EMPTY_CONSENT();
-    if(e.type==="insight.consent.enabled"){
+    if(e.type==="insight.consent.restored"){
+      // Rollback-only event: replace consent wholesale with the captured
+      // pre-command snapshot. Never produced by decide() user commands.
+      var rc = (e.payload && e.payload.consent) ? e.payload.consent : EMPTY_CONSENT();
+      next.consent = {
+        enabled: !!rc.enabled,
+        allowNames: rc.allowNames ? rc.allowNames.slice() : null,
+        excludes: (rc.excludes||[]).slice(),
+        renames: clone(rc.renames||{}),
+        merges: clone(rc.merges||{}),
+        deletes: (rc.deletes||[]).slice()
+      };
+      next.applications = {};
+      c = next.consent; // keep alias in sync — the forEach tail re-assigns next.consent = c
+    } else if(e.type==="insight.consent.enabled"){
       c.enabled = true;
       c.allowNames = (e.payload.applicationNames||[]).slice();
       next.applications = {}; // consent change invalidates prior aggregates

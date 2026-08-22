@@ -103,3 +103,28 @@ test("statestore sequence: live projection updates + journal replay restores con
   assert.equal(snap.consent.enabled,true,"consent must survive restart via journal replay");
   assert.equal(snap.applications["Code"],60000);
 });
+test("rollback restore replaces complete consent snapshot without force-enable",()=>{
+  function apply(proj,cmd){ const r=Insight.decide(proj,cmd); return Insight.projectIntents(proj,r.events); }
+  // Build rich consent state: enabled + excludes + renames + merges.
+  let p=apply(Insight.emptyProjection(),{type:"insight.consent.enable",applicationNames:["Code","Chrome"]});
+  p=apply(p,{type:"insight.consent.exclude",name:"Chrome"});
+  p=apply(p,{type:"insight.consent.rename",from:"Code",to:"VSCode"});
+  const before=JSON.parse(JSON.stringify(p.consent));
+  // Simulate a failed command: live projection mutated, then rolled back with
+  // the captured snapshot. Tracking was ON before — must stay ON, and the full
+  // consent shape (excludes/renames) must survive byte-identical.
+  let mutated=apply(p,{type:"insight.consent.disable"});
+  assert.equal(mutated.consent.enabled,false);
+  const rb=Insight.decide(mutated,{type:"insight.consent.restore",consent:before});
+  let restored=Insight.projectIntents(mutated,rb.events);
+  assert.equal(restored.consent.enabled,true,"must not force-disable a previously-enabled state");
+  assert.deepEqual(restored.consent,before,"full consent snapshot must round-trip");
+  // And the inverse: rollback of a command when tracking was OFF must stay OFF
+  // (the old single-event restore force-enabled via insight.consent.enabled).
+  let off=Insight.emptyProjection();
+  const offBefore=JSON.parse(JSON.stringify(off.consent));
+  let mutated2=apply(off,{type:"insight.consent.enable",applicationNames:["X"]});
+  const rb2=Insight.decide(mutated2,{type:"insight.consent.restore",consent:offBefore});
+  let restored2=Insight.projectIntents(mutated2,rb2.events);
+  assert.equal(restored2.consent.enabled,false,"rollback must not force-enable tracking that was off");
+});
