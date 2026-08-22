@@ -24,7 +24,14 @@ Derived from distinct dailyXpDates with any ledger entry in the last 7 calendar 
 
 `progression.season.reset` clears current Season XP while preserving Lifetime XP and ledger history. Habit cap is re-evaluated only within the active season.
 
-`ProgressionJournal.js` persists explicit correction/season-reset intents; `StateStore.qml` exposes `applyProgressionCommand` and recomputes `progressionProjection` via `ProgressionModel.project(journal.events)`.
+`ProgressionJournal.js` persists explicit correction/season-reset intents; `StateStore.qml` exposes `applyProgressionCommand` (and IPC `progressionCommand`/`progressionStatus`) and recomputes `progressionProjection` via `ProgressionModel.project(journal.events)`.
+
+## Executable surface
+
+`progressionProjection` is computed on every load/save and now rendered in the production plugin:
+- `BarWidget.qml` shows `Lv<level> <rank> · <momentum>` when no Session is active (tooltip adds Lifetime/Season/Season-id).
+- `Panel.qml` has a **Progress** section with level + rank, Lifetime/Season totals, Momentum badge, per-entry ledger lines via `ProgressionModel.previewFor` plus a `calculation` breakdown (base/bonuses, habit 20, milestone significance locked, season-reset), and a **Reset Season** control (enabled only when `seasonXp > 0`; preserves Lifetime/history).
+- The panel also surfaces the guards: *Habit Season capped at 7/day (extras stay personal) · Milestone Season 0 prevents farming · Season reset preserves Lifetime*.
 
 ## Verification
 

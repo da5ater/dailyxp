@@ -246,7 +246,7 @@ function projectIntents(projection, intents) {
           reason: "full habit set completed",
           lifetimeXp: FULL_SET_BONUS,
           seasonXp: 0, // bonus is Lifetime only per PRD
-          calculation: {},
+          calculation: { fullSetBonus: FULL_SET_BONUS },
           dailyXpDate: event.payload.dailyXpDate
         });
         if (event.payload.dailyXpDate) next._dailyActivity[event.payload.dailyXpDate] = true;
