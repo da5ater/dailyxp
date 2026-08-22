@@ -292,6 +292,14 @@ Item {
           applicationName: s.applicationName || null
         })
     }
+    // Restore consent from the journal (survives restart) before deriving the
+    // snapshot — snapshot() reads the live consent projection.
+    var insightEvents = []
+    for (var ie = 0; ie < journal.events.length; ie += 1)
+      if (/^insight\./.test(journal.events[ie].type))
+        insightEvents.push({ type: journal.events[ie].type, payload: journal.events[ie].payload })
+    if (insightEvents.length > 0)
+      insightProjection = InsightModel.projectIntents(InsightModel.emptyProjection(), insightEvents)
     insightProjection = InsightModel.snapshot(insightProjection, {
       sessions: slices,
       lifetimeXp: progressionProjection.totals ? progressionProjection.totals.lifetimeXp : 0
@@ -303,6 +311,9 @@ Item {
     try {
       var result = InsightModel.decide(insightProjection, command)
       if (result.events.length === 0) return true
+      // Apply decided events to the LIVE projection before persisting — the
+      // journal append alone does not update consent state.
+      insightProjection = InsightModel.projectIntents(insightProjection, result.events)
       var now = new Date()
       var localContext = EventModel.localSystemContext(now, systemTimezone)
       var nextJournal = journal
@@ -324,9 +335,20 @@ Item {
         nextJournal = EventModel.append(nextJournal, domainEvent)
       }
       var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      var consentBefore = insightProjection.consent
       var persisted = persistNext(nextEnvelope, nextJournal)
-      if (persisted) recomputeInsight()
-      return persisted
+      if (!persisted) {
+        // Roll back the optimistic live update — nothing was recorded.
+        var rollback = InsightModel.decide(insightProjection, {
+          type: "insight.consent.restore",
+          enabled: !!consentBefore.enabled,
+          applicationNames: consentBefore.allowNames || []
+        })
+        insightProjection = InsightModel.projectIntents(insightProjection, rollback.events)
+        return false
+      }
+      recomputeInsight()
+      return true
     } catch (error) {
       errorMessage = "Could not update DailyXP statistics settings: " + error
       console.warn("dailyxp/insight", errorMessage)

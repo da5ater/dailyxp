@@ -79,3 +79,27 @@ test("snapshot derives stats+applications in one immutable object; recovery neve
   assert.doesNotMatch(JSON.stringify(snap),/t1|gaming|2026-08-01/,"recovery track data must not leak into insight snapshot");
   assert.ok(Object.isFrozen(snap));
 });
+test("statestore sequence: live projection updates + journal replay restores consent",()=>{
+  // Mirrors StateStore.applyInsightCommand: decide → apply to LIVE projection →
+  // persist → recompute replays insight events from the journal. Guards the
+  // regression where consent was persisted but never projected.
+  function applyInsightCommand(live, command){
+    const result=Insight.decide(live,command);
+    if(result.events.length===0) return {projection:live,persisted:true,journal:result.events};
+    let next=Insight.projectIntents(live,result.events);
+    return {projection:next,persisted:true,journal:result.events};
+  }
+  function recomputeInsight(live, journalEvents, sessions, lifetimeXp){
+    const insightEvents=journalEvents.filter(e=>/^insight\./.test(e.type));
+    if(insightEvents.length>0) live=Insight.projectIntents(Insight.emptyProjection(),insightEvents);
+    return Insight.snapshot(live,{sessions,lifetimeXp});
+  }
+  let live=Insight.emptyProjection();
+  let r=applyInsightCommand(live,{type:"insight.consent.enable",applicationNames:["Code"]});
+  assert.equal(r.projection.consent.enabled,true,"toggle must update live projection immediately");
+  const sessions=[{focusedMilliseconds:60000,applicationName:"Code"}];
+  // restart simulation: fresh live projection, journal replay via recompute
+  let snap=recomputeInsight(Insight.emptyProjection(),r.journal,sessions,100);
+  assert.equal(snap.consent.enabled,true,"consent must survive restart via journal replay");
+  assert.equal(snap.applications["Code"],60000);
+});

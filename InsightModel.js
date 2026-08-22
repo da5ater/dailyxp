@@ -105,6 +105,12 @@ function decide(projection, command){
     if(typeof i.name !== "string" || !i.name) fail("name","must be a non-empty string");
     return freeze({ events:[{ type:"insight.consent.deleted", payload:{ name:i.name } }] });
   }
+  // Internal rollback event — emitted by StateStore when persistence fails, never
+  // appended to the journal. Restores consent from the pre-command snapshot.
+  if(i.type === "insight.consent.restore"){
+    var restored = { enabled: !!i.enabled, applicationNames: i.applicationNames || [] };
+    return freeze({ events:[{ type:"insight.consent.enabled", payload: restored }] });
+  }
   fail("command.type","is unsupported");
 }
 // Derived snapshot for the QML layer: consent projection + fresh aggregates in
