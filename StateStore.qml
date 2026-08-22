@@ -5,6 +5,7 @@ import Quickshell.Wayland
 import "EventModel.js" as EventModel
 import "HabitJournal.js" as HabitJournal
 import "HabitModel.js" as HabitModel
+import "InsightModel.js" as InsightModel
 import "PlanningJournal.js" as PlanningJournal
 import "PlanningModel.js" as PlanningModel
 import "ProgressionJournal.js" as ProgressionJournal
@@ -40,6 +41,8 @@ Item {
   property var recoveryProjection: RecoveryModel.emptyProjection()
   property var storyProjection: StoryModel.emptyProjection()
   property var uxProjection: UxModel.emptyProjection()
+  // INSIGHT-001 — statistics derived from sibling projections; recovery never an input.
+  property var insightProjection: InsightModel.emptyProjection()
   property string systemTimezone: ""
   readonly property bool recordingReady: journalReady && systemTimezone !== ""
   property bool ready: false
@@ -165,6 +168,7 @@ Item {
       lastAdvanced: habitProjection.lastAdvancedDailyXpDate || planningProjection.lastAdvancedDailyXpDate,
       momentum: progressionProjection.momentum
     })
+    recomputeInsight()
     journalReady = true
     ensureCurrentPlanningDay()
     ensureCurrentHabitDay()
@@ -250,6 +254,84 @@ Item {
 
   function planningTaskExists(taskId) {
     return taskId === null || taskId === undefined || planningTask(taskId) !== null
+  }
+
+  // INSIGHT-001 — rebuild statistics from sibling projections. Recovery data is
+  // deliberately never an input: protected details cannot reach aggregates.
+  function recomputeInsight() {
+    var tasks = planningProjection.tasks || []
+    var slices = []
+    var raw = sessionProjection.sessions || []
+    for (var i = 0; i < raw.length; i += 1) {
+      var s = raw[i]
+      if (!s || s.status !== "finished") continue
+      var goalId = null
+      var task = null
+      for (var t = 0; t < tasks.length; t += 1) if (tasks[t].id === s.taskId) { task = tasks[t]; break }
+      if (task) goalId = task.goalId || null
+      var dailySlices = s.dailySlices || []
+      for (var d = 0; d < dailySlices.length; d += 1) {
+        // Per-day slices respect timezone/Day-Boundary: focused time lands on
+        // the local DailyXpDate it was actually focused on.
+        slices.push({
+          focusedMilliseconds: dailySlices[d].milliseconds,
+          primarySkill: s.primarySkill,
+          taskId: s.taskId,
+          goalId: goalId,
+          dailyXpDate: dailySlices[d].dailyXpDate,
+          applicationName: s.applicationName || null
+        })
+      }
+      if (dailySlices.length === 0)
+        slices.push({
+          focusedMilliseconds: s.focusedMilliseconds,
+          primarySkill: s.primarySkill,
+          taskId: s.taskId,
+          goalId: goalId,
+          dailyXpDate: s.dailyXpDate || null,
+          applicationName: s.applicationName || null
+        })
+    }
+    insightProjection = InsightModel.snapshot(insightProjection, {
+      sessions: slices,
+      lifetimeXp: progressionProjection.totals ? progressionProjection.totals.lifetimeXp : 0
+    })
+  }
+
+  function applyInsightCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = InsightModel.decide(insightProjection, command)
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = journal
+      for (var i = 0; i < result.events.length; i += 1) {
+        var ev = result.events[i]
+        var domainEvent = EventModel.createEvent({
+          eventId: EventModel.uuidV4(),
+          deviceId: nextJournal.deviceId,
+          type: ev.type,
+          occurredAtUtc: now.toISOString(),
+          localDateTime: localContext.localDateTime,
+          timezone: localContext.timezone,
+          utcOffsetMinutes: localContext.utcOffsetMinutes,
+          systemTimezoneVerified: true,
+          dayBoundaryMinutes: configuredDayBoundaryMinutes,
+          occurrenceKey: ev.occurrenceKey || null,
+          payload: ev.payload || {}
+        })
+        nextJournal = EventModel.append(nextJournal, domainEvent)
+      }
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      var persisted = persistNext(nextEnvelope, nextJournal)
+      if (persisted) recomputeInsight()
+      return persisted
+    } catch (error) {
+      errorMessage = "Could not update DailyXP statistics settings: " + error
+      console.warn("dailyxp/insight", errorMessage)
+      return false
+    }
   }
 
   function validateSessionTaskReferences(command) {
@@ -633,6 +715,7 @@ Item {
             lastAdvanced: root.habitProjection.lastAdvancedDailyXpDate || root.planningProjection.lastAdvancedDailyXpDate,
             momentum: root.progressionProjection.momentum
           }) : StoryModel.emptyProjection()
+      root.recomputeInsight()
       root.journalReady = true
       root._primaryRaw = root._pendingPrimaryRaw
       root._pendingEnvelope = null

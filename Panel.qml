@@ -1442,6 +1442,193 @@ Panel {
           }
 
           } // end kingdom section
+
+        // statistics — INSIGHT-001 executable surface: period/skill aggregates
+        // reconciled to Sessions + ledger, app-tracking consent, Recovery isolated.
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          Rectangle { height: 1; color: Qt.rgba(1,1,1,0.08); Layout.fillWidth: true }
+
+          Text {
+            text: "Statistics"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.titleSmall || Style.font.title
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+            Accessible.role: Accessible.StaticText
+          }
+
+          Button {
+            text: root.isSheetOpen("statistics") ? "Hide statistics" : "Show statistics"
+            focusable: true
+            bordered: false
+            Accessible.role: Accessible.Button
+            Layout.alignment: Qt.AlignHCenter
+            onClicked: root.toggleSheet("statistics")
+          }
+
+          // Empty state — truthful when there is no history yet.
+          Text {
+            visible: root.isSheetOpen("statistics") && (!root.stateStore.insightProjection ||
+              !root.stateStore.insightProjection.stats || root.stateStore.insightProjection.stats.sessionCount === 0)
+            text: "No finished Sessions yet. Statistics appear after you complete focus time."
+            color: root.contentForeground
+            opacity: 0.68
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+            Accessible.role: Accessible.StaticText
+          }
+
+          ColumnLayout {
+            visible: root.isSheetOpen("statistics") && root.stateStore.insightProjection &&
+              root.stateStore.insightProjection.stats && root.stateStore.insightProjection.stats.sessionCount > 0
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              text: "All time — reconciled with your Sessions and ledger"
+              color: root.contentForeground
+              opacity: 0.72
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              Layout.alignment: Qt.AlignHCenter
+            }
+
+            Text {
+              text: {
+                var st = root.stateStore.insightProjection.stats
+                var mins = Math.round(st.totalFocusedMilliseconds / 60000)
+                return "Focused " + mins + " min across " + st.sessionCount +
+                  (st.sessionCount === 1 ? " session" : " sessions") + " · " + st.ledgerTotalXp + " XP lifetime"
+              }
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+              Accessible.role: Accessible.StaticText
+            }
+
+            Repeater {
+              model: {
+                var sums = root.stateStore.insightProjection.stats.sums.bySkill
+                var keys = Object.keys(sums)
+                keys.sort(function(a,b){ return sums[b] - sums[a] })
+                return keys.map(function(k){ return { skill: k, minutes: Math.round(sums[k] / 60000) } })
+              }
+              delegate: RowLayout {
+                required property var modelData
+                Layout.fillWidth: true
+                Text {
+                  text: modelData.skill
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  Layout.fillWidth: true
+                  elide: Text.ElideRight
+                  Accessible.role: Accessible.StaticText
+                }
+                Text {
+                  text: modelData.minutes + " min"
+                  color: root.contentForeground
+                  opacity: 0.78
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  Accessible.role: Accessible.StaticText
+                }
+              }
+            }
+
+            // Application tracking — off by default; consent names each app explicitly.
+            Rectangle { height: 1; color: Qt.rgba(1,1,1,0.08); Layout.fillWidth: true }
+
+            Text {
+              text: "Application tracking — off by default. Only application names you allow are counted, locally, never content."
+              color: root.contentForeground
+              opacity: 0.62
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+              Accessible.role: Accessible.StaticText
+            }
+
+            Button {
+              readonly property bool consentEnabled: root.stateStore.insightProjection &&
+                root.stateStore.insightProjection.consent.enabled
+              text: consentEnabled ? "Disable application tracking" : "Enable application tracking"
+              focusable: true
+              bordered: true
+              Accessible.role: Accessible.Button
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: {
+                if (consentEnabled) {
+                  root.stateStore.applyInsightCommand({ type: "insight.consent.disable" })
+                } else {
+                  // Name-level consent: the panel lists what it would track and the
+                  // user opts in by pressing enable. Names come from Session records.
+                  var names = []
+                  var seen = {}
+                  var raw = root.stateStore.sessionProjection.sessions || []
+                  for (var i = 0; i < raw.length; i += 1) {
+                    var n = raw[i].applicationName
+                    if (n && !seen[n]) { seen[n] = true; names.push(n) }
+                  }
+                  root.stateStore.applyInsightCommand({ type: "insight.consent.enable", applicationNames: names })
+                }
+              }
+            }
+
+            Text {
+              visible: root.stateStore.insightProjection.consent.enabled &&
+                Object.keys(root.stateStore.insightProjection.applications).length > 0
+              text: {
+                var apps = root.stateStore.insightProjection.applications
+                var keys = Object.keys(apps)
+                keys.sort(function(a,b){ return apps[b] - apps[a] })
+                return keys.map(function(k){ return k + " " + Math.round(apps[k]/60000) + " min" }).join(" · ")
+              }
+              color: root.contentForeground
+              opacity: 0.85
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+              Accessible.role: Accessible.StaticText
+            }
+
+            Text {
+              text: "Recovery stays private — statistics never include Recovery details."
+              color: root.contentForeground
+              opacity: 0.56
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+              Accessible.role: Accessible.StaticText
+            }
+
+            Button {
+              text: "Close sheet"
+              focusable: true
+              bordered: true
+              Accessible.role: Accessible.Button
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: root.toggleSheet("statistics")
+            }
+          }
+        }
+
           } // end Journey surface
 
         // ——— World surface — fixture/division placeholder, honest unavailable state ———
