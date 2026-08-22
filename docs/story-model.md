@@ -14,6 +14,14 @@ Purely descriptive, neutral language, no insult: Drift (≥3 overdue), Distracti
 
 After 7 inactive eligible days a quest with three steps appears: small meaningful action, one planned session or routine, reduced daily target (30 min). The quest is available→active→completed/ignored; partial completion keeps it active and offers a smaller restart, never punishment or hidden loss. Achievements are cosmetic.
 
+## Executable surface
+
+`storyProjection` is computed on every load/save from planning + session + habit + progression (`StateStore.qml:154-171`) and now rendered in the production plugin:
+- `Panel.qml` **Kingdom** sheet — provinces (achieved→visitable, paused→sleeping, abandoned→Ruins with explainer), landmarks (planned/built), antagonists with neutral `cause` strings (Drift/Distraction/Doubt/Apathy/Hollow King — never insulting, Hollow King notes "only unfinished provinces"), Comeback Quest (appears after 7 inactive eligible days; 3 steps — small action → planned work → 30m target; Accept/Complete/Set aside — ignore has no punishment or hidden loss), and cosmetic Achievements.
+- `BarWidget.qml` / `StateStore.qml` IPC `storyCommand` / `storyStatus` for automatable verification; `applyStoryCommand` persists `story.comeback.*` events via `EventModel`.
+
+The sheet never mutates goals/milestones/sessions — it derives `provinces/landmarks/antagonists/comebackQuest` as a pure projection.
+
 ## Verification
 
 ```sh

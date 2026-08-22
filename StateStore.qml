@@ -422,6 +422,38 @@ Item {
     }
   }
 
+  function applyStoryCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = StoryModel.decide(storyProjection, command)
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var payload = result.events[0] ? result.events[0].payload : {}
+      var type = result.events[0] ? result.events[0].type : ""
+      var domainEvent = EventModel.createEvent({
+        eventId: EventModel.uuidV4(),
+        deviceId: journal.deviceId,
+        type: type,
+        occurredAtUtc: now.toISOString(),
+        localDateTime: localContext.localDateTime,
+        timezone: localContext.timezone,
+        utcOffsetMinutes: localContext.utcOffsetMinutes,
+        systemTimezoneVerified: true,
+        dayBoundaryMinutes: configuredDayBoundaryMinutes,
+        occurrenceKey: null,
+        payload: payload
+      })
+      var nextJournal = EventModel.append(journal, domainEvent)
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP story: " + error
+      console.warn("dailyxp/story", errorMessage)
+      return false
+    }
+  }
+
   function applyProgressionCommand(command) {
     if (!ready || !recordingReady || saving) return false
     try {

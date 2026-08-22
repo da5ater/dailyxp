@@ -147,6 +147,21 @@ BarWidget {
         projection: root.stateStore.progressionProjection
       })
     }
+    function storyCommand(json: string): string {
+      if (!root.stateStore) return "unavailable"
+      var applied = root.stateStore.applyStoryCommand(JSON.parse(json))
+      if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
+      return applied ? "requested" : "not-started"
+    }
+    function storyStatus(): string {
+      if (!root.stateStore) return JSON.stringify({ available: false })
+      return JSON.stringify({
+        available: true,
+        saving: root.stateStore.saving,
+        error: root.stateStore.errorMessage,
+        projection: root.stateStore.storyProjection
+      })
+    }
     function sessionStatus(): string {
       if (!root.stateStore) return JSON.stringify({ available: false })
       return JSON.stringify({
