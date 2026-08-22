@@ -1,64 +1,107 @@
 # Planning model
 
-PLAN-001 adds a local, event-sourced planning domain behind the Omarchy UI.
-`PlanningModel.js` is the public behavior seam. It accepts one explicit command,
-returns immutable `planning.*` event intents, and deterministically rebuilds the
-current projection from journal events. It never starts a Session or awards XP.
+`PlanningModel.js` is the canonical PLAN-001 planning contract: Goals and
+Milestones, linked or standalone Tasks, Routines that generate dated
+occurrences on each `day.advance`, carryover, and previewed proposals that only
+commit on explicit acceptance. It is pure JavaScript with no Qt, network, or
+filesystem dependency — the same tests run in Omarchy and in `node --test`.
+
+## Identity and time
+
+- Every planning entity uses a stable caller-supplied `id`. Occurrence identity
+  is `routine:<encoded-routineId>:day:<dailyXpDate>` (dailyXpDate only).
+  Duplicates are rejected; the projection rebuild is deterministic and
+  idempotent by `occurrenceKey`.
+- `dailyXpDate` is the frozen calendar string the event journal already records
+  (`EventModel` + `StateModel` `dayBoundaryMinutes`). Planning never asks the
+  current wall clock, timezone, or Day Boundary to reinterpret history. Changing
+  a Routine's boundary/schedule affects future occurrences only.
+- `scheduledOn(routine, dailyXpDate)` checks start/end window, explicit
+  `restDates`, and the schedule (`weekdays [1..7]` or `interval {everyDays,
+  anchorDate}`). Interval math is UTC-day arithmetic from `anchorDate`.
 
 ## Projection
 
-The projection contains Goals, Milestones, standalone or linked Tasks, Routines,
-dated Task Occurrences, and proposal decisions. Routine occurrences use
-`routine:<encoded-id>:day:<frozen-dailyxp-date>` identity, so timezone, daylight
-saving, or later Day Boundary changes cannot duplicate historical work.
+The projection (`schemaVersion 1`) contains `goals`, `milestones`, `tasks`,
+`routines`, `occurrences`, `proposals`, and `lastAdvancedDailyXpDate`. `decide`
+returns frozen `planning.*` intents; `projectIntents` rebuilds the projection.
 
-Advancing a DailyXP day:
+**Recurrence — exactly one per scheduled DailyXP date:**
 
-- generates a due occurrence once;
-- respects weekday or interval schedules, start/end dates, and explicit rest
-  dates;
-- marks unfinished carryover occurrences overdue while still generating the
-  new day's occurrence; and
-- never edits completed history.
+- `day.advance` emits `occurrence.created` once per scheduled Routine per
+  `dailyXpDate`, and never duplicates an existing `occurrenceKey`.
+- `routine.create` after today is already advanced immediately emits today's
+  occurrence when due.
+- Startup catches up bounded (`MAX_CATCH_UP_DAYS=366`) by replaying
+  `nextDate(lastAdvancedDailyXpDate)+1 .. dailyXpDate`, so work scheduled while
+  the shell was stopped still appears.
+- Rest dates, `endDate`, unscheduled weekdays/intervals produce no occurrence.
 
-The projection records its last advanced DailyXP date. Startup deterministically
-replays intervening dates in bounded chunks, so scheduled work created while the
-shell was stopped still exists and can become overdue. A Routine created after
-today was already advanced immediately receives today's occurrence when due.
+**Carryover — no duplicate completion, no missing new occurrence:**
 
-Routine edits support `today`, `today_and_future`, and `all_untouched` scopes.
-Only open or overdue occurrences are editable. A schedule edit removes a newly
-ineligible untouched occurrence or creates a newly eligible current occurrence,
-while completed history remains unchanged. Rescheduling creates a traceable
-replacement; merging requires an overdue occurrence and today's open equivalent.
-Milestone significance locks as soon as progress is recorded. Unstarted records
-may be deleted; records with durable history are archived.
+- On `day.advance`, each open occurrence with `dailyXpDate < newDate` and
+  `carryover:true` becomes `overdue` (`occurrence.overdue`), and the new date
+  still receives its own `occurrence.created`. `carryover:false` leaves the
+  prior occurrence `open`. In either case a new scheduled date is not skipped
+  and prior completion is not duplicated.
 
-## Consent and persistence
+**Edit scopes — completed history unchanged:**
 
-Template and adaptive Planning Proposal preview/edit commands return a preview
-without events and every proposal explains why. Dismissal requires and enforces
-a future dismissal date. Repeated-miss proposals record the miss set at the
-person's acceptance or dismissal, so only a fresh cycle can offer another.
-Commitments are created only by explicit acceptance.
+- `routine.edit` supports `today`, `today_and_future`, `all_untouched` and only
+  touches `open`/`overdue` occurrences. `today` mutates only that date's
+  occurrence; `today_and_future` bumps `routine.revision` and updates future
+  untouched occurrences; `all_untouched` updates every untouched occurrence.
+- A schedule change removes a newly ineligible untouched occurrence or creates
+  the now-eligible current occurrence; completed (`completed`/`skipped`/…)
+  occurrences are never touched.
+- `occurrence.transition rescheduled` creates a replacement key
+  `rescheduled:<id>:day:<targetDate>`; `merged` requires `overdue` + today's
+  open equivalent and records `mergedFrom`.
+- Milestone `significance` and `measurement` lock once `milestone.progress` is
+  recorded; a Milestone referenced by Tasks/Routines cannot move Goals.
 
-`PlanningJournal.js` converts accepted intents into the versioned EventModel
-journal. `StateStore.qml` exposes `applyPlanningCommand(command)` and commits the
-updated journal through the existing primary/backup envelope. The complete
-planning projection is rebuilt after startup and every successful save.
+**Lifecycle:** `entity.remove` deletes only unstarted records; anything with
+durable history (`status !== open/active`, locked significance/progress, linked
+tasks/occurrences) is archived.
+
+## Consent — proposals change state only on explicit acceptance
+
+- `proposal.preview` / `proposal.edit` validate and return `{preview, events:[]}`
+  without mutating the projection. A dismissed adaptive proposal stays
+  `suppressed` until `dismissedUntil`.
+- `proposal.dismiss` records `{proposalId, dismissedUntil, missedOccurrenceIds}`
+  and requires `dismissedUntil > dailyXpDate`.
+- `proposal.accept` validates, expands `proposal.commands` through `decide`
+  (rejecting nested proposals), and appends `proposal.accepted` — only then do
+  Goals/Routines/occurrences get created.
+- The adaptive heuristic: 3 unfinished occurrences of one Routine offer a
+  `pending` adaptive proposal with a smaller `expectedMinutes` routine edit;
+  repeated daily advances do not duplicate the pending proposal; only 3 *new*
+  misses after accept/dismiss can offer another. The pre-dismiss/pre-accept
+  `missedOccurrenceIds` snapshot is frozen at decision time.
+
+Cross-repo fixture sharing (`da5ater/dailyxp-api` future) reuses the same
+`PlanningModel.js` contract byte-for-byte — no recompute, no recompute drift.
+
+## Persistence and recovery
+
+`PlanningJournal.js` maps accepted intents → versioned `EventModel` journal
+entries via `occurrenceKey`. `StateStore.qml` exposes
+`applyPlanningCommand(command)` and commits through the backup-first atomic
+envelope (`StateModel` `primary`/`backup` checksum-valid replay + frozen
+DailyXP date). A fresh or legacy envelope receives one journal through the same
+write sequence; torn envelopes recover the newest valid side.
 
 ## Verification
 
-Run:
-
 ```sh
 node --test tests/*.test.js
-omarchy plugin validate .
-/usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
-  BarWidget.qml Panel.qml StateStore.qml
 ```
 
-The tests cover hierarchy, standalone Tasks, recurrence idempotency, carryover,
-rest dates, interval schedules, frozen occurrence identity, edit scopes,
-completed-history preservation, lifecycle removal, Milestone measurement and
-significance locking, proposal consent, journal persistence, and recovery.
+The suite covers deterministic occurrence identity, recurrence idempotency,
+carryover without duplicate completion, rest/interval/eligibility,
+Day-Boundary-immune frozen dates, bounded catch-up, scoped edits preserving
+completed history, reschedule/merge, Milestone locking, lifecycle
+delete-vs-archive, template/adaptive proposal preview/edit/dismiss/accept consent,
+3-miss rescheduling (including carryover-disabled), duplicate-suppression, and
+the cross-repo fixture contract.
