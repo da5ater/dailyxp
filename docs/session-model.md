@@ -8,12 +8,14 @@ Task or awards XP.
 
 ## Selection and lifecycle
 
-Selecting a Task records intent without starting elapsed time. One scheduled
-reminder may become due as an actionable desktop notification: Start begins
-the selected Task, Change Task opens the panel, and Dismiss records that
-choice. Starting the selected Task satisfies it. A Session may instead be free,
-may change its Task attachment and primary Skill, and may be planned or
-open-ended. Only one Session can be active. Running
+Selecting a Task records intent without starting elapsed time. After a
+configurable delay, one dismissible reminder may become due as an actionable
+desktop notification — Start begins the selected Task, Change Task opens the
+panel, and Dismiss records that choice — and it never invents another.
+Starting the selected Task satisfies the reminder. A Session may instead be
+free, may change its Task attachment and primary Skill, and may be planned or
+open-ended. Only one Session can be active account-wide: start, pause, resume,
+finish, discard, and change-Task all act on that single Session. Running
 intervals start and end at persisted UTC instants, so pause, resume, shell
 restart, and offline time cannot double count focused duration.
 
@@ -34,8 +36,9 @@ intersect edited segments with an exact frozen UTC day timeline covering the
 24-hour free-edit window, so travel, daylight-saving, or later settings cannot
 rewrite historical competitive attribution or misplace a cross-boundary edit.
 
-Finished Sessions can be corrected freely for 24 hours. Later changes are
-stored as explicit adjustments. Any change to competitive duration requires
+Finished Sessions can be corrected freely for 24 hours and the journal records
+`session.corrected`; later changes are stored as explicit auditable
+`session.adjusted` entries. Any change to competitive duration requires
 confirmation, and every correction retains its delta.
 
 ## Runtime controls
