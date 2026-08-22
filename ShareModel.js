@@ -35,7 +35,10 @@ function preparedPostUrl(network, card){
     : "My DailyXP progress";
   if(network==="x") return "https://twitter.com/intent/tweet?text="+encodeURIComponent(text);
   if(network==="linkedin") return "https://www.linkedin.com/shareArticle?mini=true&summary="+encodeURIComponent(text);
-  return "https://www.facebook.com/sharer/sharer.php?u="+encodeURIComponent("https://dailyxp.local/card/"+(card?encodeURIComponent(card.id):""));
+  // Facebook sharer requires a URL; DailyXP has no public card host, so the
+  // composed post carries the text summary and the local file path is what the
+  // person attaches themselves. The u= param stays a stable placeholder.
+  return "https://www.facebook.com/sharer/sharer.php?u="+encodeURIComponent("https://github.com/da5ater/dailyxp")+"e="+encodeURIComponent(text);
 }
 if(typeof module!=="undefined"&&module.exports) module.exports={ CARD_TYPES, createCard, exportCard, preparedPostUrl, emptyProjection, fieldsFor, decide, projectIntents, project };
 

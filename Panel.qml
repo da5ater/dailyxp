@@ -1701,7 +1701,7 @@ Panel {
                   sessionProjection: root.stateStore.sessionProjection
                 })
                 if (!data) return null
-                return ShareModel.createCard(draft.cardType, data, { removeFields: draft.removeFields })
+                return ShareModel.createCard(draft.cardType, data, { removeFields: draft.removeFields, sampleMode: draft.sampleMode })
               }
               visible: previewCard !== null
               color: Qt.rgba(0.06, 0.09, 0.16, 0.95)
@@ -1758,24 +1758,24 @@ Panel {
                   Layout.alignment: Qt.AlignHCenter
                 }
               }
+            }
 
-              // Sample-mode toggle lives on the frame so it never enters the exported image.
-              Button {
-                readonly property bool sampleOn: root.stateStore.shareProjection.draft &&
-                  root.stateStore.shareProjection.draft.sampleMode
-                text: sampleOn ? "Sample: ON" : "Sample: OFF"
-                focusable: true
-                bordered: true
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                Accessible.role: Accessible.Button
-                onClicked: {
-                  var d = root.stateStore.shareProjection.draft
-                  root.stateStore.applyShareCommand({
-                    type: "share.draft.set", cardType: d.cardType,
-                    removeFields: d.removeFields, sampleMode: !d.sampleMode
-                  })
-                }
+            // Sample-mode toggle is a SIBLING of cardPreviewFrame — declared
+            // outside the grab target so it can never appear in the exported PNG.
+            Button {
+              readonly property bool sampleOn: root.stateStore.shareProjection.draft &&
+                root.stateStore.shareProjection.draft.sampleMode
+              text: sampleOn ? "Sample: ON" : "Sample: OFF"
+              focusable: true
+              bordered: true
+              Accessible.role: Accessible.Button
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: {
+                var d = root.stateStore.shareProjection.draft
+                root.stateStore.applyShareCommand({
+                  type: "share.draft.set", cardType: d.cardType,
+                  removeFields: d.removeFields, sampleMode: !d.sampleMode
+                })
               }
             }
 
@@ -1835,7 +1835,7 @@ Panel {
                 onClicked: {
                   var card = cardPreviewFrame.previewCard
                   root.stateStore.ensureShareDir()
-                  var grab = cardPreviewFrame.grabToImage(function(result) {
+                  cardPreviewFrame.grabToImage(function(result) {
                     var path = root.stateStore.stateDir + "/share/" + card.type + "-" + Date.now() + ".png"
                     if (result.saveToFile(path)) {
                       root.stateStore.applyShareCommand({

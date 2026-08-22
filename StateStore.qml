@@ -52,6 +52,9 @@ Item {
     try {
       var result = ShareModel.decide(shareProjection, command)
       if (result.events.length === 0) return true
+      // Capture pre-command state BEFORE mutating so a persist failure can
+      // restore it — same discipline as applyInsightCommand.
+      var before = shareProjection
       shareProjection = ShareModel.projectIntents(shareProjection, result.events)
       var now = new Date()
       var localContext = EventModel.localSystemContext(now, systemTimezone)
@@ -74,7 +77,9 @@ Item {
         nextJournal = EventModel.append(nextJournal, domainEvent)
       }
       var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
-      return persistNext(nextEnvelope, nextJournal)
+      var persisted = persistNext(nextEnvelope, nextJournal)
+      if (!persisted) shareProjection = before // rollback — nothing was recorded
+      return persisted
     } catch (error) {
       errorMessage = "Could not update DailyXP share state: " + error
       console.warn("dailyxp/share", errorMessage)
