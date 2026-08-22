@@ -49,6 +49,7 @@ Panel {
     if (status === "ruins") return "Ruins"
     return "active"
   }
+  readonly property var recoveryProjection: stateStore ? stateStore.recoveryProjection : null
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, nowUtc) : null
 
@@ -1158,6 +1159,344 @@ Panel {
             wrapMode: Text.Wrap
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignHCenter
+          }
+        }
+
+
+        // recovery — RECOV-001 executable surface: private tracks, backdated start, check-ins, explicit relapse (no shame), restart, deletion scopes
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          Rectangle { height: 1; color: Qt.rgba(1, 1, 1, 0.08); Layout.fillWidth: true }
+
+          Text {
+            text: "Recovery"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.titleSmall || Style.font.title
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          Text {
+            text: "Private by default — Recovery stays local unless you explicitly share it. Check-ins do not control the counter."
+            color: root.contentForeground
+            opacity: 0.62
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          // Create — category + backdated startDate + optional custom label
+          ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(8)
+              TextField {
+                id: recovCategoryField
+                placeholderText: "category (e.g. smoking, gaming, custom:…)"
+                Layout.fillWidth: true
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+              TextField {
+                id: recovStartField
+                placeholderText: "start YYYY-MM-DD"
+                Layout.preferredWidth: Style.space(140)
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
+            TextField {
+              id: recovCustomField
+              visible: recovCategoryField.text.toLowerCase().indexOf("custom") === 0 || recovCategoryField.text.toLowerCase().indexOf("custom:") === 0
+              placeholderText: "custom label (moderated category name)"
+              Layout.fillWidth: true
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+
+            Text {
+              visible: root.stateStore && root.stateStore.errorMessage !== "" && root.stateStore.errorMessage.indexOf("recovery") !== -1
+              text: root.stateStore ? root.stateStore.errorMessage : ""
+              color: Color.urgent
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+            }
+
+            Button {
+              text: "Start private Track"
+              focusable: true
+              bordered: true
+              enabled: root.stateStore && !root.stateStore.saving && recovCategoryField.text.trim() !== "" && recovStartField.text.trim() !== ""
+              Layout.alignment: Qt.AlignHCenter
+              onClicked: {
+                var raw = recovCategoryField.text.trim()
+                var cat = raw.toLowerCase()
+                var custom = ""
+                var actualCat = cat
+                if (cat.indexOf("custom:") === 0) { custom = raw.slice(7).trim(); actualCat = "custom" }
+                else if (cat === "custom") { custom = recovCustomField.text.trim(); actualCat = "custom" }
+                var track = {
+                  id: "track:" + Date.now() + ":" + Math.random().toString(36).slice(2, 6),
+                  category: actualCat,
+                  customCategory: custom || undefined,
+                  startDate: recovStartField.text.trim(),
+                  visibility: "private"
+                }
+                if (custom) track.customCategory = custom
+                root.stateStore.applyRecoveryCommand({ type: "recovery.track.create", track: track })
+              }
+            }
+
+            Text {
+              text: "Backdated start is allowed — history is personal, not retroactive competitive Season XP."
+              color: root.contentForeground
+              opacity: 0.55
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+            }
+          }
+
+          // Tracks + attempts
+          Text {
+            visible: !root.stateStore || !root.stateStore.recoveryProjection || !root.stateStore.recoveryProjection.tracks || root.stateStore.recoveryProjection.tracks.length === 0
+            text: "No Recovery Tracks yet."
+            color: root.contentForeground
+            opacity: 0.6
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          ColumnLayout {
+            visible: root.stateStore && root.stateStore.recoveryProjection && root.stateStore.recoveryProjection.tracks && root.stateStore.recoveryProjection.tracks.length > 0
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+
+            Repeater {
+              model: root.stateStore ? root.stateStore.recoveryProjection.tracks : []
+              delegate: ColumnLayout {
+                property var track: modelData
+                Layout.fillWidth: true
+                spacing: Style.space(4)
+
+                Rectangle { height: 1; color: Qt.rgba(1,1,1,0.06); Layout.fillWidth: true }
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+                  Text {
+                    text: track ? (track.category === "custom" && track.customCategory ? track.customCategory : track.category) : ""
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                  }
+                  Text {
+                    text: track ? track.startDate : ""
+                    color: root.contentForeground
+                    opacity: 0.6
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                  Text {
+                    text: "private"
+                    color: root.contentForeground
+                    opacity: 0.45
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                }
+
+                // Current attempt status
+                Text {
+                  text: {
+                    if (!track) return ""
+                    var atts = root.stateStore.recoveryProjection.attempts || []
+                    var cur = null
+                    for (var i = 0; i < atts.length; i++) if (atts[i].trackId === track.id) cur = atts[i]
+                    if (!cur) return "No attempt"
+                    if (cur.status === "active") return "Ongoing attempt since " + cur.startDate + " — check-ins do not control the counter"
+                    if (cur.status === "ended") return "Ended " + (cur.relapseDate || "") + " — restart when you choose"
+                    return cur.status
+                  }
+                  color: root.contentForeground
+                  opacity: 0.62
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+
+                // Check-in — optional, does not control counter
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+                  TextField {
+                    id: checkinDate
+                    placeholderText: "check-in YYYY-MM-DD"
+                    Layout.preferredWidth: Style.space(140)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                  TextField {
+                    id: checkinMood
+                    placeholderText: "mood (optional)"
+                    Layout.fillWidth: true
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                  Button {
+                    text: "Check in"
+                    focusable: true
+                    bordered: false
+                    enabled: root.stateStore && !root.stateStore.saving && checkinDate.text.trim() !== ""
+                    onClicked: root.stateStore.applyRecoveryCommand({
+                      type: "recovery.checkin",
+                      trackId: track.id,
+                      dailyXpDate: checkinDate.text.trim(),
+                      mood: checkinMood.text.trim() || undefined
+                    })
+                  }
+                }
+
+                // Explicit relapse — no shame language, preserves XP
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+                  TextField {
+                    id: relapseDate
+                    placeholderText: "relapse YYYY-MM-DD"
+                    Layout.preferredWidth: Style.space(140)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                  Button {
+                    text: "Mark relapse (explicit)"
+                    focusable: true
+                    bordered: true
+                    enabled: {
+                      if (!root.stateStore || root.stateStore.saving || !track) return false
+                      var atts = root.stateStore.recoveryProjection.attempts || []
+                      for (var i = 0; i < atts.length; i++) if (atts[i].trackId === track.id && atts[i].status === "active") return relapseDate.text.trim() !== ""
+                      return false
+                    }
+                    onClicked: root.stateStore.applyRecoveryCommand({
+                      type: "recovery.relapse",
+                      trackId: track.id,
+                      dailyXpDate: relapseDate.text.trim()
+                    })
+                  }
+                }
+                Text {
+                  text: "Explicit relapse ends the attempt privately — earned progress is kept and a restart is offered. No shaming."
+                  color: root.contentForeground
+                  opacity: 0.5
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+
+                // Restart — offered after relapse, or when no active attempt
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+                  TextField {
+                    id: restartDate
+                    placeholderText: "restart YYYY-MM-DD"
+                    Layout.preferredWidth: Style.space(140)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                  Button {
+                    text: "Restart"
+                    focusable: true
+                    bordered: true
+                    enabled: {
+                      if (!root.stateStore || root.stateStore.saving || !track) return false
+                      var atts2 = root.stateStore.recoveryProjection.attempts || []
+                      for (var j = 0; j < atts2.length; j++) if (atts2[j].trackId === track.id && atts2[j].status === "active") return false
+                      return restartDate.text.trim() !== ""
+                    }
+                    onClicked: root.stateStore.applyRecoveryCommand({
+                      type: "recovery.restart",
+                      trackId: track.id,
+                      dailyXpDate: restartDate.text.trim()
+                    })
+                  }
+                }
+
+                // Deletion scopes — private local deletion
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(6)
+                  Button {
+                    text: "Delete attempt"
+                    focusable: true
+                    bordered: false
+                    enabled: {
+                      if (!root.stateStore || root.stateStore.saving || !track) return false
+                      var a = root.stateStore.recoveryProjection.attempts || []
+                      for (var k = 0; k < a.length; k++) if (a[k].trackId === track.id) return true
+                      return false
+                    }
+                    onClicked: {
+                      var a2 = root.stateStore.recoveryProjection.attempts || []
+                      var attId = ""
+                      for (var k2 = 0; k2 < a2.length; k2++) if (a2[k2].trackId === track.id) attId = a2[k2].id
+                      if (attId !== "") root.stateStore.applyRecoveryCommand({ type: "recovery.delete", trackId: track.id, scope: "attempt", attemptId: attId })
+                    }
+                  }
+                  Button {
+                    text: "Delete Track"
+                    focusable: true
+                    bordered: false
+                    enabled: root.stateStore && !root.stateStore.saving && !!track
+                    onClicked: root.stateStore.applyRecoveryCommand({ type: "recovery.delete", trackId: track.id, scope: "track" })
+                  }
+                }
+                Text {
+                  text: "Deletion removes the selected scope locally — projections and any export handle omit that data. See Recovery model."
+                  color: root.contentForeground
+                  opacity: 0.45
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+              }
+            }
+
+            // Delete all
+            Button {
+              text: "Delete all Recovery"
+              focusable: true
+              bordered: false
+              Layout.alignment: Qt.AlignHCenter
+              enabled: root.stateStore && !root.stateStore.saving && root.stateStore.recoveryProjection && root.stateStore.recoveryProjection.tracks && root.stateStore.recoveryProjection.tracks.length > 0
+              onClicked: {
+                var tid = root.stateStore.recoveryProjection.tracks[0].id
+                root.stateStore.applyRecoveryCommand({ type: "recovery.delete", trackId: tid, scope: "all" })
+              }
+            }
           }
         }
 
