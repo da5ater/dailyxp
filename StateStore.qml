@@ -512,6 +512,40 @@ Item {
     }
   }
 
+  function applyUxCommand(command) {
+    if (!ready || !recordingReady || saving) return false
+    try {
+      var result = UxModel.decide(uxProjection, command)
+      if (result.events.length === 0) return true
+      var now = new Date()
+      var localContext = EventModel.localSystemContext(now, systemTimezone)
+      var nextJournal = journal
+      for (var i = 0; i < result.events.length; i += 1) {
+        var ev = result.events[i]
+        var domainEvent = EventModel.createEvent({
+          eventId: EventModel.uuidV4(),
+          deviceId: nextJournal.deviceId,
+          type: ev.type,
+          occurredAtUtc: now.toISOString(),
+          localDateTime: localContext.localDateTime,
+          timezone: localContext.timezone,
+          utcOffsetMinutes: localContext.utcOffsetMinutes,
+          systemTimezoneVerified: true,
+          dayBoundaryMinutes: configuredDayBoundaryMinutes,
+          occurrenceKey: ev.occurrenceKey || null,
+          payload: ev.payload || {}
+        })
+        nextJournal = EventModel.append(nextJournal, domainEvent)
+      }
+      var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
+      return persistNext(nextEnvelope, nextJournal)
+    } catch (error) {
+      errorMessage = "Could not update DailyXP navigation: " + error
+      console.warn("dailyxp/ux", errorMessage)
+      return false
+    }
+  }
+
   function failSave(stage, error) {
     saving = false
     _pendingEnvelope = null
