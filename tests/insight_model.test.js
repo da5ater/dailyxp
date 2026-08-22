@@ -18,8 +18,20 @@ test("application consent: disabled, enabled, exclude/rename/merge/delete",()=>{
   assert.deepEqual(Insight.applicationAggregates(sessions,{enabled:true,merges:{"VSCode":"Editor"},renames:{Code:"VSCode"}}),{Editor:60000,Chrome:30000});
   assert.deepEqual(Insight.applicationAggregates(sessions,{enabled:true,deletes:["Code"]}),{Chrome:30000});
 });
-test("recovery never exposed",()=>{
-  assert.equal(Insight.isRecoveryExposed({},{ sensitive:true }),false);
+test("recovery never exposed — even with live recovery projection co-resident",()=>{
+  const RecoveryModel=require("../RecoveryModel.js");
+  function apply(proj, cmd){ const r=RecoveryModel.decide(proj, cmd); return RecoveryModel.projectIntents(proj, r.events); }
+  let rp=RecoveryModel.emptyProjection();
+  rp=apply(rp, { type:"recovery.track.create", track:{ id:"t-co", category:"gaming", startDate:"2026-08-01", visibility:"private" } });
+  rp=apply(rp, { type:"recovery.checkin", trackId:"t-co", dailyXpDate:"2026-08-04", mood:"low", note:"co-resident" });
+  rp=apply(rp, { type:"recovery.relapse", trackId:"t-co", dailyXpDate:"2026-08-05" });
+
+  const sessions=[{focusedMilliseconds:60000,primarySkill:"backend/study"}];
+  assert.equal(Insight.isRecoveryExposed({}, rp), false);
+  assert.equal(Insight.isRecoveryExposed({ byPeriod:{"2026-08-04":60000} }, rp), false);
+  assert.equal(Insight.isRecoveryExposed(Insight.sums(sessions, {}), rp), false);
+  assert.equal(Insight.isRecoveryExposed(Insight.reconcile(sessions, {}, []), rp), false);
+  assert.doesNotMatch(JSON.stringify(Insight.sums(sessions, {})), /co-resident|relapse/i);
 });
 test("empty state",()=>{
   const r=Insight.reconcile([],{},[]);

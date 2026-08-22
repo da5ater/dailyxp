@@ -7,10 +7,22 @@ test("field inclusion: preview removes fields",()=>{
   const exp=Share.exportCard(card,"save");
   assert.deepEqual(exp.previewedFields,["minutes"]);
 });
-test("recovery isolated",()=>{
+test("recovery isolated — every ordinary card type strips recovery unconditionally",()=>{
+  // Recovery cards require explicit consent (positive gate)
   assert.throws(()=>Share.createCard("recovery",{ milestone:"30 days" },{}),/recoveryConsented/);
-  const card=Share.createCard("recovery",{ milestone:"30 days" },{ recoveryConsented:true });
-  assert.equal(card.fields.milestone,"30 days");
+  const consented=Share.createCard("recovery",{ milestone:"30 days" },{ recoveryConsented:true });
+  assert.equal(consented.fields.milestone,"30 days");
+  assert.equal(consented.type,"recovery");
+
+  // Every non-recovery type strips recovery, regardless of removeFields
+  const ordinaryTypes=["session","period","skill","progression","goal","habit","season","guild","fixture"];
+  for(const type of ordinaryTypes){
+    const withoutRemove=Share.createCard(type,{ recovery:{ secret:true, relapseDate:"2026-08-06" } },{});
+    assert.equal(withoutRemove.fields.recovery,undefined, type+" must strip recovery");
+    const withRemove=Share.createCard(type,{ habit:"Study", recovery:{ secret:true } },{ removeFields:["habit"] });
+    assert.equal(withRemove.fields.recovery,undefined, type+" must strip recovery even when removeFields does not name it");
+  }
+  // Also an ordinary habit card that never mentioned removeFields at all
   const ordinary=Share.createCard("habit",{ habit:"Study", recovery:{ secret:true } },{});
   assert.equal(ordinary.fields.recovery,undefined);
 });
