@@ -60,7 +60,8 @@ target with unprivileged coreutils `readlink`, then derives wall time and offset
 from the system `Date`. It refuses recording when it cannot prove an IANA zone.
 It reads `dayBoundaryMinutes` from the plugin entry in `shell.json`, defaulting
 to 240 (04:00). The value is captured on each new event; changing it affects
-future events only.
+future events only. Cross-repo fixture sharing (`da5ater/dailyxp-api` future)
+reuses the same `EventModel.js` contract byte-for-byte — no recompute.
 
 ## Verification
 
@@ -69,6 +70,8 @@ node --test tests/*.test.js
 ```
 
 The suite covers deterministic ID generation, strict event validation,
-idempotent append/replay, timezone and Day Boundary freezing, a DST offset
-change, occurrence identity, canonical export/restore, bounded migration,
-malformed state, and unsupported versions without network access.
+idempotent append/replay, timezone and Day Boundary freezing, DST spring-forward
+gap and fall-back duplicate wall time, Day Boundary edit mid-history without
+moving completed history, occurrence identity, canonical export/restore offline
+replay, bounded migration, malformed state, and unsupported versions without
+network access.
