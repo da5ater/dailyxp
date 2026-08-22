@@ -311,6 +311,9 @@ Item {
     try {
       var result = InsightModel.decide(insightProjection, command)
       if (result.events.length === 0) return true
+      // Capture the PRE-command consent for rollback BEFORE mutating the live
+      // projection — capturing after would restore the mutated state.
+      var consentBefore = insightProjection.consent
       // Apply decided events to the LIVE projection before persisting — the
       // journal append alone does not update consent state.
       insightProjection = InsightModel.projectIntents(insightProjection, result.events)
@@ -335,14 +338,14 @@ Item {
         nextJournal = EventModel.append(nextJournal, domainEvent)
       }
       var nextEnvelope = StateModel.withEventJournal(envelope, EventModel.exportJournal(nextJournal))
-      var consentBefore = insightProjection.consent
       var persisted = persistNext(nextEnvelope, nextJournal)
       if (!persisted) {
-        // Roll back the optimistic live update — nothing was recorded.
+        // Roll back the optimistic live update — nothing was recorded. The
+        // full pre-command consent snapshot is restored (enabled state, allow
+        // list, excludes, renames, merges, deletes).
         var rollback = InsightModel.decide(insightProjection, {
           type: "insight.consent.restore",
-          enabled: !!consentBefore.enabled,
-          applicationNames: consentBefore.allowNames || []
+          consent: consentBefore
         })
         insightProjection = InsightModel.projectIntents(insightProjection, rollback.events)
         return false
