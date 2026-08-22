@@ -153,6 +153,21 @@ BarWidget {
       if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
       return applied ? "requested" : "not-started"
     }
+    function recoveryCommand(json: string): string {
+      if (!root.stateStore) return "unavailable"
+      var applied = root.stateStore.applyRecoveryCommand(JSON.parse(json))
+      if (root.stateStore.errorMessage !== "") return "error: " + root.stateStore.errorMessage
+      return applied ? "requested" : "not-started"
+    }
+    function recoveryStatus(): string {
+      if (!root.stateStore) return JSON.stringify({ available: false })
+      return JSON.stringify({
+        available: true,
+        saving: root.stateStore.saving,
+        error: root.stateStore.errorMessage,
+        projection: root.stateStore.recoveryProjection
+      })
+    }
     function storyStatus(): string {
       if (!root.stateStore) return JSON.stringify({ available: false })
       return JSON.stringify({
