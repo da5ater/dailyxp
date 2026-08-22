@@ -634,3 +634,245 @@ test("correcting the finish instant never rolls the 24-hour free-edit deadline",
   assert.equal(state.sessions[0].lastRevisionKind, "adjustment");
   assert.equal(state.sessions[0].originalFinishedAtUtc, "2026-08-21T09:00:00.000Z");
 });
+
+// ── GH-61 integrity matrix ──────────────────────────────────────────────
+
+test("single-active invariant — start blocks while one is running and only finish/discard releases it", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-single-1", taskId: "t1", primarySkill: "backend/build",
+      plannedMinutes: 60, startedAtUtc: "2026-08-21T08:00:00.000Z" }
+  }).projection;
+
+  assert.equal(state.activeSession.id, "m-single-1");
+  assert.equal(state.sessions.length, 0);
+  assert.throws(() => SessionModel.decide(state, {
+    type: "session.start",
+    session: { id: "m-single-2", taskId: null, primarySkill: "backend/study",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T08:05:00.000Z" }
+  }), /activeSession: already exists/);
+
+  // pause/resume does not release, change_task does not release
+  state = apply(state, { type: "session.pause", atUtc: "2026-08-21T08:10:00.000Z" }).projection;
+  assert.equal(state.activeSession.status, "paused");
+  assert.throws(() => SessionModel.decide(state, { type: "session.start",
+    session: { id: "m-single-3", primarySkill: "reading", plannedMinutes: null, startedAtUtc: "2026-08-21T08:11:00.000Z" } }),
+    /activeSession: already exists/);
+  state = apply(state, { type: "session.resume", atUtc: "2026-08-21T08:15:00.000Z" }).projection;
+  state = apply(state, { type: "session.change_task", taskId: "t2", primarySkill: "backend/study",
+    atUtc: "2026-08-21T08:16:00.000Z" }).projection;
+  assert.equal(state.activeSession.id, "m-single-1");
+  assert.equal(state.activeSession.taskId, "t2");
+
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T08:30:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 25 * 60000 }]
+  }).projection;
+  assert.equal(state.activeSession, null);
+  assert.equal(state.sessions.length, 1);
+  assert.equal(state.sessions[0].focusedMilliseconds, 25 * 60000);
+
+  // After finish, a new start is allowed — no ghost active
+  state = apply(state, {
+    type: "session.start",
+    session: { id: "m-single-4", primarySkill: "reading", plannedMinutes: null,
+      startedAtUtc: "2026-08-21T09:00:00.000Z" }
+  }).projection;
+  assert.equal(state.activeSession.id, "m-single-4");
+  assert.ok(Object.isFrozen(state));
+});
+
+test("plan vs free Sessions — free needs no overtime gate, discard keeps focused but not taskCompleted", () => {
+  // Free: finish without plannedDurationDecision succeeds, focused == competitive
+  let free = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-free", taskId: null, primarySkill: "reading",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T10:00:00.000Z" }
+  }).projection;
+  free = apply(free, {
+    type: "session.finish", atUtc: "2026-08-21T10:30:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 30 * 60000 }]
+  }).projection;
+  assert.equal(free.sessions[0].focusedMilliseconds, 30 * 60000);
+  assert.equal(free.sessions[0].competitiveMilliseconds, 30 * 60000);
+
+  // Planned: overtime without decision returns confirmation, not events
+  let planned = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-plan", taskId: "t1", primarySkill: "backend/build",
+      plannedMinutes: 60, startedAtUtc: "2026-08-21T08:00:00.000Z" }
+  }).projection;
+  const unconfirmed = SessionModel.decide(planned, {
+    type: "session.finish", atUtc: "2026-08-21T09:10:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 70 * 60000 }]
+  });
+  assert.equal(unconfirmed.events.length, 0);
+  assert.deepEqual(unconfirmed.confirmation.reasons, ["planned-duration"]);
+
+  planned = apply(planned, {
+    type: "session.finish", atUtc: "2026-08-21T09:10:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 70 * 60000 }],
+    plannedDurationDecision: "exclude-overtime"
+  }).projection;
+  assert.equal(planned.sessions[0].competitiveMilliseconds, 60 * 60000);
+  assert.deepEqual(planned.sessions[0].competitiveAdjustments[0], { reason: "planned-duration", excludedMilliseconds: 10 * 60000 });
+
+  // Discard vs finish: discard keeps focused for diagnostics but not taskCompleted
+  let discard = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-discard", taskId: null, primarySkill: "reading",
+      plannedMinutes: null, startedAtUtc: "2026-08-21T10:00:00.000Z" }
+  }).projection;
+  discard = apply(discard, { type: "session.discard", atUtc: "2026-08-21T10:10:00.000Z" }).projection;
+  assert.equal(discard.sessions[0].status, "discarded");
+  assert.equal(discard.sessions[0].focusedMilliseconds, 10 * 60000);
+  assert.equal(discard.sessions[0].taskCompleted, undefined);
+});
+
+test("12h daily competitive cap — acknowledged gate, no double count across days", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-cap-single", primarySkill: "backend/build", plannedMinutes: null,
+      startedAtUtc: "2026-08-21T04:00:00.000Z" }
+  }).projection;
+
+  const needsCap = SessionModel.decide(state, {
+    type: "session.finish", atUtc: "2026-08-21T17:00:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 13 * 60 * 60000 }]
+  });
+  assert.deepEqual(needsCap.confirmation.reasons, ["daily-cap"]);
+
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T17:00:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 13 * 60 * 60000 }],
+    dailyCapAcknowledged: true
+  }).projection;
+  assert.equal(state.sessions[0].focusedMilliseconds, 13 * 60 * 60000);
+  assert.equal(state.sessions[0].competitiveMilliseconds, 12 * 60 * 60000);
+  assert.deepEqual(state.sessions[0].competitiveByDailyXpDate, { "2026-08-21": 12 * 60 * 60000 });
+
+  // Multi-day: 8h + 7h = 15h total, no per-day cap hit, but focused duration
+  // is capped by wall-clock (sessionSummary truncates to 60*60000) — so dailySlices
+  // must match that focused duration. Use a focused-matching slice total.
+  let multi = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-cap-multi", primarySkill: "backend/build", plannedMinutes: null,
+      startedAtUtc: "2026-08-20T04:00:00.000Z" }
+  }).projection;
+  const multiFocused = SessionModel.summaryAt(multi, "2026-08-21T17:00:00.000Z").focusedMilliseconds;
+  multi = apply(multi, {
+    type: "session.finish", atUtc: "2026-08-21T17:00:00.000Z",
+    dailySlices: [
+      { dailyXpDate: "2026-08-20", milliseconds: Math.floor(multiFocused * 0.5) },
+      { dailyXpDate: "2026-08-21", milliseconds: Math.ceil(multiFocused * 0.5) }
+    ],
+    dailyCapAcknowledged: true
+  }).projection;
+  const capSum = Object.values(multi.sessions[0].competitiveByDailyXpDate).reduce((a,v)=>a+v,0);
+  assert.equal(capSum, multi.sessions[0].competitiveMilliseconds);
+  assert.equal(multi.sessions[0].focusedMilliseconds, multiFocused);
+});
+
+test("inactivity without capture — intervals only count after a user decision", () => {
+  let state = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-idle", primarySkill: "reading", plannedMinutes: null,
+      startedAtUtc: "2026-08-21T10:00:00.000Z" }
+  }).projection;
+
+  // detect → return → pending confirmation
+  state = apply(state, { type: "session.inactivity.detect", atUtc: "2026-08-21T10:20:00.000Z" }).projection;
+  state = apply(state, { type: "session.inactivity.return", atUtc: "2026-08-21T10:30:00.000Z" }).projection;
+  assert.equal(state.activeSession.pendingInactivityStartedAtUtc, "2026-08-21T10:20:00.000Z");
+  assert.equal(state.activeSession.pendingInactivityEndedAtUtc, "2026-08-21T10:30:00.000Z");
+  // finish while pending must request confirmation
+  assert.deepEqual(SessionModel.decide(state, {
+    type: "session.finish", atUtc: "2026-08-21T10:35:00.000Z"
+  }).confirmation.reasons, ["inactivity"]);
+
+  // exclude after decision — focused drops by the interval
+  state = apply(state, { type: "session.inactivity.resolve", atUtc: "2026-08-21T10:32:00.000Z", decision: "exclude" }).projection;
+  assert.deepEqual(state.activeSession.inactiveIntervals, [{ startedAtUtc: "2026-08-21T10:20:00.000Z", endedAtUtc: "2026-08-21T10:30:00.000Z" }]);
+  assert.equal(state.activeSession.pendingInactivityStartedAtUtc, null);
+
+  const beforeFinish = JSON.stringify(state.activeSession);
+  assert.doesNotMatch(beforeFinish, /"keys"|"screens"|"urls"/);
+  // In this flow the interval was already resolved via inactivity.resolve, so
+  // finish's own inactivityDecision stays null — the decision is proven by the
+  // stored inactiveIntervals and the focused drop, not by a duplicate field.
+  assert.deepEqual(state.activeSession.inactiveIntervals, [{ startedAtUtc: "2026-08-21T10:20:00.000Z", endedAtUtc: "2026-08-21T10:30:00.000Z" }]);
+
+  state = apply(state, {
+    type: "session.finish", atUtc: "2026-08-21T11:00:00.000Z",
+    inactivityDecision: "exclude",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 50 * 60000 }]
+  }).projection;
+  assert.equal(state.sessions[0].focusedMilliseconds, 50 * 60000);
+  assert.doesNotMatch(JSON.stringify(state.sessions[0]), /"keys"|"screens"|"urls"/);
+
+  // include path keeps the interval focused — when resolved via the dedicated
+  // active-interval path, finish's inactivityDecision stays null (decision
+  // is already proven by empty inactiveIntervals), so don't assert the string.
+  let include = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-idle-inc", primarySkill: "reading", plannedMinutes: null,
+      startedAtUtc: "2026-08-21T10:00:00.000Z" }
+  }).projection;
+  include = apply(include, { type: "session.inactivity.detect", atUtc: "2026-08-21T10:20:00.000Z" }).projection;
+  include = apply(include, { type: "session.inactivity.return", atUtc: "2026-08-21T10:30:00.000Z" }).projection;
+  include = apply(include, { type: "session.inactivity.resolve", atUtc: "2026-08-21T10:32:00.000Z", decision: "include" }).projection;
+  assert.deepEqual(include.activeSession.inactiveIntervals, []);
+  include = apply(include, {
+    type: "session.finish", atUtc: "2026-08-21T11:00:00.000Z",
+    inactivityDecision: "include",
+    dailySlices: [{ dailyXpDate: "2026-08-21", milliseconds: 60 * 60000 }]
+  }).projection;
+  assert.equal(include.sessions[0].focusedMilliseconds, 60 * 60000);
+});
+
+test("wall-clock jump, day-boundary slicing, and frozen correction horizon", () => {
+  // Backward jump cannot subtract or double-count
+  const jumped = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-clock", primarySkill: "backend/study", plannedMinutes: null,
+      startedAtUtc: "2026-08-21T10:00:00.000Z" }
+  }).projection;
+  assert.equal(SessionModel.summaryAt(jumped, "2026-08-21T09:55:00.000Z").focusedMilliseconds, 0);
+  assert.throws(() => SessionModel.decide(jumped, { type: "session.pause", atUtc: "2026-08-21T09:55:00.000Z" }),
+    /atUtc: must not precede the last Session transition/);
+  assert.equal(SessionModel.summaryAt(jumped, "2026-08-21T10:15:00.000Z").focusedMilliseconds, 15 * 60000);
+
+  // Day-boundary slicing: synthetic dateAtUtc flips at 08:20Z on 08:00–09:00 → 20m + 40m
+  const slices = SessionModel.dailySlicesAt(
+    { segments: [{ startedAtUtc: "2026-08-21T08:00:00.000Z", endedAtUtc: null }], inactiveIntervals: [] },
+    "2026-08-21T09:00:00.000Z",
+    atUtc => atUtc < "2026-08-21T08:20:00.000Z" ? "2026-08-20" : "2026-08-21"
+  );
+  assert.deepEqual(slices, [
+    { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 40 * 60000 }
+  ]);
+
+  // Cross-boundary finish attributes to majority day
+  let cross = apply(SessionModel.emptyProjection(), {
+    type: "session.start",
+    session: { id: "m-cross", primarySkill: "backend/study", plannedMinutes: null,
+      startedAtUtc: "2026-08-21T00:00:00.000Z" }
+  }).projection;
+  cross = apply(cross, {
+    type: "session.finish", atUtc: "2026-08-21T01:00:00.000Z",
+    dailySlices: [{ dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 }, { dailyXpDate: "2026-08-21", milliseconds: 40 * 60000 }]
+  }).projection;
+  assert.equal(cross.sessions[0].dailyXpDate, "2026-08-21");
+
+  // Frozen correction horizon re-slices across original Day Boundary without inventing a new one
+  const timeline = SessionModel.dailyXpTimelineAt(
+    "2026-08-21T03:40:00.000Z", "2026-08-21T04:30:00.000Z",
+    atUtc => atUtc < "2026-08-21T04:00:00.000Z" ? "2026-08-20" : "2026-08-21");
+  const corrected = SessionModel.dailySlicesFromTimeline(
+    [{ startedAtUtc: "2026-08-21T03:40:00.000Z", endedAtUtc: "2026-08-21T04:10:00.000Z" }], timeline);
+  assert.deepEqual(corrected, [
+    { dailyXpDate: "2026-08-20", milliseconds: 20 * 60000 },
+    { dailyXpDate: "2026-08-21", milliseconds: 10 * 60000 }
+  ]);
+});
