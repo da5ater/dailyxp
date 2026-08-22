@@ -173,7 +173,7 @@ function decide(projection, command) {
     return freeze({ events: [{ type: "story.comeback.progressed", payload: progressed }] });
   }
   if (input.type === "story.comeback.ignore") {
-    if (!state.comebackQuest || state.comebackQuest.status==="available") {
+    if (!state.comebackQuest || state.comebackQuest.status==="available" || state.comebackQuest.status==="active") {
       var ignored = clone(state.comebackQuest || { id: "comeback:ignored", status: "available", steps: [] });
       ignored.status="ignored";
       return freeze({ events: [{ type: "story.comeback.ignored", payload: ignored }] });

@@ -5,6 +5,7 @@ import qs.Ui
 import "EventModel.js" as EventModel
 import "SessionModel.js" as SessionModel
 import "ProgressionModel.js" as ProgressionModel
+import "StoryModel.js" as StoryModel
 
 Panel {
   id: root
@@ -40,6 +41,13 @@ Panel {
     var proj = progressionProjection
     if (!proj || !proj.totals) return "0 Lifetime \u00b7 0 Season"
     return proj.totals.lifetimeXp + " Lifetime \u00b7 " + proj.totals.seasonXp + " Season"
+  }
+  readonly property var storyProjection: stateStore ? stateStore.storyProjection : null
+  function provinceLabel(status) {
+    if (status === "achieved") return "visitable"
+    if (status === "sleeping") return "sleeping"
+    if (status === "ruins") return "Ruins"
+    return "active"
   }
   readonly property var sessionSummary: activeSession
     ? SessionModel.summaryAt(stateStore.sessionProjection, nowUtc) : null
@@ -822,6 +830,334 @@ Panel {
                 }
               }
             }
+          }
+        }
+
+
+        // kingdom— STORY-001 executable surface: provinces/landmarks, antagonists neutral, comeback quest 3 steps, Hollow King
+        ColumnLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+
+          Rectangle {
+            height: 1
+            color: Qt.rgba(1, 1, 1, 0.08)
+            Layout.fillWidth: true
+          }
+
+          Text {
+            text: "Kingdom"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.titleSmall || Style.font.title
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
+          }
+
+          Text {
+            visible: !root.storyProjection || !root.storyProjection.provinces || root.storyProjection.provinces.length === 0
+            text: "No provinces yet. Create a Goal to found your first province."
+            color: root.contentForeground
+            opacity: 0.68
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          ColumnLayout {
+            visible: root.storyProjection && root.storyProjection.provinces && root.storyProjection.provinces.length > 0
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Repeater {
+              model: root.storyProjection ? root.storyProjection.provinces : []
+              delegate: ColumnLayout {
+                property var province: modelData
+                Layout.fillWidth: true
+                spacing: Style.space(4)
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(8)
+                  Text {
+                    text: province ? province.title : ""
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.body
+                    font.bold: true
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                  }
+                  Text {
+                    text: province ? root.provinceLabel(province.status) : ""
+                    color: root.contentForeground
+                    opacity: 0.62
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  }
+                }
+
+                Text {
+                  visible: province && province.status === "ruins"
+                  text: "Ruins — abandoned territory, nothing is lost permanently; reclaim by restoring the goal."
+                  color: root.contentForeground
+                  opacity: 0.6
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+
+                Text {
+                  visible: province && province.landmarks && province.landmarks.length === 0
+                  text: "No landmarks yet."
+                  color: root.contentForeground
+                  opacity: 0.55
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  Layout.fillWidth: true
+                }
+
+                Repeater {
+                  model: province && province.landmarks ? province.landmarks : []
+                  delegate: RowLayout {
+                    property var landmark: modelData
+                    Layout.fillWidth: true
+                    spacing: Style.space(6)
+                    Text {
+                      text: landmark ? landmark.title : ""
+                      color: root.contentForeground
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      Layout.fillWidth: true
+                      wrapMode: Text.Wrap
+                    }
+                    Text {
+                      text: landmark ? (landmark.status === "built" ? "built" : "planned") : ""
+                      color: root.contentForeground
+                      opacity: 0.62
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.caption || Style.font.bodySmall
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          // Antagonists — neutral cause language, never insulting
+          ColumnLayout {
+            visible: root.storyProjection && root.storyProjection.antagonists && root.storyProjection.antagonists.length > 0
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+            Text {
+              text: "Challenges — what caused them"
+              color: root.contentForeground
+              opacity: 0.72
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              font.bold: true
+              Layout.alignment: Qt.AlignHCenter
+            }
+            Repeater {
+              model: root.storyProjection ? root.storyProjection.antagonists : []
+              delegate: ColumnLayout {
+                property var foe: modelData
+                Layout.fillWidth: true
+                spacing: Style.space(2)
+                Text {
+                  text: foe ? foe.label : ""
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: true
+                }
+                Text {
+                  text: foe ? foe.cause : ""
+                  color: root.contentForeground
+                  opacity: 0.68
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+                Text {
+                  visible: foe && foe.id === "hollow-king"
+                  text: "Only unfinished provinces are affected."
+                  color: root.contentForeground
+                  opacity: 0.6
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.caption || Style.font.bodySmall
+                  wrapMode: Text.Wrap
+                  Layout.fillWidth: true
+                }
+              }
+            }
+          }
+          Text {
+            visible: !root.storyProjection || !root.storyProjection.antagonists || root.storyProjection.antagonists.length === 0
+            text: "No active challenges — neutral antagonists appear only when the underlying behaviour occurs."
+            color: root.contentForeground
+            opacity: 0.55
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          // Comeback Quest — appears after 7 inactive eligible days; 3 steps, reclaims province + Achievement, ignore has no punishment
+          ColumnLayout {
+            visible: root.storyProjection && root.storyProjection.comebackQuest
+            Layout.fillWidth: true
+            spacing: Style.space(6)
+
+            Text {
+              text: root.storyProjection && root.storyProjection.comebackQuest
+                ? (root.storyProjection.comebackQuest.status === "completed" ? "Comeback Quest — reclaimed"
+                  : root.storyProjection.comebackQuest.status === "ignored" ? "Comeback Quest — set aside"
+                  : root.storyProjection.comebackQuest.status === "active" ? "Comeback Quest — in progress"
+                  : "Comeback Quest — available") : "Comeback Quest"
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+              Layout.alignment: Qt.AlignHCenter
+            }
+
+            Text {
+              text: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.explains
+                ? root.storyProjection.comebackQuest.explains : ""
+              visible: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.explains
+              color: root.contentForeground
+              opacity: 0.62
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+            }
+
+            Repeater {
+              model: root.storyProjection && root.storyProjection.comebackQuest ? root.storyProjection.comebackQuest.steps : []
+              delegate: RowLayout {
+                property var step: modelData
+                Layout.fillWidth: true
+                spacing: Style.space(8)
+                Text {
+                  text: step ? (step.completed ? "✓" : "○") : ""
+                  color: root.contentForeground
+                  font.family: root.contentFontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+                ColumnLayout {
+                  Layout.fillWidth: true
+                  spacing: 2
+                  Text {
+                    text: step ? step.title : ""
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                  }
+                  Text {
+                    text: step ? step.required : ""
+                    color: root.contentForeground
+                    opacity: 0.58
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.caption || Style.font.bodySmall
+                    wrapMode: Text.Wrap
+                    Layout.fillWidth: true
+                  }
+                }
+              }
+            }
+
+            Text {
+              text: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.reward
+                ? ("Reward: " + root.storyProjection.comebackQuest.reward) : ""
+              visible: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.reward
+              color: root.contentForeground
+              opacity: 0.64
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+            }
+
+            Text {
+              visible: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.status === "ignored"
+              text: "Set aside — no punishment, no hidden loss. It remains available to reclaim."
+              color: root.contentForeground
+              opacity: 0.62
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.caption || Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+              horizontalAlignment: Text.AlignHCenter
+            }
+
+            RowLayout {
+              Layout.alignment: Qt.AlignHCenter
+              spacing: Style.space(8)
+              Button {
+                visible: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.status === "available"
+                text: "Accept Quest"
+                focusable: true
+                bordered: true
+                enabled: root.stateStore && !root.stateStore.saving
+                onClicked: root.stateStore.applyStoryCommand({ type: "story.comeback.accept" })
+              }
+              Button {
+                visible: root.storyProjection && root.storyProjection.comebackQuest && root.storyProjection.comebackQuest.status === "active"
+                text: "Complete Quest"
+                focusable: true
+                bordered: true
+                enabled: root.stateStore && !root.stateStore.saving
+                onClicked: root.stateStore.applyStoryCommand({ type: "story.comeback.complete" })
+              }
+              Button {
+                visible: root.storyProjection && root.storyProjection.comebackQuest && (root.storyProjection.comebackQuest.status === "available" || root.storyProjection.comebackQuest.status === "active")
+                text: "Set aside"
+                focusable: true
+                bordered: false
+                enabled: root.stateStore && !root.stateStore.saving
+                onClicked: root.stateStore.applyStoryCommand({ type: "story.comeback.ignore" })
+              }
+            }
+          }
+
+          Text {
+            visible: !root.storyProjection || !root.storyProjection.comebackQuest
+            text: "Comeback Quest appears after 7 inactive eligible days — 3 forgiving steps. Success reclaims and grants an Achievement; setting it aside has no punishment or hidden loss."
+            color: root.contentForeground
+            opacity: 0.55
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          // Achievements (cosmetic)
+          Text {
+            visible: root.storyProjection && root.storyProjection.achievements && root.storyProjection.achievements.length > 0
+            text: {
+              var a = root.storyProjection.achievements
+              if (!a || a.length === 0) return ""
+              return "Achievements: " + a.map(function(x){ return x.title }).join(" · ")
+            }
+            color: root.contentForeground
+            opacity: 0.64
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption || Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
           }
         }
 
