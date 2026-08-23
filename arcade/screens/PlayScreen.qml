@@ -3,17 +3,21 @@ import "../"
 import "../../FixtureLoader.js" as FixtureLoader
 
 // P1: PLAY — the default landing. Minimal first open (R13/R5): one rail card
-// + START, habit strip, and (V2) the first-commitment empty state. Stub-fed
-// via FixtureLoader for V1; V2/V3/V6 replace sources per-domain.
+// + START, habit quick-strip, and (V2) the first-commitment empty state.
+// Stub-fed via FixtureLoader for V1; V2/V3/V6 replace sources per-domain.
 ArcadeScreen {
     id: root
     title: "PLAY"
 
     property var fixture: FixtureLoader.load()
+    readonly property var todayList: fixture ? FixtureLoader.todays(fixture) : []
+    readonly property bool hasAnyCommitments: fixture
+        && (fixture.planning.tasks.length > 0 || fixture.planning.routines.length > 0
+            || fixture.planning.occurrences.length > 0)
 
     // ── today rail ──────────────────────────────────────────────
     ArcadeCard {
-        visible: fixture && fixture.planning.todayOccurrences.length > 0
+        visible: root.todayList.length > 0
         width: parent.width
         ribbon: "TODAY · FOCUS"
         ribbonColor: Theme.coinGold
@@ -21,8 +25,7 @@ ArcadeScreen {
 
         Text {
             width: parent.width
-            text: fixture && fixture.planning.todayOccurrences.length > 0
-                  ? fixture.planning.todayOccurrences[0].title : ""
+            text: root.todayList.length > 0 ? root.todayList[0].title : ""
             color: Theme.textPrimary
             font.family: Theme.fontFamily
             font.pixelSize: 16
@@ -31,8 +34,9 @@ ArcadeScreen {
         }
         Text {
             width: parent.width
-            text: fixture && fixture.planning.todayOccurrences.length > 0
-                  ? fixture.planning.todayOccurrences[0].budgetLabel : ""
+            text: root.todayList.length > 0
+                  ? root.todayList[0].expectedMinutes + "m budget · "
+                    + root.todayList[0].primarySkill : ""
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: 11
@@ -48,8 +52,7 @@ ArcadeScreen {
 
     // ── V2 empty state ──────────────────────────────────────────
     ArcadeCard {
-        visible: fixture && fixture.planning.todayOccurrences.length === 0
-                 && fixture.planning.commitments.length === 0
+        visible: !root.hasAnyCommitments
         width: parent.width
         ribbon: "NEW DAY"
         ribbonColor: Theme.powerGreen
@@ -70,6 +73,13 @@ ArcadeScreen {
         }
     }
 
+    // ── overdue micro-strip placeholder — real rule lands in V6 ──
+    ArcadeCard {
+        visible: false  // enabled in V6 with the single-gentle-suggestion rule
+        width: parent.width
+        ribbon: "YESTERDAY"
+    }
+
     // ── habit quick-strip (R4.3) ────────────────────────────────
     Row {
         visible: fixture && fixture.habit.habits.length > 0
@@ -81,9 +91,10 @@ ArcadeScreen {
             delegate: StatChip {
                 required property var modelData
                 compact: true
-                label: modelData.doneToday ? "✔" : "○"
-                value: modelData.name
-                valueColor: modelData.doneToday ? Theme.powerGreen : Theme.textPrimary
+                label: FixtureLoader.habitDoneToday(root.fixture, modelData) ? "✔" : "○"
+                value: modelData.title
+                valueColor: FixtureLoader.habitDoneToday(root.fixture, modelData)
+                            ? Theme.powerGreen : Theme.textPrimary
             }
         }
     }

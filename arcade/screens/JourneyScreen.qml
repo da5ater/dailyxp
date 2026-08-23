@@ -9,6 +9,7 @@ ArcadeScreen {
     title: "JOURNEY"
 
     property var fixture: FixtureLoader.load()
+    readonly property var lvl: fixture ? FixtureLoader.levelProgress(fixture) : { have: 0, need: 1 }
 
     Row {
         width: parent.width
@@ -24,10 +25,9 @@ ArcadeScreen {
         spacing: 4
 
         Text {
-            text: fixture
+            text: fixture && lvl.need > 0
                   ? "XP TO LEVEL " + (fixture.progression.level + 1) + " — "
-                    + Math.round(100 * fixture.progression.toNextLevel.have
-                                 / fixture.progression.toNextLevel.need) + "%"
+                    + Math.round(100 * lvl.have / lvl.need) + "%"
                   : ""
             color: Theme.textMuted
             font.family: Theme.fontFamily
@@ -36,7 +36,7 @@ ArcadeScreen {
         }
 
         SegmentedBar {
-            fraction: fixture ? fixture.progression.toNextLevel.have / fixture.progression.toNextLevel.need : 0
+            fraction: lvl.need > 0 ? Math.max(0, Math.min(1, lvl.have / lvl.need)) : 0
         }
     }
 

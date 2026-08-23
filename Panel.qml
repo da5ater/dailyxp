@@ -370,6 +370,16 @@ Panel {
           id: phaseShell
           anchors.horizontalCenter: parent.horizontalCenter
           width: Math.min(parent.width, 420)
+
+          // R8 focus chain: when the panel opens, focus moves from the host
+          // keyCatcher into the shell's controller; Esc bubbles back up via
+          // the shell's Keys.escapePressed default (accept=false falls through).
+          Connections {
+            target: root
+            function onOpenedChanged() {
+              if (root.opened) phaseShell.forceControllerFocus()
+            }
+          }
         }
       }
     }

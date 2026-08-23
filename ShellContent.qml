@@ -15,8 +15,10 @@ import "FixtureLoader.js" as FixtureLoader
 
 Rectangle {
     id: root
-    width: 420
-    height: 640
+    implicitWidth: 420
+    implicitHeight: viewportHeight + controller.height + Theme.space(4)
+    property int viewportHeight: 588   // cartridge area; panel scrolls around it
+    height: implicitHeight
     color: Theme.background
 
     property var fixture: FixtureLoader.load()
@@ -24,6 +26,11 @@ Rectangle {
     property var sheetStack: []          // max depth 2
 
     function openSurface(name) { root.currentSurface = name }
+    function forceControllerFocus() {
+        // R8 entry point: host hands focus here on panel open.
+        root.focus = true
+        controller.forceActiveFocus()
+    }
     function pushSheet(component) {
         if (root.sheetStack.length >= 2) return
         // V1 has no sheets yet; placeholder for V2+ (Commitment Sheet etc.)
@@ -38,7 +45,7 @@ Rectangle {
         Item {
             id: viewport
             width: parent.width
-            height: parent.height - controller.height
+            height: root.viewportHeight
 
             // Each tab mounts once, then stays alive; visibility switches.
             // This preserves per-tab state across navigation (AC: state kept).

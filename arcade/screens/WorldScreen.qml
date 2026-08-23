@@ -19,7 +19,7 @@ ArcadeScreen {
 
         Text {
             width: parent.width
-            text: fixture ? fixture.story.momentumState + " — steady work, steady kingdom." : ""
+            text: fixture ? fixture.story.momentum + " — steady work, steady kingdom." : ""
             color: Theme.textPrimary
             font.family: Theme.fontFamily
             font.pixelSize: 13
@@ -33,19 +33,24 @@ ArcadeScreen {
             required property var modelData
             width: parent.width
             ribbon: modelData.name.toUpperCase()
-            ribbonColor: modelData.reclaimed ? Theme.powerGreen : Theme.textMuted
+            ribbonColor: modelData.status === "active" ? Theme.powerGreen : Theme.textMuted
 
             Text {
                 width: parent.width
-                text: Math.round(modelData.progress * 100) + "% rebuilt"
+                text: modelData.status === "achieved" ? "reclaimed — visitable"
+                    : modelData.status === "sleeping" ? "sleeping"
+                    : modelData.status === "ruins" ? "ruins — reclaimable"
+                    : Math.round(modelData.fillFraction * 100) + "% rebuilt"
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
+                wrapMode: Text.WordWrap
             }
             SegmentedBar {
+                visible: modelData.status === "active"
                 blocks: 20
                 width: parent.width - Theme.space(2)
-                fraction: modelData.progress
+                fraction: modelData.fillFraction
                 fill: Theme.powerGreen
                 fillBorder: Theme.greenDeep
             }
