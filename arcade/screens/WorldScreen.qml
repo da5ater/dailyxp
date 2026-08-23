@@ -32,7 +32,7 @@ ArcadeScreen {
         delegate: ArcadeCard {
             required property var modelData
             width: parent.width
-            ribbon: modelData.name.toUpperCase()
+            ribbon: String(modelData.title).toUpperCase()
             ribbonColor: modelData.status === "active" ? Theme.powerGreen : Theme.textMuted
 
             Text {
@@ -40,19 +40,11 @@ ArcadeScreen {
                 text: modelData.status === "achieved" ? "reclaimed — visitable"
                     : modelData.status === "sleeping" ? "sleeping"
                     : modelData.status === "ruins" ? "ruins — reclaimable"
-                    : Math.round(modelData.fillFraction * 100) + "% rebuilt"
+                    : "active — progress fills as milestones land (V7 binds real fill)"
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
-            }
-            SegmentedBar {
-                visible: modelData.status === "active"
-                blocks: 20
-                width: parent.width - Theme.space(2)
-                fraction: modelData.fillFraction
-                fill: Theme.powerGreen
-                fillBorder: Theme.greenDeep
             }
         }
     }

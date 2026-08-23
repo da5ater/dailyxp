@@ -53,11 +53,13 @@ function emptyFixture() {
           seasonDelta: 320, atUtc: "2026-08-23T12:00:00Z", ruleVersion: 1 }
       ],
       totals: { lifetimeXp: 1450, seasonXp: 320 },
+      // levelForXp(1450): L1 needs 500 (have 950), L2 needs 550 (have 400),
+      // L3 needs 600 > 400 → level 3, rank Wanderer per STORY_RANKS.
       level: 3,
-      storyRank: "Iron",
+      storyRank: "Wanderer",
       momentum: "Steady",
       seasonId: 1,
-      dailyTargetMinutes: 240,
+      dailyTargetMinutes: 120,
       streakBonus: 0
     },
 
@@ -81,11 +83,13 @@ function emptyFixture() {
     story: {
       schemaVersion: 1,
       provinces: [
-        { id: "px-1", goalId: "fx-goal-1", name: "Learn Rails",
-          status: "active", fillFraction: 0.4 },
-        { id: "px-2", goalId: "fx-goal-2", name: "Ship DailyXP",
-          status: "active", fillFraction: 0.15 }
+        { id: "fx-goal-1", title: "Learn Rails", status: "active",
+          goalStatus: "active" },
+        { id: "fx-goal-2", title: "Ship DailyXP", status: "active",
+          goalStatus: "active" }
       ],
+      // landmark shape mirrors StoryModel milestone-derived landmarks
+      landmarks: [],
       antagonists: [],
       momentum: "Steady",
       comebackQuest: null,
@@ -147,14 +151,18 @@ function habitDoneToday(fixture, habit) {
   return false;
 }
 
-// XP-to-next-level per ProgressionModel.levelForXp rule (500+50n).
+// XP-to-next-level mirroring ProgressionModel.levelForXp exactly:
+// requirement to LEAVE level L is LEVEL_BASE + LEVEL_STEP·(L−1).
 function levelProgress(fixture) {
   var t = fixture.progression.totals.lifetimeXp;
   var level = fixture.progression.level;
   var consumed = 0;
-  for (var l = 1; l < level; l++) consumed += 500 + 50 * l;
-  var need = 500 + 50 * level;
-  return { have: t - consumed, need: need };
+  for (var l = 1; l < level; l++) {
+    var req = 500 + 50 * (l - 1);
+    consumed += req;
+  }
+  var need = 500 + 50 * (level - 1);
+  return { have: Math.max(0, t - consumed), need: need };
 }
 
 var _fixture = null;
