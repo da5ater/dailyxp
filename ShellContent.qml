@@ -40,6 +40,13 @@ Rectangle {
     function openSurface(name) { root.currentSurface = name }
     function openRecovery() { root.recoveryOpen = true }   // guard confirm lands with V7 bind
     function closeRecovery() { root.recoveryOpen = false }
+    function scrollBy(delta) {
+        // keyboard scroll entry point — host PanelKeyCatcher routes arrows /
+        // j/k here (its onMoveRequested was previously unconnected, so every
+        // arrow press died in the signal). Clamped; no-op when content fits.
+        var max = viewport.contentHeight - viewport.height
+        viewport.contentY = Math.max(0, Math.min(viewport.contentY + delta, max))
+    }
     function forceControllerFocus() {
         // R8 entry point: host hands focus here on panel open.
         root.focus = true
@@ -114,6 +121,16 @@ Rectangle {
                 function onCurrentSurfaceChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
                 function onRecoveryOpenChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
             }
+
+            // ── TEMP LIVE-SCROLL DIAGNOSTICS (#93) — REMOVE BEFORE FINAL REX ──
+            // Third live report of unreachable below-fold content. The offscreen
+            // probe proves geometry (contentHeight=708 > height=588,
+            // interactive=true) but cannot prove input delivery through the
+            // host stack. These loggers answer with data: if a wheel scroll or
+            // drag reaches this Flickable and works, contentY moves and logs;
+            // total silence means events never arrive or are refused.
+            onDraggingChanged: console.log("[SCROLL-DIAG] dragging=" + dragging)
+            onContentYChanged: console.log("[SCROLL-DIAG] contentY=" + contentY)
         }
 
         // ── controller nav (A1) ─────────────────────────────────

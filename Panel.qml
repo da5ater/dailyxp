@@ -339,6 +339,10 @@ Panel {
       blocked: false
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      // Phase R (#93): the catcher holds Keys.BeforeItem priority, so every
+      // Up/Down/h/j press landed here and died — no consumer existed. Route
+      // them into the shell's viewport scroll (48px per step).
+      onMoveRequested: function(dx, dy) { phaseShell.scrollBy(dy * 48) }
 
       // Apple material: translucent layer, content scrolls underneath, not opaque bar; Gaming: hero staging
       Rectangle {
