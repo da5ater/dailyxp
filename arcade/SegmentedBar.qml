@@ -20,10 +20,19 @@ Rectangle {
     // 3px gaps keep every segment reading as its own dash — filled runs must
     // never fuse into one slab (Mohamed live pass: wanted "- _ -", not "=")
     readonly property int gap: 3
-    // floor keeps integer pixel widths — no sub-pixel fuzz under software
-    // rendering; the leftover (<blocks px) stays transparent at the right edge
-    readonly property int blockWidth: Math.max(1,
-        Math.floor((width - (blocks - 1) * gap) / blocks))
+    // integer pixel widths stay crisp under software rendering; the division
+    // remainder is distributed one extra pixel across the leading blocks so
+    // the row tiles EXACTLY to the assigned width — no dead slack at the
+    // right edge (live pass #31: floor-only left the bar trailing off)
+    readonly property int totalGapWidth: (blocks - 1) * gap
+    readonly property int baseBlockWidth: Math.max(1,
+        Math.floor((width - totalGapWidth) / blocks))
+    readonly property int remainderPx: Math.max(0,
+        width - totalGapWidth - baseBlockWidth * blocks)
+
+    function blockWidthFor(index) {
+        return baseBlockWidth + (index < remainderPx ? 1 : 0)
+    }
 
     implicitWidth: blocks * 15 - 2
     implicitHeight: 16
@@ -35,7 +44,7 @@ Rectangle {
             model: root.blocks
             delegate: Rectangle {
                 required property int index
-                width: root.blockWidth
+                width: root.blockWidthFor(index)
                 height: root.height
                 color: index < Math.round(root.fraction * root.blocks) ? root.fill : root.empty
                 border.color: index < Math.round(root.fraction * root.blocks) ? root.fillBorder : root.emptyBorder
