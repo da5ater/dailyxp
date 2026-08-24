@@ -75,8 +75,13 @@ BarWidget {
       var rank = progressionProjection.storyRank ? " " + progressionProjection.storyRank : ""
       var mom = momentumGlyph()
       var hab = habitGlyph()
+      // graceful degradation for narrow bars: drop habit count first, then
+      // rank; Lv + momentum + surface indicator are the load-bearing minimum.
+      // Vertical keeps its tighter 18-char budget.
+      var maxLen = root.vertical ? 18 : 22
       var label = lvl + rank + mom + hab + surfaceIndicator()
-      if (root.vertical) return label.length > 18 ? (lvl + surfaceIndicator()) : label
+      if (label.length > maxLen) label = lvl + rank + mom + surfaceIndicator()
+      if (label.length > maxLen) label = lvl + mom + surfaceIndicator()
       return label
     }
     return (root.vertical ? "◈" : "DailyXP") + surfaceIndicator()

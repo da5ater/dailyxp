@@ -43,6 +43,11 @@ QtObject {
     readonly property color purpleDeep:    "#241040"
     readonly property color purpleSoft:    "#c9a0ff"
 
+    // on-accent text colors (text sitting ON a colored surface)
+    readonly property color onPink:        "#4a1030"
+    readonly property color onBlue:        "#00283d"
+    readonly property color onYellow:      "#3a3000"
+
     // ── type — design.md: Press Start 2P everywhere (chunky pixel brand) ──
     // Bundled at fonts/PressStart2P-Regular.ttf (OFL); ShellContent's
     // FontLoader registers it before any Text resolves. CaskaydiaMono Nerd

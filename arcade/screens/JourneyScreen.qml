@@ -103,7 +103,7 @@ ArcadeScreen {
         width: parent.width
         ribbon: "ACHIEVEMENTS · " + root.fixture.story.achievements.length
         ribbonColor: Theme.chromeYellow
-        ribbonText: "#3a3000"
+        ribbonText: Theme.onYellow
 
         Flow {
             width: parent.width

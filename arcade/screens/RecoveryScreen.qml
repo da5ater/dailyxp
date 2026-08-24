@@ -31,7 +31,7 @@ ArcadeScreen {
             ribbon: (modelData.customCategory || modelData.category).toUpperCase()
                     + " · DAY " + trackStreak(modelData.id)
             ribbonColor: Theme.arcadeBlue
-            ribbonText: "#00283d"
+            ribbonText: Theme.onBlue
 
             Column {
                 width: parent.width

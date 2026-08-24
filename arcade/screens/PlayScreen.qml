@@ -205,7 +205,7 @@ ArcadeScreen {
         BevelButton {
             label: "RECOVERY"
             baseColor: Theme.arcadeBlue
-            textColor: "#00283d"
+            textColor: Theme.onBlue
             onActivated: if (root.shellApi) root.shellApi.openRecovery()
         }
         Text {

@@ -87,7 +87,7 @@ ArcadeScreen {
         width: parent.width
         ribbon: "THE HOLLOW KING"
         ribbonColor: Theme.bubblegum
-        ribbonText: "#4a1030"
+        ribbonText: Theme.onPink
 
         Column {
             width: parent.width
