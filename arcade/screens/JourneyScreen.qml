@@ -12,13 +12,19 @@ ArcadeScreen {
     property var fixture: FixtureLoader.load()
     readonly property var lvl: fixture ? FixtureLoader.levelProgress(fixture) : { have: 0, need: 1 }
 
-    // ── stat tiles — Flow so a narrow panel wraps instead of bleeding ──
-    Flow {
+    // ── stat tiles — deliberate zigzag composition (Mohamed live pass):
+    // 1 left · 2 centered on its own line under · 3 left. One cramped row
+    // pushed MOMENTUM to the right edge and ate its label on narrow panels.
+    Column {
         width: parent.width
         spacing: Theme.space(2)
 
         StatChip { label: "LV"; value: String(root.fixture.progression.level); valueColor: Theme.manaPurple }
-        StatChip { label: "RANK"; value: root.fixture.progression.storyRank }
+        StatChip {
+            label: "RANK"
+            value: root.fixture.progression.storyRank
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
         StatChip { label: "MOMENTUM"; value: root.fixture.progression.momentum; valueColor: Theme.electricLime }
     }
 
