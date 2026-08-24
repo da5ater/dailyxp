@@ -35,7 +35,7 @@ ArcadeScreen {
 
             Column {
                 width: parent.width
-                spacing: Theme.space(1)
+                spacing: Theme.space(2)
 
                 Text {
                     width: parent.width
@@ -89,7 +89,7 @@ ArcadeScreen {
 
         Column {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
 
             Text {
                 width: parent.width
@@ -101,7 +101,7 @@ ArcadeScreen {
             }
             Flow {
                 width: parent.width
-                spacing: Theme.space(1)
+                spacing: Theme.space(2)
                 StatChip { compact: true; label: ""; value: "social media"; valueColor: Theme.cyberPurple }
                 StatChip { compact: true; label: ""; value: "gaming"; valueColor: Theme.cyberPurple }
                 StatChip { compact: true; label: ""; value: "custom…"; valueColor: Theme.textMuted }

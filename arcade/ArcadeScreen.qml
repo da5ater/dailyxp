@@ -31,7 +31,8 @@ FocusScope {
         id: contentColumn
         anchors.fill: parent
         anchors.margins: Theme.space(5)      // 20px frame — let the shell breathe
-        spacing: Theme.space(4)              // 16px between cards
+        spacing: Theme.space(5)              // 20px between cards (#93 live pass:
+                                             // surfaces felt cramped card-to-card)
 
         Text {
             visible: root.title.length > 0

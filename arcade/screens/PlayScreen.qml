@@ -59,7 +59,7 @@ ArcadeScreen {
         }
         Flow {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             Repeater {
                 model: root.taskList
                 delegate: StatChip {
@@ -144,14 +144,14 @@ ArcadeScreen {
 
         Column {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
 
             Repeater {
                 model: root.fixture.habit.habits
                 delegate: Row {
                     required property var modelData
                     width: parent.width
-                    spacing: Theme.space(1)
+                    spacing: Theme.space(2)
 
                     Rectangle {
                         id: checkCell

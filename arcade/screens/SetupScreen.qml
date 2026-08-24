@@ -35,13 +35,13 @@ ArcadeScreen {
         ribbon: "TASKS · " + root.fixture.planning.tasks.length
         Column {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             Repeater {
                 model: root.fixture.planning.tasks
                 delegate: Row {
                     required property var modelData
                     width: parent.width
-                    spacing: Theme.space(1)
+                    spacing: Theme.space(2)
                     Text { text: "·"; color: Theme.arcadeBlue; font.pixelSize: Theme.typeBody }
                     Text {
                         width: parent.width - Theme.space(3)
@@ -63,7 +63,7 @@ ArcadeScreen {
         ribbon: "SKILLS"
         Flow {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             StatChip { compact: true; label: ""; value: "backend/ruby"; valueColor: Theme.cyberPurple }
             StatChip { compact: true; label: ""; value: "writing/arch"; valueColor: Theme.cyberPurple }
             StatChip { compact: true; label: "+"; value: "add"; valueColor: Theme.textMuted }
@@ -76,7 +76,7 @@ ArcadeScreen {
         ribbon: "SETTINGS"
         Column {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             Text {
                 width: parent.width
                 text: "Day boundary · 04:00   (editable in V8)"

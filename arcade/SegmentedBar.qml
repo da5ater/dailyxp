@@ -13,9 +13,13 @@ Rectangle {
     property color fill: Theme.coinGold
     property color fillBorder: Theme.goldDim
     property color empty: Theme.surfaceLowest
-    property color emptyBorder: Theme.border
+    // textMuted border so the empty track reads against dark cards
+    // (live pass #27: previous border token vanished into the background)
+    property color emptyBorder: Theme.textMuted
 
-    readonly property int gap: 2
+    // 3px gaps keep every segment reading as its own dash — filled runs must
+    // never fuse into one slab (Mohamed live pass: wanted "- _ -", not "=")
+    readonly property int gap: 3
     // floor keeps integer pixel widths — no sub-pixel fuzz under software
     // rendering; the leftover (<blocks px) stays transparent at the right edge
     readonly property int blockWidth: Math.max(1,

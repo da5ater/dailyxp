@@ -15,9 +15,11 @@ Rectangle {
     property bool emphasized: false   // the one dominant card on a surface
 
     implicitWidth: 380
-    // padding: 12px frame + 8px gap under ribbon + content height + 12px bottom
-    implicitHeight: (ribbon.length > 0 ? Theme.space(7) + Theme.space(2) : Theme.space(3))
-                    + contentArea.height + Theme.space(6)
+    // padding: ribbon strip + gap under it + content height + generous bottom
+    // (live pass #28-30: inner content needs to breathe — all values stay on
+    // the design.md 4px grid)
+    implicitHeight: (ribbon.length > 0 ? Theme.space(7) + Theme.space(3) : Theme.space(4))
+                    + contentArea.height + Theme.space(7)
     color: root.emphasized ? Theme.surface : Theme.surfaceLow
     border.color: root.emphasized ? Theme.coinGold : Theme.border
     border.width: root.emphasized ? 2 : 2
@@ -45,12 +47,13 @@ Rectangle {
     }
 
     // fixed top offset, then let the Column report its own height — no
-    // childrenRect-on-parent timing traps
+    // childrenRect-on-parent timing traps. x/y margins + spacing are the
+    // card's internal breathing room (live pass #28-30).
     Column {
         id: contentArea
-        x: Theme.space(4)
-        y: root.ribbon.length > 0 ? ribbonRect.height + Theme.space(2) : Theme.space(3)
-        width: root.width - Theme.space(8)
-        spacing: Theme.space(2)
+        x: Theme.space(6)
+        y: root.ribbon.length > 0 ? ribbonRect.height + Theme.space(3) : Theme.space(4)
+        width: root.width - Theme.space(12)
+        spacing: Theme.space(4)
     }
 }

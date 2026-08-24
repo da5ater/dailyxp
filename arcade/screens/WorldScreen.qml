@@ -43,7 +43,7 @@ ArcadeScreen {
 
             Column {
                 width: parent.width
-                spacing: Theme.space(1)
+                spacing: Theme.space(2)
 
                 Text {
                     width: parent.width
@@ -65,7 +65,7 @@ ArcadeScreen {
                     delegate: Row {
                         required property var modelData
                         width: parent.width
-                        spacing: Theme.space(1)
+                        spacing: Theme.space(2)
                         Text {
                             text: modelData.achieved ? "[★]" : "[·]"
                             color: modelData.achieved ? Theme.chromeYellow : Theme.textMuted
@@ -95,7 +95,7 @@ ArcadeScreen {
 
         Column {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             Repeater {
                 model: root.fixture.story.antagonists
                 delegate: Text {

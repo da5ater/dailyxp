@@ -55,7 +55,7 @@ ArcadeScreen {
 
         Column {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             Repeater {
                 model: root.fixture.progression.ledger.slice(0, 3)
                 delegate: Row {
@@ -105,7 +105,7 @@ ArcadeScreen {
 
         Flow {
             width: parent.width
-            spacing: Theme.space(1)
+            spacing: Theme.space(2)
             Repeater {
                 model: root.fixture.story.achievements
                 delegate: StatChip {
