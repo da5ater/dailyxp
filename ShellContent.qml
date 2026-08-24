@@ -3,6 +3,9 @@ import "arcade"
 import "arcade/screens"
 import "FixtureLoader.js" as FixtureLoader
 
+// design.md is the single source of truth for the visual language
+// (projects/dailyxp/design.md, "90s Retro Video Game", alpha).
+
 // P0 shell chrome + cartridge mounting — the Phase R cockpit (V1, #93).
 // Host-independent: pure QtQuick + own Theme, zero qs.* imports. Panel.qml
 // embeds this after the in-place gut; the evidence harness captures THIS
@@ -15,6 +18,14 @@ import "FixtureLoader.js" as FixtureLoader
 
 Rectangle {
     id: root
+
+    // design.md typography: Press Start 2P bundled (OFL). Loads before any
+    // Text resolves Theme.fontFamily; fallback chain lives in Theme.
+    FontLoader {
+        id: ps2pLoader
+        source: "fonts/PressStart2P-Regular.ttf"
+    }
+
     implicitWidth: 420
     implicitHeight: viewportHeight + controller.height + Theme.space(4)
     property int viewportHeight: 588   // cartridge area; panel scrolls around it
@@ -117,7 +128,7 @@ Rectangle {
                             color: root.currentSurface === tabButton.modelData.name
                                    ? "#ffebc4" : Theme.textMuted
                             font.family: Theme.fontFamily
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.typeTitle
                             font.bold: true
                             font.letterSpacing: 2
                         }

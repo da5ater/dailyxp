@@ -27,7 +27,7 @@ Rectangle {
             text: root.label
             color: Theme.textMuted
             font.family: Theme.fontFamily
-            font.pixelSize: 9
+            font.pixelSize: Theme.typeBody
             font.letterSpacing: 2
         }
         Text {
@@ -36,7 +36,7 @@ Rectangle {
             text: root.value
             color: root.valueColor
             font.family: Theme.fontFamily
-            font.pixelSize: 20
+            font.pixelSize: Theme.typeHero
             font.bold: true
         }
     }
@@ -46,7 +46,7 @@ Rectangle {
         text: root.label + " " + root.value
         color: root.valueColor
         font.family: Theme.fontFamily
-        font.pixelSize: 12
+        font.pixelSize: Theme.typeBody
         font.bold: true
         anchors.centerIn: parent
     }

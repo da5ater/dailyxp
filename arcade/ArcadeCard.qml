@@ -31,7 +31,7 @@ Rectangle {
             text: root.ribbon
             color: root.ribbonText
             font.family: Theme.fontFamily
-            font.pixelSize: 9
+            font.pixelSize: Theme.typeTiny
             font.bold: true
             font.letterSpacing: 2
         }

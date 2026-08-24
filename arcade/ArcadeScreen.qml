@@ -36,7 +36,7 @@ FocusScope {
             text: root.title
             color: "#ffebc4"
             font.family: Theme.fontFamily
-            font.pixelSize: 26
+            font.pixelSize: Theme.typeHero
             font.bold: true
             font.letterSpacing: 6
         }

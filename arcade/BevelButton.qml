@@ -43,7 +43,7 @@ Rectangle {
             text: root.label
             color: root.danger ? "#ffdad6" : (mouse.pressed ? "#ffebc4" : root.textColor)
             font.family: Theme.fontFamily
-            font.pixelSize: 15
+            font.pixelSize: Theme.typeTitle
             font.bold: true
             font.letterSpacing: 2
         }

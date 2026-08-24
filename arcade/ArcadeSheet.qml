@@ -41,7 +41,7 @@ Item {
                     text: root.title
                     color: "#ffebc4"
                     font.family: Theme.fontFamily
-                    font.pixelSize: 16
+                    font.pixelSize: Theme.typeTitle
                     font.bold: true
                     font.letterSpacing: 3
                     anchors.verticalCenter: parent.verticalCenter
@@ -61,7 +61,7 @@ Item {
                         anchors.centerIn: parent
                         text: "✕"
                         color: Theme.textPrimary
-                        font.pixelSize: 12
+                        font.pixelSize: Theme.typeBody
                     }
                     MouseArea {
                         id: backMouse
