@@ -56,15 +56,24 @@ Rectangle {
         spacing: 0
 
         // ── cartridge viewport — scrolls when the cockpit exceeds it ──
+        // Declarative scroll: screens are children of `page`, and Flickable's
+        // contentHeight binds to page.childrenRect. No imperative geometry.
         Flickable {
             id: viewport
             width: parent.width
             height: root.viewportHeight
             clip: true
             contentWidth: width
-            contentHeight: currentScreenLoader.height
+            contentHeight: Math.max(page.childrenRect.height, height)
             boundsBehavior: Flickable.StopAtBounds
             interactive: contentHeight > height
+
+            Item {
+                id: page
+                width: viewport.width
+                y: -viewport.contentY   // manual content offset (children of
+                                        // Flickable don't auto-scroll)
+            }
 
             // keep-alive cache: each surface loads once via createObject, then
             // stays mounted; only visibility toggles (per-tab state kept, R5)
@@ -81,26 +90,29 @@ Rectangle {
                 if (!cache[name] && sources[name]) {
                     var comp = Qt.createComponent(sources[name])
                     if (comp.status === Component.Error) console.log("CREATE FAIL: " + comp.errorString())
-                    cache[name] = comp.createObject(viewport, {
-                        fixture: root.fixture,
+                    var obj = comp.createObject(page, {
+                        fixture: Qt.binding(function() { return root.fixture }),
                         shellApi: root,
                         visible: false,
-                        width: viewport.width
+                        width: Qt.binding(function() { return viewport.width })
                     })
+                    // screens declare implicitHeight; bind real height after
+                    // creation so Flickable's childrenRect tracks content growth
+                    obj.height = Qt.binding(function() {
+                        return Math.max(obj.implicitHeight, viewport.height)
+                    })
+                    cache[name] = obj
                 }
                 var target = root.recoveryOpen ? "Recovery" : name
                 for (var k in cache) cache[k].visible = (k === target)
-                var h = 0
-                for (var k2 in cache) if (cache[k2].visible) h = Math.max(h, cache[k2].height)
-                viewport.contentHeight = Math.max(h, viewport.height)
             }
 
             Component.onCompleted: show("Play")
 
             Connections {
                 target: root
-                function onCurrentSurfaceChanged() { viewport.show(root.currentSurface) }
-                function onRecoveryOpenChanged() { viewport.show(root.currentSurface) }
+                function onCurrentSurfaceChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
+                function onRecoveryOpenChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
             }
         }
 

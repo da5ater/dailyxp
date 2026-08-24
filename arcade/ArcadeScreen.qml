@@ -14,7 +14,8 @@ FocusScope {
     property var shellApi: null   // host shell handle (openRecovery etc.)
 
     implicitWidth: 388
-    implicitHeight: 560
+    // height derives from the content column + frame margins — never clip
+    implicitHeight: contentColumn.childrenRect.height + Theme.space(10)
 
     Rectangle {
         anchors.fill: parent
