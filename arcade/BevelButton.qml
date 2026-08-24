@@ -40,12 +40,15 @@ Rectangle {
         Text {
             id: label_
             anchors.centerIn: parent
+            width: parent.width - Theme.space(2)   // never paint past the face
             text: root.label
             color: root.danger ? "#ffdad6" : (mouse.pressed ? "#ffebc4" : root.textColor)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeTitle
             font.bold: true
             font.letterSpacing: 2
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
         }
     }
 

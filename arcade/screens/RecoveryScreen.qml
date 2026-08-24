@@ -43,6 +43,7 @@ ArcadeScreen {
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.typeBody
+                    wrapMode: Text.WordWrap
                 }
 
                 Row {

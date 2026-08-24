@@ -35,12 +35,14 @@ FocusScope {
 
         Text {
             visible: root.title.length > 0
+            width: parent.width
             text: root.title
             color: "#ffebc4"
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeHero
             font.bold: true
             font.letterSpacing: 6
+            elide: Text.ElideRight
         }
     }
 }

@@ -57,12 +57,14 @@ ArcadeScreen {
                     wrapMode: Text.WordWrap
                 }
 
-                // landmarks under their province
+                // landmarks under their province — title elides inside the
+                // row so a long landmark name can never bleed off-card
                 Repeater {
                     model: root.fixture.story.landmarks.filter(
                                function(l){ return l.provinceId === modelData.id })
                     delegate: Row {
                         required property var modelData
+                        width: parent.width
                         spacing: Theme.space(1)
                         Text {
                             text: modelData.achieved ? "[★]" : "[·]"
@@ -70,10 +72,12 @@ ArcadeScreen {
                             font.pixelSize: Theme.typeBody
                         }
                         Text {
+                            width: parent.width - parent.children[0].width - Theme.space(1)
                             text: modelData.title
                             color: Theme.textMuted
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.typeBody
+                            elide: Text.ElideRight
                         }
                     }
                 }

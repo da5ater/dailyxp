@@ -21,33 +21,45 @@ Rectangle {
         visible: !root.compact
         anchors.centerIn: parent
         spacing: 2
+        width: parent.width
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
             text: root.label
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
             font.letterSpacing: 2
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
         }
         Text {
             id: valueText
             anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
             text: root.value
             color: root.valueColor
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeHero
             font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
         }
     }
 
+    // compact chip: bounded to its box — a long value elides instead of
+    // painting past the chip edge (horizontal-overflow fix, #93)
     Text {
         visible: root.compact
+        width: parent.width - Theme.space(2)
+        anchors.centerIn: parent
         text: root.label + " " + root.value
         color: root.valueColor
         font.family: Theme.fontFamily
         font.pixelSize: Theme.typeBody
         font.bold: true
-        anchors.centerIn: parent
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
     }
 }

@@ -83,6 +83,7 @@ ArcadeScreen {
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.typeBody
+                elide: Text.ElideRight
             }
             Text {
                 width: parent.width
@@ -90,6 +91,7 @@ ArcadeScreen {
                 color: Theme.textPrimary
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.typeBody
+                elide: Text.ElideRight
             }
             Text {
                 width: parent.width

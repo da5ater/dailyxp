@@ -198,11 +198,16 @@ ArcadeScreen {
     }
 
     // ── recovery guarded entry (R4.4) ───────────────────────────
+    // text width derives from the button's REAL width (implicitWidth grows
+    // with the label); reserving a constant previously let this line paint
+    // past the card's right edge (#93 horizontal-overflow fix)
     Row {
+        id: recoveryRow
         width: parent.width
         spacing: Theme.space(2)
 
         BevelButton {
+            id: recoveryButton
             label: "RECOVERY"
             baseColor: Theme.arcadeBlue
             textColor: Theme.onBlue
@@ -214,7 +219,8 @@ ArcadeScreen {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeTiny
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - Theme.space(28)
+            width: recoveryRow.width - recoveryButton.width
+                   - Theme.space(4)
             wrapMode: Text.WordWrap
         }
     }
