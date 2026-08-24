@@ -40,20 +40,51 @@ BarWidget {
     return ""
   }
 
+  // Full-cockpit bar states (V1, stub-shaped until V8 binds live projections):
+  // running → elapsed; idle → Lv·rank + momentum word-glyph + habit count.
+  function momentumGlyph() {
+    if (!progressionProjection || !progressionProjection.momentum) return ""
+    switch (progressionProjection.momentum) {
+      case "Legendary": return " ★"
+      case "Blazing":   return " ▲▲"
+      case "Steady":    return " ▲"
+      case "Stirring":  return " ▵"
+      default:          return ""   // Dormant stays quiet — no shame in the bar
+    }
+  }
+
+  function habitGlyph() {
+    if (!stateStore || !stateStore.habitProjection) return ""
+    var habits = stateStore.habitProjection.habits || []
+    if (habits.length === 0) return ""
+    var done = 0
+    var completions = stateStore.habitProjection.completions || []
+    var today = stateStore.habitProjection.lastAdvancedDailyXpDate
+    for (var i = 0; i < completions.length; i++)
+      if (completions[i].dailyXpDate === today) done++
+    return " ✦" + done + "/" + habits.length
+  }
+
   function buttonText() {
     if (activeSession && sessionSummary) {
-      var icon = activeSession.status === "running" ? "󰐊 " : "󰏤 "
+      var icon = activeSession.status === "running" ? "▶ " : "⏸ "
       return icon + formatElapsed(sessionSummary.focusedMilliseconds) + surfaceIndicator()
     }
     if (progressionProjection && progressionProjection.totals) {
       var lvl = "Lv" + progressionProjection.level
       var rank = progressionProjection.storyRank ? " " + progressionProjection.storyRank : ""
-      var mom = progressionProjection.momentum ? " · " + progressionProjection.momentum : ""
-      var label = lvl + rank + mom + surfaceIndicator()
-      if (root.vertical) return label.length > 18 ? (lvl + surfaceIndicator()) : label
+      var mom = momentumGlyph()
+      var hab = habitGlyph()
+      // graceful degradation for narrow bars: drop habit count first, then
+      // rank; Lv + momentum + surface indicator are the load-bearing minimum.
+      // Vertical keeps its tighter 18-char budget.
+      var maxLen = root.vertical ? 18 : 22
+      var label = lvl + rank + mom + hab + surfaceIndicator()
+      if (label.length > maxLen) label = lvl + rank + mom + surfaceIndicator()
+      if (label.length > maxLen) label = lvl + mom + surfaceIndicator()
       return label
     }
-    return (root.vertical ? "󰓎" : "DailyXP") + surfaceIndicator()
+    return (root.vertical ? "◈" : "DailyXP") + surfaceIndicator()
   }
 
   function buttonTooltip() {
