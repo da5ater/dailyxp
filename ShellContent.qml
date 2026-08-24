@@ -65,72 +65,171 @@ Rectangle {
         // ── cartridge viewport — scrolls when the cockpit exceeds it ──
         // Declarative scroll: screens are children of `page`, and Flickable's
         // contentHeight binds to page.childrenRect. No imperative geometry.
-        Flickable {
-            id: viewport
+        // Reachability is guaranteed by the click-driven scrollbar overlay
+        // beside it (three live walkthroughs showed wheel/drag never moving
+        // this Flickable through the host's layer-shell stack, while clicks
+        // always landed — so the scrollbar drives the proven channel).
+        Item {
+            id: viewportFrame
             width: parent.width
             height: root.viewportHeight
-            clip: true
-            contentWidth: width
-            contentHeight: Math.max(page.childrenRect.height, height)
-            boundsBehavior: Flickable.StopAtBounds
-            interactive: contentHeight > height
 
-            Item {
-                id: page
-                width: viewport.width
-                y: -viewport.contentY   // manual content offset (children of
-                                        // Flickable don't auto-scroll)
-            }
+            Flickable {
+                id: viewport
+                anchors.fill: parent
+                clip: true
+                contentWidth: width
+                contentHeight: Math.max(page.childrenRect.height, height)
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: contentHeight > height
 
-            // keep-alive cache: each surface loads once via createObject, then
-            // stays mounted; only visibility toggles (per-tab state kept, R5)
-            property var cache: ({})
-
-            function show(name) {
-                var sources = {
-                    "Play": "arcade/screens/PlayScreen.qml",
-                    "Journey": "arcade/screens/JourneyScreen.qml",
-                    "World": "arcade/screens/WorldScreen.qml",
-                    "Setup": "arcade/screens/SetupScreen.qml",
-                    "Recovery": "arcade/screens/RecoveryScreen.qml"
+                Item {
+                    id: page
+                    width: viewport.width
+                    y: -viewport.contentY   // manual content offset (children of
+                                            // Flickable don't auto-scroll)
                 }
-                if (!cache[name] && sources[name]) {
-                    var comp = Qt.createComponent(sources[name])
-                    if (comp.status === Component.Error) console.log("CREATE FAIL: " + comp.errorString())
-                    var obj = comp.createObject(page, {
-                        fixture: Qt.binding(function() { return root.fixture }),
-                        shellApi: root,
-                        visible: false,
-                        width: Qt.binding(function() { return viewport.width })
-                    })
-                    // screens declare implicitHeight; bind real height after
-                    // creation so Flickable's childrenRect tracks content growth
-                    obj.height = Qt.binding(function() {
-                        return Math.max(obj.implicitHeight, viewport.height)
-                    })
-                    cache[name] = obj
+
+                // keep-alive cache: each surface loads once via createObject, then
+                // stays mounted; only visibility toggles (per-tab state kept, R5)
+                property var cache: ({})
+
+                function show(name) {
+                    var sources = {
+                        "Play": "arcade/screens/PlayScreen.qml",
+                        "Journey": "arcade/screens/JourneyScreen.qml",
+                        "World": "arcade/screens/WorldScreen.qml",
+                        "Setup": "arcade/screens/SetupScreen.qml",
+                        "Recovery": "arcade/screens/RecoveryScreen.qml"
+                    }
+                    if (!cache[name] && sources[name]) {
+                        var comp = Qt.createComponent(sources[name])
+                        if (comp.status === Component.Error) console.log("CREATE FAIL: " + comp.errorString())
+                        var obj = comp.createObject(page, {
+                            fixture: Qt.binding(function() { return root.fixture }),
+                            shellApi: root,
+                            visible: false,
+                            width: Qt.binding(function() { return viewport.width })
+                        })
+                        // screens declare implicitHeight; bind real height after
+                        // creation so Flickable's childrenRect tracks content growth
+                        obj.height = Qt.binding(function() {
+                            return Math.max(obj.implicitHeight, viewport.height)
+                        })
+                        cache[name] = obj
+                    }
+                    var target = root.recoveryOpen ? "Recovery" : name
+                    for (var k in cache) cache[k].visible = (k === target)
                 }
-                var target = root.recoveryOpen ? "Recovery" : name
-                for (var k in cache) cache[k].visible = (k === target)
+
+                Component.onCompleted: show("Play")
+
+                Connections {
+                    target: root
+                    function onCurrentSurfaceChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
+                    function onRecoveryOpenChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
+                }
             }
 
-            Component.onCompleted: show("Play")
-
-            Connections {
-                target: root
-                function onCurrentSurfaceChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
-                function onRecoveryOpenChanged() { viewport.show(root.currentSurface); viewport.contentY = 0 }
+            // wheel overlay — sits ABOVE the Flickable (declared after it) and
+            // scrolls it EXPLICITLY. Live evidence showed the Flickable's own
+            // wheel path doing nothing through the host stack; owning the
+            // wheel here removes that dependency entirely. acceptedButtons:
+            // NoButton means presses are never accepted, so every click /
+            // drag / button still falls through to the screens beneath.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton
+                onWheel: function(wheel) {
+                    if (!viewport.interactive) return
+                    var step = wheel.angleDelta.y / 120 * Theme.space(12)
+                    var max = viewport.contentHeight - viewport.height
+                    viewport.contentY = Math.max(0, Math.min(viewport.contentY - step, max))
+                    wheel.accepted = true
+                }
             }
 
-            // ── TEMP LIVE-SCROLL DIAGNOSTICS (#93) — REMOVE BEFORE FINAL REX ──
-            // Third live report of unreachable below-fold content. The offscreen
-            // probe proves geometry (contentHeight=708 > height=588,
-            // interactive=true) but cannot prove input delivery through the
-            // host stack. These loggers answer with data: if a wheel scroll or
-            // drag reaches this Flickable and works, contentY moves and logs;
-            // total silence means events never arrive or are refused.
-            onDraggingChanged: console.log("[SCROLL-DIAG] dragging=" + dragging)
-            onContentYChanged: console.log("[SCROLL-DIAG] contentY=" + contentY)
+            // ── click-driven scrollbar (#93, live-testing finding) ────────
+            // Guaranteed reachability: drag the gold thumb, or click the rail
+            // to jump. Overlay on the viewport's right edge; hidden entirely
+            // when content fits. Thumb↔contentY mapping is loop-safe: the
+            // thumb's y binding suspends while dragging (Binding.when), and
+            // onYChanged maps thumb motion to contentY only during a drag.
+            readonly property bool scrollable: viewport.contentHeight > viewport.height + 1
+
+            // mapping math extracted as functions so probes (and Rex) can
+            // verify the geometry without synthesizing input events
+            function thumbYToContentY(thumbY) {
+                var travel = scrollRail.height - scrollThumb.height
+                if (travel <= 0) return 0
+                var ratio = Math.max(0, Math.min(thumbY / travel, 1))
+                return ratio * (viewport.contentHeight - viewport.height)
+            }
+            function contentYToThumbY() {
+                var travel = scrollRail.height - scrollThumb.height
+                var range = viewport.contentHeight - viewport.height
+                if (range <= 0 || travel <= 0) return 0
+                return Math.max(0, Math.min(viewport.contentY / range * travel, travel))
+            }
+
+            Rectangle {
+                id: scrollRail
+                objectName: "scrollRail"
+                visible: viewportFrame.scrollable
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.margins: Theme.space(1)
+                width: Theme.space(3)
+                color: Theme.surfaceLowest
+                border.color: Theme.border
+                border.width: 1
+
+                // rail background: click anywhere to jump the thumb there
+                MouseArea {
+                    id: railJump
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: function(mouse) {
+                        viewport.contentY = viewportFrame.thumbYToContentY(mouse.y)
+                    }
+                }
+
+                Rectangle {
+                    id: scrollThumb
+                    objectName: "scrollThumb"
+                    x: Theme.space(0.5)
+                    width: parent.width - Theme.space(1)
+                    height: Math.max(Theme.space(6),
+                                     scrollRail.height * viewport.height / viewport.contentHeight)
+                    color: thumbDrag.drag.active || railJump.pressed
+                           ? Theme.coinGold : Theme.goldDim
+                    border.color: Theme.background
+                    border.width: 1
+
+                    Binding on y {
+                        when: !thumbDrag.drag.active && !railJump.pressed
+                        value: viewportFrame.contentYToThumbY()
+                    }
+
+                    onYChanged: {
+                        if (!thumbDrag.drag.active) return
+                        viewport.contentY = viewportFrame.thumbYToContentY(y)
+                    }
+
+                    MouseArea {
+                        id: thumbDrag
+                        anchors.fill: parent
+                        anchors.margins: -Theme.space(2)   // forgiving hit target
+                        cursorShape: Qt.OpenHandCursor
+                        acceptedButtons: Qt.LeftButton
+                        drag.target: scrollThumb
+                        drag.axis: Drag.YAxis
+                        drag.minimumY: 0
+                        drag.maximumY: Math.max(0, scrollRail.height - scrollThumb.height)
+                    }
+                }
+            }
         }
 
         // ── controller nav (A1) ─────────────────────────────────
