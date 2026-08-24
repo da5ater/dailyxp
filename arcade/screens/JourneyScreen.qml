@@ -12,20 +12,48 @@ ArcadeScreen {
     property var fixture: FixtureLoader.load()
     readonly property var lvl: fixture ? FixtureLoader.levelProgress(fixture) : { have: 0, need: 1 }
 
-    // ── stat tiles — deliberate zigzag composition (Mohamed live pass):
-    // 1 left · 2 centered on its own line under · 3 left. One cramped row
-    // pushed MOMENTUM to the right edge and ate its label on narrow panels.
+    // ── stat tiles — two-line zigzag composition ("- _ -", Mohamed live
+    // pass): LV pinned far LEFT + MOMENTUM pinned far RIGHT on the first
+    // line, RANK dead-center on its own line under. Anchored Items (not
+    // positioners) so the pins are exact.
     Column {
         width: parent.width
         spacing: Theme.space(2)
 
-        StatChip { label: "LV"; value: String(root.fixture.progression.level); valueColor: Theme.manaPurple }
-        StatChip {
-            label: "RANK"
-            value: root.fixture.progression.storyRank
-            anchors.horizontalCenter: parent.horizontalCenter
+        Item {
+            width: parent.width
+            height: Math.max(statLv.height, statMomentum.height)
+
+            StatChip {
+                id: statLv
+                anchors.left: parent.left
+                anchors.top: parent.top
+                label: "LV"
+                value: String(root.fixture.progression.level)
+                valueColor: Theme.manaPurple
+            }
+            StatChip {
+                id: statMomentum
+                anchors.right: parent.right
+                anchors.top: parent.top
+                label: "MOMENTUM"
+                value: root.fixture.progression.momentum
+                valueColor: Theme.electricLime
+            }
         }
-        StatChip { label: "MOMENTUM"; value: root.fixture.progression.momentum; valueColor: Theme.electricLime }
+
+        Item {
+            width: parent.width
+            height: statRank.height
+
+            StatChip {
+                id: statRank
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                label: "RANK"
+                value: root.fixture.progression.storyRank
+            }
+        }
     }
 
     // ── XP to next level (real rule) ───────────────────────────
