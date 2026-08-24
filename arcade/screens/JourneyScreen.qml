@@ -23,32 +23,26 @@ ArcadeScreen {
     }
 
     // ── XP to next level (real rule) ───────────────────────────
+    // Deliberately terse (Mohamed, live pass 2026-08-24): one compact line;
+    // the lifetime/season breakdown moves behind click/hover detail in a
+    // later PR (noted on the V4 ticket).
     Column {
         width: parent.width
         spacing: 4
 
-        Text {
-            width: parent.width
-            text: "XP TO LEVEL " + (root.fixture.progression.level + 1) + " — "
-                  + Math.round(100 * root.lvl.have / Math.max(1, root.lvl.need)) + "%"
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.typeTiny
-            elide: Text.ElideRight
-        }
         SegmentedBar {
             width: parent.width - Theme.space(2)
             fraction: root.lvl.need > 0 ? Math.max(0, Math.min(1, root.lvl.have / root.lvl.need)) : 0
         }
         Text {
             width: parent.width
-            text: root.lvl.have + " / " + root.lvl.need + " XP · lifetime "
-                  + root.fixture.progression.totals.lifetimeXp + " · season "
-                  + root.fixture.progression.totals.seasonXp
+            text: "LV " + root.fixture.progression.level + " → "
+                  + (root.fixture.progression.level + 1) + " · "
+                  + Math.round(100 * root.lvl.have / Math.max(1, root.lvl.need)) + "%"
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
-            wrapMode: Text.WordWrap
+            elide: Text.ElideRight
         }
     }
 

@@ -1,7 +1,10 @@
 import QtQuick
 
 // Arcade primitive: discrete-block progress bar (K2).
-// No smooth fills — vertical blocks with 2px gaps, spike-proven 8-bit read.
+// No smooth fills — uniform segments with even gaps, spike-proven 8-bit read.
+// Block width derives from the ASSIGNED width (not a hardcoded px value), so
+// every segment is identical and the row fills edge-to-edge at any panel size
+// (live-testing finding #24/#93: fixed-width blocks rendered raggedly).
 Rectangle {
     id: root
 
@@ -12,17 +15,23 @@ Rectangle {
     property color empty: Theme.surfaceLowest
     property color emptyBorder: Theme.border
 
+    readonly property int gap: 2
+    // floor keeps integer pixel widths — no sub-pixel fuzz under software
+    // rendering; the leftover (<blocks px) stays transparent at the right edge
+    readonly property int blockWidth: Math.max(1,
+        Math.floor((width - (blocks - 1) * gap) / blocks))
+
     implicitWidth: blocks * 15 - 2
     implicitHeight: 16
     color: "transparent"
 
     Row {
-        spacing: 2
+        spacing: root.gap
         Repeater {
             model: root.blocks
             delegate: Rectangle {
                 required property int index
-                width: 13
+                width: root.blockWidth
                 height: root.height
                 color: index < Math.round(root.fraction * root.blocks) ? root.fill : root.empty
                 border.color: index < Math.round(root.fraction * root.blocks) ? root.fillBorder : root.emptyBorder
