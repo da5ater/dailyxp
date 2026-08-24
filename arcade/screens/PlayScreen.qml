@@ -20,6 +20,7 @@ ArcadeScreen {
     // ── selection + today rail ─────────────────────────────────
     ArcadeCard {
         visible: root.todayList.length > 0 || root.taskList.length > 0
+        emphasized: true                      // the signature card — one per surface
         width: parent.width
         ribbon: "TODAY · FOCUS"
         ribbonColor: Theme.coinGold
@@ -56,7 +57,7 @@ ArcadeScreen {
             anchors.horizontalCenter: parent.horizontalCenter
             focus: true   // landing keyboard entry point (R8)
         }
-        Row {
+        Flow {
             width: parent.width
             spacing: Theme.space(1)
             Repeater {
@@ -65,7 +66,8 @@ ArcadeScreen {
                     required property var modelData
                     compact: true
                     label: "○"
-                    value: modelData.title
+                    value: modelData.title.length > 14
+                           ? modelData.title.slice(0, 13) + "…" : modelData.title
                     valueColor: Theme.textMuted
                 }
             }
@@ -133,6 +135,13 @@ ArcadeScreen {
                 + "/" + root.fixture.habit.dailySummaries["2026-08-24"].scheduledCount
         ribbonColor: Theme.powerGreen
 
+        BevelButton {
+            label: "+ ADD HABIT"
+            baseColor: Theme.manaPurple
+            textColor: Theme.purpleSoft
+            width: parent.width
+        }
+
         Column {
             width: parent.width
             spacing: Theme.space(1)
@@ -191,16 +200,22 @@ ArcadeScreen {
     // ── recovery guarded entry (R4.4) ───────────────────────────
     Row {
         width: parent.width
-        spacing: Theme.space(1)
+        spacing: Theme.space(2)
 
-        StatChip { compact: true; label: "[+]"; value: "recovery"; valueColor: Theme.arcadeBlue }
-        Item { width: 1; height: 1 }
+        BevelButton {
+            label: "RECOVERY"
+            baseColor: Theme.arcadeBlue
+            textColor: "#00283d"
+            onActivated: if (root.shellApi) root.shellApi.openRecovery()
+        }
         Text {
-            text: "private by default — entry is confirmed first"
+            text: "private by default"
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeTiny
             anchors.verticalCenter: parent.verticalCenter
+            width: parent.width - Theme.space(28)
+            wrapMode: Text.WordWrap
         }
     }
 }

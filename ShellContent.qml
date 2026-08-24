@@ -34,9 +34,12 @@ Rectangle {
 
     property var fixture: FixtureLoader.load()
     property string currentSurface: "Play"
+    property bool recoveryOpen: false    // guarded overlay (P7->P8)
     property var sheetStack: []          // max depth 2
 
     function openSurface(name) { root.currentSurface = name }
+    function openRecovery() { root.recoveryOpen = true }   // guard confirm lands with V7 bind
+    function closeRecovery() { root.recoveryOpen = false }
     function forceControllerFocus() {
         // R8 entry point: host hands focus here on panel open.
         root.focus = true
@@ -52,47 +55,53 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        // ── cartridge viewport ──────────────────────────────────
-        Item {
+        // ── cartridge viewport — scrolls when the cockpit exceeds it ──
+        Flickable {
             id: viewport
             width: parent.width
             height: root.viewportHeight
+            clip: true
+            contentWidth: width
+            contentHeight: currentScreenLoader.height
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
 
-            // Each tab mounts once, then stays alive; visibility switches.
-            // This preserves per-tab state across navigation (AC: state kept).
-            Loader {
-                id: playLoader
-                active: surfaceVisited("Play")
-                visible: root.currentSurface === "Play"
-                width: parent.width; height: parent.height
-                source: "arcade/screens/PlayScreen.qml"
-                onLoaded: item.fixture = Qt.binding(function() { return root.fixture })
-            }
-            Loader {
-                id: journeyLoader
-                active: surfaceVisited("Journey")
-                visible: root.currentSurface === "Journey"
-                width: parent.width; height: parent.height
-                source: "arcade/screens/JourneyScreen.qml"
-                onLoaded: item.fixture = Qt.binding(function() { return root.fixture })
-            }
-            Loader {
-                id: worldLoader
-                active: surfaceVisited("World")
-                visible: root.currentSurface === "World"
-                width: parent.width; height: parent.height
-                source: "arcade/screens/WorldScreen.qml"
-                onLoaded: item.fixture = Qt.binding(function() { return root.fixture })
-            }
-            Loader {
-                id: setupLoader
-                active: surfaceVisited("Setup")
-                visible: root.currentSurface === "Setup"
-                width: parent.width; height: parent.height
-                source: "arcade/screens/SetupScreen.qml"
-                onLoaded: item.fixture = Qt.binding(function() { return root.fixture })
+            // keep-alive cache: each surface loads once via createObject, then
+            // stays mounted; only visibility toggles (per-tab state kept, R5)
+            property var cache: ({})
+
+            function show(name) {
+                var sources = {
+                    "Play": "arcade/screens/PlayScreen.qml",
+                    "Journey": "arcade/screens/JourneyScreen.qml",
+                    "World": "arcade/screens/WorldScreen.qml",
+                    "Setup": "arcade/screens/SetupScreen.qml",
+                    "Recovery": "arcade/screens/RecoveryScreen.qml"
+                }
+                if (!cache[name] && sources[name]) {
+                    var comp = Qt.createComponent(sources[name])
+                    if (comp.status === Component.Error) console.log("CREATE FAIL: " + comp.errorString())
+                    cache[name] = comp.createObject(viewport, {
+                        fixture: root.fixture,
+                        shellApi: root,
+                        visible: false,
+                        width: viewport.width
+                    })
+                }
+                var target = root.recoveryOpen ? "Recovery" : name
+                for (var k in cache) cache[k].visible = (k === target)
+                var h = 0
+                for (var k2 in cache) if (cache[k2].visible) h = Math.max(h, cache[k2].height)
+                viewport.contentHeight = Math.max(h, viewport.height)
             }
 
+            Component.onCompleted: show("Play")
+
+            Connections {
+                target: root
+                function onCurrentSurfaceChanged() { viewport.show(root.currentSurface) }
+                function onRecoveryOpenChanged() { viewport.show(root.currentSurface) }
+            }
         }
 
         // ── controller nav (A1) ─────────────────────────────────
@@ -163,16 +172,9 @@ Rectangle {
         }
     }
 
-    // visited-map lives on root so loaders can query it
-    property var visited: ({})
-    function surfaceVisited(name) {
-        if (name === root.currentSurface) return true
-        return root.visited[name] === true
-    }
-
-    onCurrentSurfaceChanged: visited[currentSurface] = true
-    Component.onCompleted: visited["Play"] = true
-
     // Esc pops topmost sheet (V1: no sheets yet — reserved wiring, N4)
-    Keys.onEscapePressed: if (root.sheetStack.length > 0) root.sheetStack.pop()
+    Keys.onEscapePressed: {
+        if (root.recoveryOpen) root.recoveryOpen = false
+        else if (root.sheetStack.length > 0) root.sheetStack.pop()
+    }
 }

@@ -11,6 +11,7 @@ FocusScope {
 
     default property alias content: contentColumn.data
     property string title: ""
+    property var shellApi: null   // host shell handle (openRecovery etc.)
 
     implicitWidth: 388
     implicitHeight: 560
@@ -28,8 +29,8 @@ FocusScope {
     Column {
         id: contentColumn
         anchors.fill: parent
-        anchors.margins: Theme.space(4)
-        spacing: Theme.space(3)
+        anchors.margins: Theme.space(5)      // 20px frame — let the shell breathe
+        spacing: Theme.space(4)              // 16px between cards
 
         Text {
             visible: root.title.length > 0

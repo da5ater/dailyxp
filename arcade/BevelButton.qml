@@ -13,8 +13,8 @@ Rectangle {
 
     signal activated()
 
-    implicitWidth: Math.max(120, label_.implicitWidth + Theme.space(10))
-    implicitHeight: 44
+    implicitWidth: Math.max(120, label_.implicitWidth + Theme.space(12))
+    implicitHeight: 48
     radius: 0
 
     // hard-offset shadow layer

@@ -10,7 +10,7 @@ Rectangle {
     property color valueColor: Theme.coinGold
     property bool compact: false
 
-    implicitWidth: compact ? Math.max(64, valueText.implicitWidth + Theme.space(5))
+    implicitWidth: compact ? Math.max(64, valueText.implicitWidth + Theme.space(6))
                            : Math.max(96, valueText.implicitWidth + Theme.space(8))
     implicitHeight: compact ? 24 : 54
     color: compact ? Theme.surfaceLow : Theme.surfaceLow
