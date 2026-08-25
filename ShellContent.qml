@@ -40,9 +40,13 @@ Rectangle {
     property bool recoveryOpen: false    // guarded overlay (P7->P8)
     property var sheetStack: []          // max depth 2; holds mounted sheet Items
 
-    function openSurface(name) { root.currentSurface = name }
-    function openRecovery() { root.recoveryOpen = true }   // guard confirm lands with V7 bind
-    function closeRecovery() { root.recoveryOpen = false }
+    function openSurface(name) {
+        // any explicit surface choice LEAVES the recovery overlay (#94 live
+        // finding: recoveryOpen stayed true, so every tab click re-resolved
+        // to Recovery and the surface never transitioned)
+        if (root.recoveryOpen) root.recoveryOpen = false
+        root.currentSurface = name
+    }
 
     function openCommitmentSheet() {
         // P5 Commitment Sheet — blocking overlay over the whole cockpit

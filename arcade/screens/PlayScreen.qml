@@ -28,9 +28,16 @@ ArcadeScreen {
         : !!fixture && (fixture.planning.tasks.length > 0 || fixture.planning.routines.length > 0
             || fixture.planning.occurrences.length > 0)
 
+    // selected commitment for the rail (#94 live finding: with 3+ commitments
+    // there was no way to choose which one leads). Index into taskList;
+    // clamped so deletions/replays can never point past the end.
+    property int selectedTaskIndex: 0
+    readonly property int focusIndex: Math.max(0, Math.min(selectedTaskIndex, taskList.length - 1))
+    readonly property var focusTask: taskList.length > 0 ? taskList[focusIndex] : null
+
     // ── selection + today rail ─────────────────────────────────
     ArcadeCard {
-        visible: root.todayList.length > 0 || root.taskList.length > 0
+        visible: root.todayList.length > 0 || root.focusTask !== null
         emphasized: true                      // the signature card — one per surface
         width: parent.width
         ribbon: "TODAY · FOCUS"
@@ -41,7 +48,7 @@ ArcadeScreen {
             width: parent.width
             text: root.todayList.length > 0
                   ? root.todayList[0].title
-                  : (root.taskList.length > 0 ? root.taskList[0].title : "")
+                  : (root.focusTask ? root.focusTask.title : "")
             color: Theme.textPrimary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeTitle
@@ -52,7 +59,7 @@ ArcadeScreen {
             width: parent.width
             text: {
                 var o = root.todayList.length > 0 ? root.todayList[0] : null
-                var t = o ? null : (root.taskList.length > 0 ? root.taskList[0] : null)
+                var t = o ? null : root.focusTask
                 if (o) return o.expectedMinutes + "m budget · " + o.primarySkill
                 if (t) return t.estimateMinutes + "m estimate · " + t.primarySkill + " · one-shot"
                 return ""
@@ -76,12 +83,19 @@ ArcadeScreen {
             Repeater {
                 model: root.taskList
                 delegate: StatChip {
+                    id: chip
+                    required property int index
                     required property var modelData
                     compact: true
-                    label: "○"
+                    label: chip.index === root.focusIndex ? "●" : "○"
                     value: modelData.title.length > 14
                            ? modelData.title.slice(0, 13) + "…" : modelData.title
-                    valueColor: Theme.textMuted
+                    valueColor: chip.index === root.focusIndex ? "#ffebc4" : Theme.textMuted
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.selectedTaskIndex = chip.index
+                    }
                 }
             }
             StatChip { compact: true; label: "+"; value: "add"; valueColor: Theme.arcadeBlue }
@@ -145,14 +159,17 @@ ArcadeScreen {
         SegmentedBar {
             blocks: 20
             width: parent.width - Theme.space(4)
-            fraction: Math.min(1, (parent.focusedMs / 60000) / parent.targetMin)
+            // id refs, NOT parent.* — inside an ArcadeCard, parent is the
+            // card's internal content item, which has none of these
+            // properties (live finding #94: printed "of undefinedm")
+            fraction: Math.min(1, (targetCard.focusedMs / 60000) / targetCard.targetMin)
             fill: Theme.manaPurple
             fillBorder: Theme.purpleDeep
         }
         Text {
             width: parent.width
-            text: FixtureLoader.hhmm(parent.focusedMs)
-                  + " focused of " + parent.targetMin + "m target today"
+            text: FixtureLoader.hhmm(targetCard.focusedMs)
+                  + " focused of " + targetCard.targetMin + "m target today"
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
