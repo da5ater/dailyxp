@@ -98,7 +98,6 @@ ArcadeScreen {
                     }
                 }
             }
-            StatChip { compact: true; label: "+"; value: "add"; valueColor: Theme.arcadeBlue }
         }
     }
 

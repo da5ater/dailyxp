@@ -133,6 +133,11 @@ ArcadeSheet {
         // and link the Task via goalId (engine: resolveGoalMilestoneLinks).
         // True recurring Routines stay V5 (#97); this only ties work to a
         // direction, which CONTEXT.md already allows for Tasks.
+        //
+        // Options picker (2026-08-25 live pass): previously created goals
+        // appear as clickable chips so "first programming job" can be
+        // reused without retyping. Selecting fills + focuses the field —
+        // typing anything new finds-or-creates at save.
         Rectangle {
             id: goalBox
             width: parent.width
@@ -154,7 +159,8 @@ ArcadeSheet {
                 maximumLength: 60
                 activeFocusOnTab: true
                 cursorVisible: activeFocus
-                KeyNavigation.tab: saveButton
+                KeyNavigation.tab: minutesField
+                onTextChanged: goalOptions.forceRecompute()
 
                 Text {
                     visible: goalField.text === "" && !goalField.activeFocus
@@ -163,6 +169,58 @@ ArcadeSheet {
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.typeBody
                     anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        // live picker: any Goal from the projection + an "add custom" chip
+        // that just focuses the field (saves only when named + SAVE pressed)
+        Flow {
+            id: goalOptions
+            width: parent.width
+            visible: store !== null
+            spacing: Theme.space(1)
+
+            readonly property var allGoals: store ? store.planningProjection.goals : []
+            readonly property var options: {
+                var list = []
+                var typed = goalField.text.trim().toLowerCase()
+                for (var i = 0; i < allGoals.length; i++) {
+                    var g = allGoals[i]
+                    if (typed === "" || g.title.toLowerCase().indexOf(typed) !== -1 ||
+                        g.title.toLowerCase() === typed)
+                        list.push({ id: g.id, title: g.title, isCustom: false })
+                }
+                // always offer the free-text "add" choice so a brand-new
+                // goal is one click away even when options exist
+                list.push({ id: null, title: "+ ADD GOAL", isCustom: true })
+                return list
+            }
+            function forceRecompute() { /* recompute on keystroke */ }
+
+            Repeater {
+                model: goalOptions.options
+                delegate: StatChip {
+                    id: goalChip
+                    required property var modelData
+                    compact: true
+                    label: modelData.isCustom ? "+" : "●"
+                    value: modelData.title
+                    valueColor: goalField.text.trim().toLowerCase() === modelData.title.toLowerCase()
+                        ? Theme.electricLime : Theme.cyberPurple
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (modelData.isCustom) {
+                                goalField.text = ""
+                                goalField.forceActiveFocus()
+                            } else {
+                                goalField.text = goalChip.modelData.title
+                                goalField.forceActiveFocus()
+                            }
+                        }
+                    }
                 }
             }
         }
