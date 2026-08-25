@@ -119,6 +119,11 @@ Rectangle {
                 property var cache: ({})
 
                 function show(name) {
+                    // resolve the TARGET first, create THAT (#94 live finding:
+                    // creating `name` while showing `target` left RECOVERY
+                    // uncached — recoveryOpen hid every cached surface and
+                    // blanked the viewport with no way back)
+                    var target = root.recoveryOpen ? "Recovery" : name
                     var sources = {
                         "Play": "arcade/screens/PlayScreen.qml",
                         "Journey": "arcade/screens/JourneyScreen.qml",
@@ -126,8 +131,8 @@ Rectangle {
                         "Setup": "arcade/screens/SetupScreen.qml",
                         "Recovery": "arcade/screens/RecoveryScreen.qml"
                     }
-                    if (!cache[name] && sources[name]) {
-                        var comp = Qt.createComponent(sources[name])
+                    if (!cache[target] && sources[target]) {
+                        var comp = Qt.createComponent(sources[target])
                         if (comp.status === Component.Error) console.log("CREATE FAIL: " + comp.errorString())
                         // screens own their fixture loading; the shell hands
                         // only shellApi (which carries stateStore for V2+)
@@ -141,9 +146,8 @@ Rectangle {
                         obj.height = Qt.binding(function() {
                             return Math.max(obj.implicitHeight, viewport.height)
                         })
-                        cache[name] = obj
+                        cache[target] = obj
                     }
-                    var target = root.recoveryOpen ? "Recovery" : name
                     for (var k in cache) cache[k].visible = (k === target)
                 }
 
