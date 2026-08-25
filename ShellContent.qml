@@ -32,14 +32,53 @@ Rectangle {
     height: implicitHeight
     color: Theme.background
 
-    property var fixture: FixtureLoader.load()
+    // V2 (#94): host injects the real engine here (Panel passes its
+    // StateStore). Screens read shellApi.stateStore; when null they fall
+    // back to the V1 fixture path — the harness runs unbound.
+    property var stateStore: null
     property string currentSurface: "Play"
     property bool recoveryOpen: false    // guarded overlay (P7->P8)
-    property var sheetStack: []          // max depth 2
+    property var sheetStack: []          // max depth 2; holds mounted sheet Items
 
-    function openSurface(name) { root.currentSurface = name }
-    function openRecovery() { root.recoveryOpen = true }   // guard confirm lands with V7 bind
+    function openSurface(name) {
+        // any explicit surface choice LEAVES the recovery overlay (#94 live
+        // finding: recoveryOpen stayed true, so every tab click re-resolved
+        // to Recovery and the surface never transitioned)
+        if (root.recoveryOpen) root.recoveryOpen = false
+        root.currentSurface = name
+    }
+    // round-2 lesson: these were clobbered while editing openSurface —
+    // PlayScreen's RECOVERY button routes through openRecovery(); guard
+    // confirm lands with the V7 bind
+    function openRecovery() { root.recoveryOpen = true }
     function closeRecovery() { root.recoveryOpen = false }
+
+    function openCommitmentSheet() {
+        // P5 Commitment Sheet — blocking overlay over the whole cockpit
+        // (controller included; a Place boundary, shaping-doc P5).
+        if (root.sheetStack.length >= 2) return
+        var comp = Qt.createComponent("arcade/screens/CommitmentSheet.qml")
+        if (comp.status === Component.Error) {
+            console.log("sheet create failed: " + comp.errorString())
+            return
+        }
+        var obj = comp.createObject(root, {
+            objectName: "commitmentSheet",
+            shellApi: root,
+            visible: true
+        })
+        if (!obj) return
+        obj.anchors.fill = root   // dotted anchor keys are illegal in a JS
+                                  // object literal — set them post-create
+        obj.dismissed.connect(root.popSheet)   // destroy happens in one place
+        root.sheetStack.push(obj)
+    }
+
+    function popSheet() {
+        var top = root.sheetStack.pop()
+        if (top) top.destroy()
+    }
+
     function scrollBy(delta) {
         // keyboard scroll entry point — host PanelKeyCatcher routes arrows /
         // j/k here (its onMoveRequested was previously unconnected, so every
@@ -52,12 +91,6 @@ Rectangle {
         root.focus = true
         controller.forceActiveFocus()
     }
-    function pushSheet(component) {
-        if (root.sheetStack.length >= 2) return
-        // V1 has no sheets yet; placeholder for V2+ (Commitment Sheet etc.)
-        root.sheetStack.push(component)
-    }
-
     Column {
         anchors.fill: parent
         spacing: 0
@@ -95,6 +128,11 @@ Rectangle {
                 property var cache: ({})
 
                 function show(name) {
+                    // resolve the TARGET first, create THAT (#94 live finding:
+                    // creating `name` while showing `target` left RECOVERY
+                    // uncached — recoveryOpen hid every cached surface and
+                    // blanked the viewport with no way back)
+                    var target = root.recoveryOpen ? "Recovery" : name
                     var sources = {
                         "Play": "arcade/screens/PlayScreen.qml",
                         "Journey": "arcade/screens/JourneyScreen.qml",
@@ -102,11 +140,12 @@ Rectangle {
                         "Setup": "arcade/screens/SetupScreen.qml",
                         "Recovery": "arcade/screens/RecoveryScreen.qml"
                     }
-                    if (!cache[name] && sources[name]) {
-                        var comp = Qt.createComponent(sources[name])
+                    if (!cache[target] && sources[target]) {
+                        var comp = Qt.createComponent(sources[target])
                         if (comp.status === Component.Error) console.log("CREATE FAIL: " + comp.errorString())
+                        // screens own their fixture loading; the shell hands
+                        // only shellApi (which carries stateStore for V2+)
                         var obj = comp.createObject(page, {
-                            fixture: Qt.binding(function() { return root.fixture }),
                             shellApi: root,
                             visible: false,
                             width: Qt.binding(function() { return viewport.width })
@@ -116,9 +155,8 @@ Rectangle {
                         obj.height = Qt.binding(function() {
                             return Math.max(obj.implicitHeight, viewport.height)
                         })
-                        cache[name] = obj
+                        cache[target] = obj
                     }
-                    var target = root.recoveryOpen ? "Recovery" : name
                     for (var k in cache) cache[k].visible = (k === target)
                 }
 
@@ -300,9 +338,10 @@ Rectangle {
         }
     }
 
-    // Esc pops topmost sheet (V1: no sheets yet — reserved wiring, N4)
+    // Esc pops the recovery guard first, then any sheet (V2: Commitment
+    // Sheet is mounted, so popSheet() destroys it — stack holds Items now)
     Keys.onEscapePressed: {
         if (root.recoveryOpen) root.recoveryOpen = false
-        else if (root.sheetStack.length > 0) root.sheetStack.pop()
+        else if (root.sheetStack.length > 0) root.popSheet()
     }
 }
