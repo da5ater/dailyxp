@@ -10,11 +10,22 @@ ArcadeScreen {
     id: root
     title: "PLAY"
 
-    property var fixture: FixtureLoader.load()
-    readonly property var todayList: fixture ? FixtureLoader.todays(fixture) : []
-    readonly property var taskList: fixture ? fixture.planning.tasks : []
-    readonly property bool hasAnyCommitments: fixture
-        && (fixture.planning.tasks.length > 0 || fixture.planning.routines.length > 0
+    // V2 (#94): fixture loads ONLY when unbound (harness). The bound path
+    // reads the real planningProjection — never both, never the form.
+    readonly property var store: shellApi ? shellApi.stateStore : null
+    readonly property bool bound: store !== null && store.planningProjection !== undefined
+    readonly property var fixture: bound ? null : FixtureLoader.load()
+
+    readonly property var todayList: bound
+        ? []   // occurrences arrive with V5 routine generation
+        : (fixture ? FixtureLoader.todays(fixture) : [])
+    readonly property var taskList: bound ? (store.planningProjection.tasks || [])
+        : (fixture ? fixture.planning.tasks : [])
+    readonly property bool hasAnyCommitments: bound
+        ? (store.planningProjection.tasks || []).length > 0
+          || (store.planningProjection.routines || []).length > 0
+          || (store.planningProjection.occurrences || []).length > 0
+        : !!fixture && (fixture.planning.tasks.length > 0 || fixture.planning.routines.length > 0
             || fixture.planning.occurrences.length > 0)
 
     // ── selection + today rail ─────────────────────────────────
@@ -56,6 +67,8 @@ ArcadeScreen {
             width: parent.width - Theme.space(2)
             anchors.horizontalCenter: parent.horizontalCenter
             focus: true   // landing keyboard entry point (R8)
+            enabled: false  // session start binds in V3 (#95)
+            opacity: 0.55
         }
         Flow {
             width: parent.width
@@ -71,7 +84,7 @@ ArcadeScreen {
                     valueColor: Theme.textMuted
                 }
             }
-            StatChip { compact: true; label: "+"; value: "free"; valueColor: Theme.arcadeBlue }
+            StatChip { compact: true; label: "+"; value: "add"; valueColor: Theme.arcadeBlue }
         }
     }
 
@@ -92,33 +105,54 @@ ArcadeScreen {
             wrapMode: Text.WordWrap
         }
         BevelButton {
+            objectName: "setFirstCommitmentButton"
             label: "+ SET FIRST COMMITMENT"
             width: parent.width - Theme.space(2)
             anchors.horizontalCenter: parent.horizontalCenter
+            onActivated: if (root.shellApi) root.shellApi.openCommitmentSheet()
         }
     }
 
+    // ── V2 add-commitment entry — persists after the first commitment ──
+    BevelButton {
+        objectName: "addCommitmentButton"
+        visible: root.hasAnyCommitments
+        label: "+ NEW COMMITMENT"
+        baseColor: Theme.surfaceHigh
+        textColor: "#ffebc4"
+        width: parent.width - Theme.space(2)
+        anchors.horizontalCenter: parent.horizontalCenter
+        onActivated: if (root.shellApi) root.shellApi.openCommitmentSheet()
+    }
+
     // ── daily target progress ───────────────────────────────────
+    // V2 bound mode: focused time arrives with V3 sessions, so the bar sits
+    // at zero; fixture mode keeps the V1 stub read. Guarded derefs — QML
+    // evaluates bindings even while a card is invisible.
     ArcadeCard {
+        id: targetCard
         visible: root.hasAnyCommitments
         width: parent.width
         ribbon: "DAILY TARGET"
         ribbonColor: Theme.manaPurple
         ribbonText: Theme.purpleSoft
 
+        readonly property real focusedMs: root.bound ? 0
+            : (root.fixture ? root.fixture.session.focusedMilliseconds : 0)
+        readonly property int targetMin: root.bound ? 60
+            : (root.fixture ? root.fixture.progression.dailyTargetMinutes : 60)
+
         SegmentedBar {
             blocks: 20
             width: parent.width - Theme.space(4)
-            fraction: Math.min(1, (root.fixture.session.focusedMilliseconds / 60000)
-                                 / root.fixture.progression.dailyTargetMinutes)
+            fraction: Math.min(1, (parent.focusedMs / 60000) / parent.targetMin)
             fill: Theme.manaPurple
             fillBorder: Theme.purpleDeep
         }
         Text {
             width: parent.width
-            text: FixtureLoader.hhmm(root.fixture.session.focusedMilliseconds)
-                  + " focused of " + root.fixture.progression.dailyTargetMinutes
-                  + "m target today"
+            text: FixtureLoader.hhmm(parent.focusedMs)
+                  + " focused of " + parent.targetMin + "m target today"
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
@@ -127,12 +161,18 @@ ArcadeScreen {
     }
 
     // ── habit quick-strip (R4.3): every habit visible with streaks ──
+    // V2 bound mode: hidden — habits bind in V6 (#98). Fixture keeps V1 read.
+    // All fixture dereferences guard on habitCard.fx because QML evaluates
+    // bindings even while the card is invisible (live error-log lesson).
     ArcadeCard {
-        visible: root.fixture.habit.habits.length > 0
+        id: habitCard
+        readonly property var fx: root.bound ? null : root.fixture
+        visible: fx !== null && fx.habit.habits.length > 0
         width: parent.width
-        ribbon: "HABITS · "
-                + root.fixture.habit.dailySummaries["2026-08-24"].completedCount
-                + "/" + root.fixture.habit.dailySummaries["2026-08-24"].scheduledCount
+        ribbon: fx !== null
+                ? "HABITS · " + fx.habit.dailySummaries["2026-08-24"].completedCount
+                  + "/" + fx.habit.dailySummaries["2026-08-24"].scheduledCount
+                : "HABITS"
         ribbonColor: Theme.powerGreen
 
         BevelButton {
@@ -147,7 +187,7 @@ ArcadeScreen {
             spacing: Theme.space(2)
 
             Repeater {
-                model: root.fixture.habit.habits
+                model: habitCard.fx !== null ? habitCard.fx.habit.habits : []
                 delegate: Row {
                     required property var modelData
                     width: parent.width
@@ -156,14 +196,14 @@ ArcadeScreen {
                     Rectangle {
                         id: checkCell
                         width: 22; height: 22
-                        color: FixtureLoader.habitDoneToday(root.fixture, modelData)
-                               ? Theme.powerGreen : Theme.surfaceLowest
-                        border.color: FixtureLoader.habitDoneToday(root.fixture, modelData)
-                                      ? Theme.greenDeep : Theme.border
+                        readonly property bool done: habitCard.fx !== null &&
+                            FixtureLoader.habitDoneToday(habitCard.fx, modelData)
+                        color: done ? Theme.powerGreen : Theme.surfaceLowest
+                        border.color: done ? Theme.greenDeep : Theme.border
                         border.width: 1
                         Text {
                             anchors.centerIn: parent
-                            text: FixtureLoader.habitDoneToday(root.fixture, modelData) ? "✔" : ""
+                            text: checkCell.done ? "✔" : ""
                             color: Theme.greenDeep
                             font.pixelSize: Theme.typeBody
                         }
@@ -179,7 +219,8 @@ ArcadeScreen {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: "×" + (root.fixture.habit.streaks[modelData.id] || 0)
+                        text: "×" + (habitCard.fx !== null
+                                     ? (habitCard.fx.habit.streaks[modelData.id] || 0) : 0)
                         color: Theme.chromeYellow
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.typeTiny
