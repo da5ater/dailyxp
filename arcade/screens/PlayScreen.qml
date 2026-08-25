@@ -82,7 +82,7 @@ ArcadeScreen {
         StatChip {
             visible: root.focusGoal !== null
             compact: true
-            label: "◎"
+            label: ""
             value: "GOAL · " + root.focusGoal.title
             valueColor: Theme.cyberPurple
         }

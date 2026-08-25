@@ -243,8 +243,8 @@ ArcadeSheet {
             width: parent.width
             visible: resolvedGoal !== null
             text: resolvedGoal.isExisting
-                  ? "◎ tied to goal: " + resolvedGoal.title + "  (reused)"
-                  : "◎ will create goal: " + resolvedGoal.title
+                  ? "tied to goal: " + resolvedGoal.title + "  (reused)"
+                  : "will create goal: " + resolvedGoal.title
             color: resolvedGoal.isExisting ? Theme.cyberPurple : Theme.electricLime
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
