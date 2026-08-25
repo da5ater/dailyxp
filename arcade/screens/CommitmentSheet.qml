@@ -307,6 +307,54 @@ ArcadeSheet {
             wrapMode: Text.WordWrap
         }
 
+        // ── SUMMARY BADGES (removable) ─────────────────────────────
+        // Live read of the commitment being built: name, goal (if set),
+        // minutes — each a chip with a red ✕ that clears that field.
+        // Goal chips reuse the picker's resolved title; selecting a goal
+        // option (or typing) fills the field, which makes its badge appear.
+        Flow {
+            width: parent.width
+            spacing: Theme.space(1)
+            visible: nameField.text.trim() !== "" || goalField.text.trim() !== "" || minutesField.text.trim() !== ""
+            function clearName() { nameField.text = ""; nameField.forceActiveFocus() }
+            function clearGoal() { goalField.text = ""; goalField.forceActiveFocus() }
+            function clearMinutes() { minutesField.text = "30"; minutesField.forceActiveFocus() }
+
+            StatChip {
+                visible: nameField.text.trim() !== ""
+                compact: true; label: "NAME"; value: nameField.text.trim()
+                valueColor: Theme.textPrimary
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.clearName() }
+            }
+            StatChip {
+                visible: goalField.text.trim() !== ""
+                compact: true; label: "GOAL"; value: goalField.text.trim()
+                valueColor: Theme.cyberPurple
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.clearGoal() }
+            }
+            StatChip {
+                visible: minutesField.text.trim() !== ""
+                compact: true; label: "MIN"; value: minutesField.text.trim() + "m"
+                valueColor: Theme.electricLime
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.clearMinutes() }
+            }
+            // red ✕ clears whichever field is set (goal-first, then name)
+            Rectangle {
+                id: clr
+                visible: nameField.text.trim() !== "" || goalField.text.trim() !== ""
+                width: 22; height: 22; radius: 11
+                color: clrMouse.containsMouse ? "#ff3b5c" : Theme.surfaceLow
+                border.color: Theme.border; border.width: 1
+                Text { anchors.centerIn: parent; text: "✕"; color: "#ff3b5c"
+                       font.family: Theme.fontFamily; font.pixelSize: Theme.typeBody }
+                MouseArea {
+                    id: clrMouse; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { if (goalField.text.trim() !== "") parent.clearGoal(); else parent.clearName() }
+                }
+            }
+        }
+
         BevelButton {
             id: saveButton
             label: "▶ SAVE COMMITMENT"

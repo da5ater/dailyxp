@@ -99,19 +99,59 @@ ArcadeScreen {
             spacing: Theme.space(2)
             Repeater {
                 model: root.taskList
-                delegate: StatChip {
-                    id: chip
+                delegate: Row {
+                    id: taskRow
                     required property int index
                     required property var modelData
-                    compact: true
-                    label: chip.index === root.focusIndex ? "●" : "○"
-                    value: modelData.title.length > 14
-                           ? modelData.title.slice(0, 13) + "…" : modelData.title
-                    valueColor: chip.index === root.focusIndex ? "#ffebc4" : Theme.textMuted
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.selectedTaskIndex = chip.index
+                    spacing: Theme.space(1)
+                    // resolve the linked goal title for the per-task badge
+                    readonly property var taskGoal: {
+                        if (!root.bound || !modelData.goalId || !store) return null
+                        var gs = store.planningProjection.goals || []
+                        for (var i = 0; i < gs.length; i++) if (gs[i].id === modelData.goalId) return gs[i]
+                        return null
+                    }
+                    StatChip {
+                        id: chip
+                        compact: true
+                        label: taskRow.index === root.focusIndex ? "●" : "○"
+                        value: taskRow.modelData.title.length > 14
+                               ? taskRow.modelData.title.slice(0, 13) + "…" : taskRow.modelData.title
+                        valueColor: taskRow.index === root.focusIndex ? "#ffebc4" : Theme.textMuted
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.selectedTaskIndex = taskRow.index
+                        }
+                    }
+                    // per-task goal badge — direction the commitment is tied to
+                    StatChip {
+                        visible: taskRow.taskGoal !== null
+                        compact: true
+                        label: ""
+                        value: taskRow.taskGoal.title
+                        valueColor: Theme.cyberPurple
+                    }
+                    // delete: red X removes the commitment via the engine
+                    Rectangle {
+                        id: delHit
+                        width: 22; height: 22; radius: 11
+                        color: delMouse.containsMouse ? "#ff3b5c" : Theme.surfaceLow
+                        border.color: Theme.border; border.width: 1
+                        Text { anchors.centerIn: parent; text: "✕"; color: "#ff3b5c"
+                               font.family: Theme.fontFamily; font.pixelSize: Theme.typeBody }
+                        MouseArea {
+                            id: delMouse
+                            anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (store && typeof store.applyPlanningCommand === "function")
+                                    store.applyPlanningCommand({
+                                        type: "entity.remove", entityType: "task", id: taskRow.modelData.id })
+                                if (root.selectedTaskIndex >= root.taskList.length - 1)
+                                    root.selectedTaskIndex = Math.max(0, root.taskList.length - 2)
+                            }
+                        }
                     }
                 }
             }
