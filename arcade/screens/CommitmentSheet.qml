@@ -225,6 +225,32 @@ ArcadeSheet {
             }
         }
 
+        // dedicated goal-feedback block: live confirmation that this
+        // commitment will be tied to a direction. Shows the resolved goal
+        // (existing reuse or the new name) so the user gets feedback before
+        // pressing SAVE. Empty field → no direction (standalone one-shot).
+        readonly property var chosenGoalTitle: goalField.text.trim()
+        readonly property var resolvedGoal: {
+            if (chosenGoalTitle === "") return null
+            if (!store) return { title: chosenGoalTitle, isExisting: false }
+            var gs = store.planningProjection.goals || []
+            for (var i = 0; i < gs.length; i++)
+                if (gs[i].title.toLowerCase() === chosenGoalTitle.toLowerCase())
+                    return { title: gs[i].title, isExisting: true }
+            return { title: chosenGoalTitle, isExisting: false }
+        }
+        Text {
+            width: parent.width
+            visible: resolvedGoal !== null
+            text: resolvedGoal.isExisting
+                  ? "◎ tied to goal: " + resolvedGoal.title + "  (reused)"
+                  : "◎ will create goal: " + resolvedGoal.title
+            color: resolvedGoal.isExisting ? Theme.cyberPurple : Theme.electricLime
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
+
         // ── MINUTES ─────────────────────────────────────────────
         Row {
             width: parent.width

@@ -69,6 +69,23 @@ ArcadeScreen {
             font.pixelSize: Theme.typeBody
             wrapMode: Text.WordWrap
         }
+        // goal badge: only when the commitment is tied to a direction
+        // (goalId set on the task by the Commitment Sheet). Resolves the
+        // goal title from the projection so the rail reflects saved state.
+        readonly property var focusGoalId: root.focusTask ? root.focusTask.goalId || null : null
+        readonly property var focusGoal: {
+            if (!root.bound || !root.focusGoalId || !store) return null
+            var gs = store.planningProjection.goals || []
+            for (var i = 0; i < gs.length; i++) if (gs[i].id === root.focusGoalId) return gs[i]
+            return null
+        }
+        StatChip {
+            visible: root.focusGoal !== null
+            compact: true
+            label: "◎"
+            value: "GOAL · " + root.focusGoal.title
+            valueColor: Theme.cyberPurple
+        }
         BevelButton {
             label: "▶ START SESSION"
             width: parent.width - Theme.space(2)
