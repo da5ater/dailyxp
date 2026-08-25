@@ -7,8 +7,8 @@ import "../../EventModel.js" as EventModel
 // AgDR-0003 records why a commitment is a standalone Task. Validation
 // mirrors the engine locally so bad input never reaches decide().
 //
-// Keyboard (R8): opens with NAME focused; Tab walks NAME → MINUTES → SAVE;
-// Esc anywhere dismisses (ArcadeSheet).
+// Keyboard (R8): opens with NAME focused; Tab walks NAME → GOAL → MINUTES
+// → SAVE; Esc anywhere dismisses (ArcadeSheet).
 ArcadeSheet {
     id: sheet
     title: "NEW COMMITMENT"
@@ -38,6 +38,27 @@ ArcadeSheet {
             errorText = "ENGINE OFFLINE"
             return
         }
+
+        // optional goal: find-or-create, then link (#94 live pass — empty
+        // goal keeps the standalone one-shot Task; named goal gives it a
+        // direction). reason is engine-required; stamped as provenance.
+        var goalId = null
+        var goalName = goalField.text.trim()
+        if (goalName !== "") {
+            var existing = store.planningProjection.goals.filter(function(g) {
+                return g.title.toLowerCase() === goalName.toLowerCase() })
+            if (existing.length > 0) {
+                goalId = existing[0].id
+            } else {
+                goalId = EventModel.uuidV4()
+                if (!store.applyPlanningCommand({
+                        type: "goal.create",
+                        goal: { id: goalId, title: goalName, primarySkill: "general/focus",
+                                reason: "created from Commitment Sheet" }}))
+                    { errorText = "GOAL SAVE FAILED"; return }
+            }
+        }
+
         var ok = store.applyPlanningCommand({
             type: "task.create",
             task: {
@@ -47,7 +68,7 @@ ArcadeSheet {
                 urgency: "normal",
                 deadline: null,
                 primarySkill: "general/focus",
-                goalId: null,
+                goalId: goalId,
                 milestoneId: null
             }
         })
@@ -93,12 +114,51 @@ ArcadeSheet {
                 maximumLength: 60
                 activeFocusOnTab: true
                 cursorVisible: activeFocus
-                KeyNavigation.tab: minutesField
+                KeyNavigation.tab: goalField
                 onTextEdited: sheet.errorText = ""
 
                 Text {
                     visible: nameField.text === "" && !nameField.activeFocus
                     text: "RUBY STUDY…"
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.typeBody
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        // ── GOAL (optional — live pass 2026-08-25) ────────────────
+        // Empty → standalone one-time Task. Named → find-or-create a Goal
+        // and link the Task via goalId (engine: resolveGoalMilestoneLinks).
+        // True recurring Routines stay V5 (#97); this only ties work to a
+        // direction, which CONTEXT.md already allows for Tasks.
+        Rectangle {
+            id: goalBox
+            width: parent.width
+            height: Theme.space(11)
+            color: Theme.surfaceLowest
+            border.color: goalField.activeFocus ? Theme.coinGold : Theme.border
+            border.width: goalField.activeFocus ? 2 : 1
+
+            TextInput {
+                id: goalField
+                objectName: "commitmentGoalInput"
+                anchors.fill: parent
+                anchors.margins: Theme.space(2)
+                verticalAlignment: TextInput.AlignVCenter
+                color: Theme.cyberPurple
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.typeBody
+                clip: true
+                maximumLength: 60
+                activeFocusOnTab: true
+                cursorVisible: activeFocus
+                KeyNavigation.tab: saveButton
+
+                Text {
+                    visible: goalField.text === "" && !goalField.activeFocus
+                    text: "GOAL · OPTIONAL — tie it to a direction"
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.typeBody

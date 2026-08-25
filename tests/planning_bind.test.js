@@ -183,3 +183,38 @@ test("second commitment appends without corrupting the first (list rendering con
   const projection = PlanningModel.project(journal.events);
   assert.deepEqual(projection.tasks.map(t => t.title), ["First", "Second"]);
 });
+
+test("optional goal: named goal links the task; empty goal stays standalone (CommitmentSheet contract)", () => {
+  const context = {
+    occurredAtUtc: "2026-08-25T10:10:00.000Z",
+    localDateTime: "2026-08-25T13:10:00.000",
+    timezone: "Africa/Cairo",
+    utcOffsetMinutes: 180,
+    systemTimezoneVerified: true,
+    dayBoundaryMinutes: 240
+  };
+  let journal = EventModel.createJournal(EventModel.uuidV4());
+
+  // empty goal -> standalone one-shot Task (goalId stays null)
+  ({ journal } = applyPlanningCommand(
+    journal, commitmentCommand(EventModel.uuidV4(), "One-off", 30), context));
+  let projection = PlanningModel.project(journal.events);
+  const oneOff = projection.tasks.find(t => t.title === "One-off");
+  assert.equal(oneOff.goalId, null, "empty goal keeps the task standalone");
+
+  // named goal -> find-or-create + link (CommitmentSheet.save path)
+  const goalId = EventModel.uuidV4();
+  ({ journal } = applyPlanningCommand(journal, { type: "goal.create",
+    goal: { id: goalId, title: "Learn Rust", primarySkill: "general/focus",
+            reason: "created from Commitment Sheet" } }, context));
+  // emulate the sheet's second command: link via goalId
+  ({ journal } = applyPlanningCommand(journal, { type: "task.create",
+    task: { id: EventModel.uuidV4(), title: "Rust drill", estimateMinutes: 25,
+             urgency: "normal", deadline: null, primarySkill: "general/focus",
+             goalId: goalId, milestoneId: null } }, context));
+  projection = PlanningModel.project(journal.events);
+  const linked = projection.tasks.find(t => t.title === "Rust drill");
+  assert.equal(linked.goalId, goalId, "named goal links the task to the Goal");
+  assert.equal(projection.goals.length, 1, "goal created once");
+  assert.equal(projection.goals[0].title, "Learn Rust");
+});
