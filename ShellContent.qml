@@ -47,6 +47,11 @@ Rectangle {
         if (root.recoveryOpen) root.recoveryOpen = false
         root.currentSurface = name
     }
+    // round-2 lesson: these were clobbered while editing openSurface —
+    // PlayScreen's RECOVERY button routes through openRecovery(); guard
+    // confirm lands with the V7 bind
+    function openRecovery() { root.recoveryOpen = true }
+    function closeRecovery() { root.recoveryOpen = false }
 
     function openCommitmentSheet() {
         // P5 Commitment Sheet — blocking overlay over the whole cockpit
