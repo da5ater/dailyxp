@@ -16,7 +16,7 @@ TARGET = 'io.github.da5ater.dailyxp'
 
 def ipc(run, method, *args):
     metadata = json.loads((run / 'instance.json').read_text())
-    target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel', 'captureStatus', 'typeText', 'formStatus', 'press', 'planningStatus', 'seedGoal'] else TARGET
+    target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel', 'captureStatus', 'typeText', 'formStatus', 'press', 'planningStatus', 'seedGoal', 'journeyStatus', 'seedTimedSession', 'constrainPanel'] else TARGET
     command = ['quickshell', 'ipc', '--pid', str(metadata['pid']), 'call', target, method, *args]
     result = subprocess.run(command, text=True, capture_output=True, env=display.environment(run))
     with (run / 'actions.jsonl').open('a') as log:

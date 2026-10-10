@@ -1,153 +1,142 @@
 import QtQuick
 import "../"
-import "../../FixtureLoader.js" as FixtureLoader
+import "../../JourneyModel.js" as JourneyModel
+import "../../ProgressionModel.js" as ProgressionModel
 
-// P2: JOURNEY — trajectory surface (full cockpit, stub data). Stat tiles,
-// XP bar + level rule, ledger preview, thin insights (R5.2 fence), records.
-// V4 binds progression for real; V8 adds export from here's data.
 ArcadeScreen {
     id: root
     title: "JOURNEY"
+    readonly property var store: shellApi ? shellApi.stateStore : null
+    property string nowUtc: new Date().toISOString()
+    Timer {
+        interval: 60000
+        repeat: true
+        running: root.visible
+        onTriggered: root.nowUtc = new Date().toISOString()
+    }
+    function focusLedgerControl() { ledgerButton.forceActiveFocus() }
+    readonly property var journey: JourneyModel.view(
+        store ? store.progressionProjection : ProgressionModel.emptyProjection(),
+        store ? store.sessionProjection.sessions : [],
+        store ? store.habitProjection : {},
+        store && store.journal ? store.journal.events : [],
+        store ? store.sessionDailyXpDate(root.nowUtc) : new Date().toISOString().slice(0, 10))
 
-    property var fixture: FixtureLoader.load()
-    readonly property var lvl: fixture ? FixtureLoader.levelProgress(fixture) : { have: 0, need: 1 }
-
-    // ── stat tiles — two-line zigzag composition ("- _ -", Mohamed live
-    // pass): LV pinned far LEFT + MOMENTUM pinned far RIGHT on the first
-    // line, RANK dead-center on its own line under. Anchored Items (not
-    // positioners) so the pins are exact.
     Column {
         width: parent.width
         spacing: Theme.space(2)
-
-        Item {
+        Row {
             width: parent.width
-            height: Math.max(statLv.height, statMomentum.height)
-
+            spacing: Theme.space(2)
             StatChip {
-                id: statLv
-                anchors.left: parent.left
-                anchors.top: parent.top
+                objectName: "journeyLevel"
+                width: (parent.width - parent.spacing) / 2
                 label: "LV"
-                value: String(root.fixture.progression.level)
+                value: String(root.journey.level)
                 valueColor: Theme.manaPurple
             }
             StatChip {
-                id: statMomentum
-                anchors.right: parent.right
-                anchors.top: parent.top
+                objectName: "journeyMomentum"
+                width: (parent.width - parent.spacing) / 2
                 label: "MOMENTUM"
-                value: root.fixture.progression.momentum
+                value: root.journey.momentum
                 valueColor: Theme.electricLime
             }
         }
-
-        Item {
+        StatChip {
+            objectName: "journeyRank"
             width: parent.width
-            height: statRank.height
-
-            StatChip {
-                id: statRank
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                label: "RANK"
-                value: root.fixture.progression.storyRank
-            }
+            label: "RANK"
+            value: root.journey.storyRank
         }
     }
-
-    // ── XP to next level (real rule) ───────────────────────────
-    // Deliberately terse (Mohamed, live pass 2026-08-24): one compact line;
-    // the lifetime/season breakdown moves behind click/hover detail in a
-    // later PR (noted on the V4 ticket).
     Column {
         width: parent.width
         spacing: 4
-
         SegmentedBar {
-            width: parent.width - Theme.space(2)
-            fraction: root.lvl.need > 0 ? Math.max(0, Math.min(1, root.lvl.have / root.lvl.need)) : 0
+            objectName: "journeyXpBar"
+            width: parent.width
+            fraction: root.journey.progress.have / root.journey.progress.need
+            blocks: Math.max(1, Math.min(24, Math.floor(width / 8)))
         }
         Text {
+            objectName: "journeyXpProgress"
             width: parent.width
-            text: "LV " + root.fixture.progression.level + " → "
-                  + (root.fixture.progression.level + 1) + " · "
-                  + Math.round(100 * root.lvl.have / Math.max(1, root.lvl.need)) + "%"
+            text: root.journey.progress.have + " / " + root.journey.progress.need + " XP to LV " + (root.journey.level + 1)
             color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.typeBody
-            elide: Text.ElideRight
-        }
-    }
-
-    // ── XP ledger preview (R4.2 transparency) — full sheet in V4 ──
-    ArcadeCard {
-        width: parent.width
-        ribbon: "XP LEDGER"
-        ribbonColor: Theme.coinGold
-        ribbonText: Theme.goldDeep
-
-        Column {
-            width: parent.width
-            spacing: Theme.space(2)
-            Repeater {
-                model: root.fixture.progression.ledger.slice(0, 3)
-                delegate: Row {
-                    required property var modelData
-                    width: parent.width
-                    Text {
-                        width: parent.width - 48
-                        text: modelData.reason
-                        color: Theme.textPrimary
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.typeBody
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        text: "+" + modelData.lifetimeDelta
-                        color: Theme.electricLime
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.typeBody
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-            }
-        }
-    }
-
-    // ── thin insights (R5.2: nothing deeper) ───────────────────
-    ArcadeCard {
-        width: parent.width
-        ribbon: "THIS WEEK"
-        Text {
-            width: parent.width
-            text: "6h 20m focused · best streak ×12 · "
-                  + root.fixture.progression.dailyTargetMinutes + "m daily target"
-            color: Theme.textPrimary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
             wrapMode: Text.WordWrap
         }
     }
-
-    // ── achievements strip (stub; deepening waits for V7+) ─────
     ArcadeCard {
         width: parent.width
-        ribbon: "ACHIEVEMENTS · " + root.fixture.story.achievements.length
-        ribbonColor: Theme.chromeYellow
-        ribbonText: Theme.onYellow
-
-        Flow {
+        ribbon: "XP LEDGER"
+        ribbonColor: Theme.coinGold
+        ribbonText: Theme.goldDeep
+        Column {
+            width: parent.width
+            spacing: Theme.space(3)
+            Text {
+                objectName: "journeyLifetimeXp"
+                width: parent.width
+                text: root.journey.lifetimeXp + " lifetime XP · " + root.journey.ledger.length + " awards"
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.typeBody
+                wrapMode: Text.WordWrap
+            }
+            BevelButton {
+                id: ledgerButton
+                objectName: "openLedgerButton"
+                width: parent.width
+                label: "VIEW ALL AWARDS"
+                baseColor: Theme.coinGold
+                textColor: Theme.goldDeep
+                onActivated: if (root.shellApi) root.shellApi.openLedgerSheet()
+            }
+        }
+    }
+    ArcadeCard {
+        width: parent.width
+        ribbon: "THIS WEEK"
+        Column {
             width: parent.width
             spacing: Theme.space(2)
+            Text {
+                objectName: "journeyWeeklyInsight"
+                width: parent.width
+                text: Math.floor(root.journey.weeklyFocusedMinutes / 60) + "h "
+                      + root.journey.weeklyFocusedMinutes % 60 + "m focused · " + root.journey.weeklyXp + " XP earned"
+                color: Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.typeBody
+                wrapMode: Text.WordWrap
+            }
+            Text {
+                width: parent.width
+                text: "CURRENT STREAKS"
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.typeBody
+            }
+            Text {
+                visible: root.journey.currentStreaks.length === 0
+                text: "No habits yet."
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.typeBody
+            }
             Repeater {
-                model: root.fixture.story.achievements
-                delegate: StatChip {
+                model: root.journey.currentStreaks
+                delegate: Text {
                     required property var modelData
-                    compact: true
-                    label: "★"
-                    value: modelData.title
-                    valueColor: Theme.chromeYellow
+                    width: parent.width
+                    text: modelData.title + " · ×" + modelData.current
+                    color: Theme.textPrimary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.typeBody
+                    wrapMode: Text.WordWrap
                 }
             }
         }
