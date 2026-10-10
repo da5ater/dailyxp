@@ -10,6 +10,7 @@ ShellRoot {
   property var shellConfig: ({ plugins: [] })
   function serviceFor(name) { return store }
   DailyXP.StateStore { id: store; shell: host }
+  property string captureState: "idle"
   property bool seeded: Quickshell.env("DAILYXP_VERIFY_SEED") !== "true"
   Timer {
     interval: 50
@@ -61,9 +62,11 @@ ShellRoot {
     function capturePanel(path: string): string {
       var item = input.findChild(productionWidget, "dailyxpShell")
       if (!item || !item.visible) return "unavailable"
-      item.grabToImage(function(result) { result.saveToFile(path) })
+      host.captureState = "pending"
+      item.grabToImage(function(result) { host.captureState = result.saveToFile(path) ? "saved" : "failed" })
       return "requested"
     }
+    function captureStatus(): string { return host.captureState }
     function readiness(): string { return JSON.stringify({ready:store.ready, journal:store.journalReady, timezone:store.systemTimezone, saving:store.saving, error:store.errorMessage, primaryRead:store._primaryRead, backupRead:store._backupRead, seeded:host.seeded}) }
     function ready(): bool { return host.seeded && store.ready && store.recordingReady && !store.saving && store.errorMessage === "" }
   }

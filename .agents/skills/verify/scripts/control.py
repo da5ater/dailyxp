@@ -16,7 +16,7 @@ TARGET = 'io.github.da5ater.dailyxp'
 
 def ipc(run, method, *args):
     metadata = json.loads((run / 'instance.json').read_text())
-    target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel'] else TARGET
+    target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel', 'captureStatus'] else TARGET
     command = ['quickshell', 'ipc', '--pid', str(metadata['pid']), 'call', target, method, *args]
     result = subprocess.run(command, text=True, capture_output=True, env=display.environment(run))
     with (run / 'actions.jsonl').open('a') as log:
@@ -177,7 +177,7 @@ def main():
         if ipc(run, 'capturePanel', str(run / f'{label}.png')) != 'requested':
             raise RuntimeError('Rendered panel is not available for capture')
         for _ in range(50):
-            if (run / f'{label}.png').exists():
+            if ipc(run, 'captureStatus') == 'saved' and (run / f'{label}.png').stat().st_size > 0:
                 break
             time.sleep(.1)
         else:

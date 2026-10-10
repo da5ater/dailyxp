@@ -33,7 +33,7 @@ def capture(run, label):
     path = run / f'{label}.png'
     assert control.ipc(run, 'capturePanel', str(path)) == 'requested'
     for _ in range(100):
-        if path.exists():
+        if control.ipc(run, 'captureStatus') == 'saved' and path.stat().st_size > 0:
             return
         time.sleep(.05)
     raise RuntimeError('Screenshot missing')
