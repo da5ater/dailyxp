@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "sessionId": "1a5f3cfa-f7c0-4538-b97e-db362fa8882f",
+  "focusedMilliseconds": 5806,
+  "focusedMinutes": 0.09676666666666667,
+  "hardKillRunningReplay": true,
+  "pausedTimerFrozen": true,
+  "keyboardStartResumeFinish": true,
+  "tabToFinish": true,
+  "visibleControlsWithinWidth": true,
+  "journalTransitions": [
+    "session.started",
+    "session.paused",
+    "session.resumed",
+    "session.finished"
+  ],
+  "host": "private headless Wayland with production widget, panel and StateStore",
+  "displayIsolation": {
+    "pid": 1317979,
+    "socket": "wayland-1",
+    "backend": "headless",
+    "renderer": "pixman"
+  }
+}

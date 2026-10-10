@@ -9,13 +9,27 @@ Rectangle {
     property string value: ""
     property color valueColor: Theme.coinGold
     property bool compact: false
+    property bool interactive: false
+    signal activated()
+    activeFocusOnTab: interactive
+    Accessible.role: interactive ? Accessible.Button : Accessible.StaticText
+    Accessible.name: label + " " + value
+    Keys.onReturnPressed: if (interactive) activated()
+    Keys.onEnterPressed: if (interactive) activated()
+    Keys.onSpacePressed: if (interactive) activated()
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.interactive
+        cursorShape: Qt.PointingHandCursor
+        onClicked: { root.forceActiveFocus(); root.activated() }
+    }
 
-    implicitWidth: compact ? Math.max(64, valueText.implicitWidth + Theme.space(6))
+    implicitWidth: compact ? Math.max(64, compactText.implicitWidth + Theme.space(4))
                            : Math.max(96, valueText.implicitWidth + Theme.space(8))
     implicitHeight: compact ? 24 : 54
     color: compact ? Theme.surfaceLow : Theme.surfaceLow
     border.color: compact ? valueColor : Theme.border
-    border.width: 1
+    border.width: activeFocus ? 2 : 1
 
     Column {
         visible: !root.compact
@@ -51,6 +65,7 @@ Rectangle {
     // compact chip: bounded to its box — a long value elides instead of
     // painting past the chip edge (horizontal-overflow fix, #93)
     Text {
+        id: compactText
         visible: root.compact
         width: parent.width - Theme.space(2)
         anchors.centerIn: parent

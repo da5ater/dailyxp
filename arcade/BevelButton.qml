@@ -11,6 +11,10 @@ Rectangle {
     property color textColor: Theme.goldDeep
     property bool danger: false
 
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: label
+
     signal activated()
 
     implicitWidth: Math.max(120, label_.implicitWidth + Theme.space(12))
@@ -57,7 +61,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.activated()
+        onClicked: { root.forceActiveFocus(); root.activated() }
     }
 
     Keys.onReturnPressed: root.activated()

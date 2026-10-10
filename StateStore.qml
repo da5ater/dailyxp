@@ -104,7 +104,8 @@ Item {
     Quickshell.execDetached(["xdg-open", String(url)])
   }
   property string systemTimezone: ""
-  readonly property bool recordingReady: journalReady && systemTimezone !== ""
+  property bool recoveringSave: false
+  readonly property bool recordingReady: journalReady && systemTimezone !== "" && !recoveringSave
   property bool ready: false
   property bool saving: false
   property string errorMessage: ""
@@ -168,17 +169,18 @@ Item {
   function acceptPrimary(raw) {
     _primaryRaw = String(raw || "")
     _primaryRead = true
-    finishLoad()
+    Qt.callLater(finishLoad)
   }
 
   function acceptBackup(raw) {
     _backupRaw = String(raw || "")
     _backupRead = true
-    finishLoad()
+    Qt.callLater(finishLoad)
   }
 
   function finishLoad() {
-    if (ready || !_primaryRead || !_backupRead) return
+    if (!_primaryRead || !_backupRead) return
+    if (ready) { recoveringSave = false; return }
     var recovered = StateModel.recoverDetailed(_primaryRaw, _backupRaw)
     envelope = recovered.envelope
     ready = true
@@ -721,12 +723,16 @@ Item {
   }
 
   function failSave(stage, error) {
+    recoveringSave = true
+    _primaryRead = false
+    _backupRead = false
     saving = false
     _pendingEnvelope = null
     _pendingJournal = null
     _pendingPrimaryRaw = ""
     errorMessage = "Could not save DailyXP state (" + stage + ": " + error + ")"
     console.warn("dailyxp/state", errorMessage)
+    Qt.callLater(function() { primaryFile.reload(); backupFile.reload() })
   }
 
   Process {
@@ -739,10 +745,8 @@ Item {
         console.warn("dailyxp/state", root.errorMessage)
         return
       }
-      root._primaryRead = false
-      root._backupRead = false
-      primaryFile.reload()
-      backupFile.reload()
+      primaryFile.preload = true
+      backupFile.preload = true
     }
   }
 
@@ -786,6 +790,7 @@ Item {
   FileView {
     id: primaryFile
     path: root.primaryPath
+    preload: false
     watchChanges: false
     atomicWrites: true
     printErrors: false
@@ -837,6 +842,7 @@ Item {
   FileView {
     id: backupFile
     path: root.backupPath
+    preload: false
     watchChanges: false
     atomicWrites: true
     printErrors: false
