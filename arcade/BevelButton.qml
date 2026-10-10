@@ -11,7 +11,7 @@ Rectangle {
     property color textColor: Theme.goldDeep
     property bool danger: false
 
-    activeFocusOnTab: enabled && visible
+    activeFocusOnTab: true
     Accessible.role: Accessible.Button
     Accessible.name: label
 

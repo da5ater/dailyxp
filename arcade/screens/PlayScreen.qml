@@ -65,32 +65,37 @@ ArcadeScreen {
             + String(Math.floor(seconds / 60) % 60).padStart(2, "0") + ":"
             + String(seconds % 60).padStart(2, "0")
     }
+    readonly property bool modalOpen: shellApi && (shellApi.sheetStack.length > 0 || shellApi.recoveryOpen)
+    property string lastSessionKey: ""
     function focusSessionControl(direction) {
+        if (modalOpen) return false
         var control = activeSession ? (direction < 0 ? finishButton : pauseButton) : startButton
         if (!control.visible || !control.enabled) return false
         control.forceActiveFocus()
         return true
     }
     function startFocus() {
-        if (!sessionReady || activeSession || !focusTask) return
+        if (modalOpen || !sessionReady || activeSession || !focusTask) return
         store.applySessionCommand({ type: "session.start", session: {
             id: EventModel.uuidV4(), taskId: focusTask.id, primarySkill: focusTask.primarySkill,
             plannedMinutes: null, startedAtUtc: new Date().toISOString()
         } })
     }
     function togglePause() {
-        if (!sessionReady || !activeSession) return
+        if (modalOpen || !sessionReady || !activeSession) return
         store.applySessionCommand({ type: activeSession.status === "running" ? "session.pause" : "session.resume",
                                     atUtc: new Date().toISOString() })
     }
     function finishFocus(acknowledgeCap) {
-        if (!sessionReady || !activeSession) return
+        if (modalOpen || !sessionReady || !activeSession) return
         store.applySessionCommand({ type: "session.finish", atUtc: new Date().toISOString(),
             inactivityDecision: "exclude", dailyCapAcknowledged: acknowledgeCap === true })
     }
     onActiveSessionChanged: {
         nowUtc = new Date().toISOString()
-        if (visible) Qt.callLater(function() { root.focusSessionControl(1) })
+        var key = activeSession ? activeSession.id + ":" + activeSession.status : ""
+        if (key !== lastSessionKey && visible) Qt.callLater(function() { root.focusSessionControl(1) })
+        lastSessionKey = key
     }
     Timer {
         interval: 1000
@@ -146,6 +151,7 @@ ArcadeScreen {
             return null
         }
         StatChip {
+            width: Math.min(implicitWidth, parent.width)
             visible: railCard.focusGoal !== null
             compact: true
             label: ""
@@ -246,6 +252,7 @@ ArcadeScreen {
                     id: taskRow
                     required property int index
                     required property var modelData
+                    width: parent.width
                     spacing: Theme.space(1)
                     // resolve the linked goal title for the per-task badge
                     readonly property var taskGoal: {
@@ -256,6 +263,7 @@ ArcadeScreen {
                     }
                     StatChip {
                         id: chip
+                        width: Math.min(implicitWidth, (taskRow.width - delHit.width - taskRow.spacing * 2) / (taskRow.taskGoal ? 2 : 1))
                         compact: true
                         label: taskRow.index === root.focusIndex ? "●" : "○"
                         value: taskRow.modelData.title.length > 14
@@ -270,6 +278,7 @@ ArcadeScreen {
                     // per-task goal badge — direction the commitment is tied to
                     StatChip {
                         visible: taskRow.taskGoal !== null
+                        width: Math.max(0, taskRow.width - chip.width - delHit.width - taskRow.spacing * 2)
                         compact: true
                         label: ""
                         value: taskRow.taskGoal ? taskRow.taskGoal.title : ""

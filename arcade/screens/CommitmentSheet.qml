@@ -2,16 +2,10 @@ import QtQuick
 import "../"
 import "../../EventModel.js" as EventModel
 
-// P5: COMMITMENT SHEET (V2, #94) — the first real-engine write path.
-// SAVE issues PlanningModel.decide(task.create) through the host store;
-// AgDR-0003 records why a commitment is a standalone Task. Validation
-// mirrors the engine locally so bad input never reaches decide().
-//
-// Keyboard (R8): opens with NAME focused; Tab walks NAME → GOAL → MINUTES
-// → SAVE; Esc anywhere dismisses (ArcadeSheet).
 ArcadeSheet {
     id: sheet
     title: "NEW COMMITMENT"
+    initialFocusItem: nameField
 
     // host handle — ShellContent injects itself; .stateStore carries the
     // real engine (StateStore in production, store-alike in the harness)
@@ -19,67 +13,93 @@ ArcadeSheet {
     readonly property var store: shellApi ? shellApi.stateStore : null
 
     property string errorText: ""
-    readonly property bool formValid:
-        nameField.text.trim().length > 0 &&
-        minutesField.text.trim() !== "" &&
-        Number.isInteger(parseInt(minutesField.text, 10)) &&
-        parseInt(minutesField.text, 10) >= 1 &&
-        parseInt(minutesField.text, 10) <= 1440
+    property var pendingTask: null
+    property string saveStage: ""
+    readonly property bool busy: pendingTask !== null
+    dismissEnabled: !busy
+    readonly property string chosenGoalTitle: goalField.text.trim()
+    readonly property var resolvedGoal: {
+        if (chosenGoalTitle === "") return null
+        var goals = store ? store.planningProjection.goals : []
+        for (var i = 0; i < goals.length; i++)
+            if (goals[i].title.toLowerCase() === chosenGoalTitle.toLowerCase())
+                return { title: goals[i].title, isExisting: true }
+        return { title: chosenGoalTitle, isExisting: false }
+    }
 
+    function failSave(message) {
+        pendingTask = null
+        saveStage = ""
+        errorText = message
+    }
+    function saveTask() {
+        saveStage = "task"
+        if (!store.applyPlanningCommand({ type: "task.create", task: pendingTask }))
+            failSave(store.errorMessage || "COULD NOT SAVE")
+    }
+    function continueSave() {
+        if (!busy || store.saving) return
+        if (store.errorMessage !== "") { failSave(store.errorMessage); return }
+        if (saveStage === "goal") {
+            var goals = store.planningProjection.goals
+            for (var i = 0; i < goals.length; i++)
+                if (goals[i].id === pendingTask.goalId) { saveTask(); return }
+            failSave("GOAL SAVE FAILED")
+        } else if (saveStage === "task") {
+            var tasks = store.planningProjection.tasks
+            for (var j = 0; j < tasks.length; j++)
+                if (tasks[j].id === pendingTask.id) {
+                    pendingTask = null
+                    saveStage = ""
+                    sheet.dismissed()
+                    return
+                }
+            failSave("COULD NOT SAVE")
+        }
+    }
     function save() {
+        if (busy || (store && store.saving)) return
         errorText = ""
-        if (nameField.text.trim().length === 0) { errorText = "NAME IT FIRST"; return }
-        var minutes = parseInt(minutesField.text, 10)
-        if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+        if (nameField.text.trim() === "") { errorText = "NAME IT FIRST"; return }
+        var minutesText = minutesField.text.trim()
+        var minutes = Number(minutesText)
+        if (!/^\d+$/.test(minutesText) || minutes < 1 || minutes > 1440) {
             errorText = "MINUTES MUST BE 1–1440"
             return
         }
-        if (!store || typeof store.applyPlanningCommand !== "function") {
-            errorText = "ENGINE OFFLINE"
-            return
-        }
-
-        // optional goal: find-or-create, then link (#94 live pass — empty
-        // goal keeps the standalone one-shot Task; named goal gives it a
-        // direction). reason is engine-required; stamped as provenance.
+        if (!store || !store.ready || !store.recordingReady) { errorText = "ENGINE OFFLINE"; return }
         var goalId = null
-        var goalName = goalField.text.trim()
-        if (goalName !== "") {
-            var existing = store.planningProjection.goals.filter(function(g) {
-                return g.title.toLowerCase() === goalName.toLowerCase() })
-            if (existing.length > 0) {
-                goalId = existing[0].id
-            } else {
-                goalId = EventModel.uuidV4()
-                if (!store.applyPlanningCommand({
-                        type: "goal.create",
-                        goal: { id: goalId, title: goalName, primarySkill: "general/focus",
-                                reason: "created from Commitment Sheet" }}))
-                    { errorText = "GOAL SAVE FAILED"; return }
-            }
+        var createGoal = false
+        if (chosenGoalTitle !== "") {
+            var goals = store.planningProjection.goals
+            for (var i = 0; i < goals.length; i++)
+                if (goals[i].title.toLowerCase() === chosenGoalTitle.toLowerCase()) goalId = goals[i].id
+            createGoal = goalId === null
+            if (createGoal) goalId = EventModel.uuidV4()
         }
-
-        var ok = store.applyPlanningCommand({
-            type: "task.create",
-            task: {
-                id: EventModel.uuidV4(),
-                title: nameField.text.trim(),
-                estimateMinutes: minutes,
-                urgency: "normal",
-                deadline: null,
-                primarySkill: "general/focus",
-                goalId: goalId,
-                milestoneId: null
-            }
-        })
-        if (!ok) {
-            errorText = "COULD NOT SAVE"
-            return
-        }
-        sheet.dismissed()
+        pendingTask = { id: EventModel.uuidV4(), title: nameField.text.trim(), estimateMinutes: minutes,
+                        urgency: "normal", deadline: null, primarySkill: "general/focus",
+                        goalId: goalId, milestoneId: null }
+        if (createGoal) {
+            saveStage = "goal"
+            if (!store.applyPlanningCommand({ type: "goal.create", goal: {
+                id: goalId, title: chosenGoalTitle, primarySkill: "general/focus",
+                reason: "created from Commitment Sheet" } })) failSave(store.errorMessage || "GOAL SAVE FAILED")
+        } else saveTask()
     }
+    Connections {
+        target: sheet.store
+        function onPersisted() { if (sheet.busy) Qt.callLater(sheet.continueSave) }
+        function onErrorMessageChanged() {
+            if (sheet.busy && sheet.store.errorMessage !== "") sheet.failSave(sheet.store.errorMessage)
+        }
+    }
+    function clearName() { nameField.text = ""; nameField.forceActiveFocus() }
+    function clearGoal() { goalField.text = ""; goalField.forceActiveFocus() }
+    function clearMinutes() { minutesField.text = "30"; minutesField.forceActiveFocus() }
 
     Column {
+        enabled: !sheet.busy
         width: parent.width
         spacing: Theme.space(3)
 
@@ -113,6 +133,7 @@ ArcadeSheet {
                 clip: true
                 maximumLength: 60
                 activeFocusOnTab: true
+                onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(parent)
                 cursorVisible: activeFocus
                 KeyNavigation.tab: goalField
                 onTextEdited: sheet.errorText = ""
@@ -158,9 +179,9 @@ ArcadeSheet {
                 clip: true
                 maximumLength: 60
                 activeFocusOnTab: true
+                onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(parent)
                 cursorVisible: activeFocus
-                KeyNavigation.tab: minutesField
-                onTextChanged: goalOptions.forceRecompute()
+                KeyNavigation.tab: goalRepeater.count > 0 ? goalRepeater.itemAt(0) : minutesField
 
                 Text {
                     visible: goalField.text === "" && !goalField.activeFocus
@@ -193,59 +214,45 @@ ArcadeSheet {
                 }
                 // always offer the free-text "add" choice so a brand-new
                 // goal is one click away even when options exist
-                list.push({ id: null, title: "+ ADD GOAL", isCustom: true })
+                list.push({ id: null, title: "ADD GOAL", isCustom: true })
                 return list
             }
-            function forceRecompute() { /* recompute on keystroke */ }
 
             Repeater {
+                id: goalRepeater
                 model: goalOptions.options
                 delegate: StatChip {
                     id: goalChip
+                    required property int index
                     required property var modelData
                     compact: true
                     label: modelData.isCustom ? "+" : "●"
                     value: modelData.title
                     valueColor: goalField.text.trim().toLowerCase() === modelData.title.toLowerCase()
                         ? Theme.electricLime : Theme.cyberPurple
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (modelData.isCustom) {
-                                goalField.text = ""
-                                goalField.forceActiveFocus()
-                            } else {
-                                goalField.text = goalChip.modelData.title
-                                goalField.forceActiveFocus()
-                            }
-                        }
+                    width: Math.min(implicitWidth, goalOptions.width)
+                    interactive: true
+                    KeyNavigation.tab: index + 1 < goalRepeater.count ? goalRepeater.itemAt(index + 1) : minutesField
+                    KeyNavigation.backtab: index > 0 ? goalRepeater.itemAt(index - 1) : goalField
+                    Accessible.name: modelData.isCustom ? "Add new goal" : "Select goal " + modelData.title
+                    objectName: "goalChoice-" + (modelData.id || "custom")
+                    onActivated: {
+                        goalField.text = modelData.isCustom ? "" : modelData.title
+                        goalField.forceActiveFocus()
                     }
+                    onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(goalChip)
+
                 }
             }
         }
 
-        // dedicated goal-feedback block: live confirmation that this
-        // commitment will be tied to a direction. Shows the resolved goal
-        // (existing reuse or the new name) so the user gets feedback before
-        // pressing SAVE. Empty field → no direction (standalone one-shot).
-        readonly property var chosenGoalTitle: goalField.text.trim()
-        readonly property var resolvedGoal: {
-            if (chosenGoalTitle === "") return null
-            if (!store) return { title: chosenGoalTitle, isExisting: false }
-            var gs = store.planningProjection.goals || []
-            for (var i = 0; i < gs.length; i++)
-                if (gs[i].title.toLowerCase() === chosenGoalTitle.toLowerCase())
-                    return { title: gs[i].title, isExisting: true }
-            return { title: chosenGoalTitle, isExisting: false }
-        }
         Text {
             width: parent.width
-            visible: resolvedGoal !== null
-            text: resolvedGoal.isExisting
-                  ? "tied to goal: " + resolvedGoal.title + "  (reused)"
-                  : "will create goal: " + resolvedGoal.title
-            color: resolvedGoal.isExisting ? Theme.cyberPurple : Theme.electricLime
+            visible: sheet.resolvedGoal !== null
+            text: sheet.resolvedGoal && sheet.resolvedGoal.isExisting
+                  ? "tied to goal: " + (sheet.resolvedGoal ? sheet.resolvedGoal.title : "") + "  (reused)"
+                  : "will create goal: " + (sheet.resolvedGoal ? sheet.resolvedGoal.title : "")
+            color: sheet.resolvedGoal && sheet.resolvedGoal.isExisting ? Theme.cyberPurple : Theme.electricLime
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
             wrapMode: Text.WordWrap
@@ -286,9 +293,10 @@ ArcadeSheet {
                     clip: true
                     maximumLength: 4
                     activeFocusOnTab: true
+                    onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(parent)
                     cursorVisible: activeFocus
                     inputMethodHints: Qt.ImhDigitsOnly
-                    KeyNavigation.tab: saveButton
+                    KeyNavigation.tab: nameField.text.trim() !== "" ? clearNameControl : clearMinutesControl
                     onTextEdited: sheet.errorText = ""
                     Keys.onReturnPressed: sheet.save()
                     Keys.onEnterPressed: sheet.save()
@@ -307,60 +315,61 @@ ArcadeSheet {
             wrapMode: Text.WordWrap
         }
 
-        // ── SUMMARY BADGES (removable) ─────────────────────────────
-        // Live read of the commitment being built: name, goal (if set),
-        // minutes — each a chip with a red ✕ that clears that field.
-        // Goal chips reuse the picker's resolved title; selecting a goal
-        // option (or typing) fills the field, which makes its badge appear.
         Flow {
             width: parent.width
             spacing: Theme.space(1)
             visible: nameField.text.trim() !== "" || goalField.text.trim() !== "" || minutesField.text.trim() !== ""
-            function clearName() { nameField.text = ""; nameField.forceActiveFocus() }
-            function clearGoal() { goalField.text = ""; goalField.forceActiveFocus() }
-            function clearMinutes() { minutesField.text = "30"; minutesField.forceActiveFocus() }
 
             StatChip {
+                id: clearNameControl
                 visible: nameField.text.trim() !== ""
                 compact: true; label: "NAME"; value: nameField.text.trim()
                 valueColor: Theme.textPrimary
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.clearName() }
+                width: Math.min(implicitWidth, parent.width)
+                interactive: true
+                KeyNavigation.tab: clearGoalControl.visible ? clearGoalControl : clearMinutesControl
+                Accessible.name: "Clear commitment name"
+                objectName: "clearNameButton"
+                onActivated: sheet.clearName()
+                onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(this)
             }
             StatChip {
+                id: clearGoalControl
                 visible: goalField.text.trim() !== ""
                 compact: true; label: "GOAL"; value: goalField.text.trim()
                 valueColor: Theme.cyberPurple
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.clearGoal() }
+                width: Math.min(implicitWidth, parent.width)
+                interactive: true
+                KeyNavigation.tab: clearMinutesControl
+                Accessible.name: "Clear selected goal"
+                objectName: "clearGoalButton"
+                onActivated: sheet.clearGoal()
+                onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(this)
             }
             StatChip {
+                id: clearMinutesControl
                 visible: minutesField.text.trim() !== ""
                 compact: true; label: "MIN"; value: minutesField.text.trim() + "m"
                 valueColor: Theme.electricLime
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: parent.clearMinutes() }
+                width: Math.min(implicitWidth, parent.width)
+                interactive: true
+                KeyNavigation.tab: saveButton
+                Accessible.name: "Reset minutes to 30"
+                objectName: "clearMinutesButton"
+                onActivated: sheet.clearMinutes()
+                onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(this)
             }
-            // red ✕ clears whichever field is set (goal-first, then name)
-            Rectangle {
-                id: clr
-                visible: nameField.text.trim() !== "" || goalField.text.trim() !== ""
-                width: 22; height: 22; radius: 11
-                color: clrMouse.containsMouse ? "#ff3b5c" : Theme.surfaceLow
-                border.color: Theme.border; border.width: 1
-                Text { anchors.centerIn: parent; text: "✕"; color: "#ff3b5c"
-                       font.family: Theme.fontFamily; font.pixelSize: Theme.typeBody }
-                MouseArea {
-                    id: clrMouse; anchors.fill: parent; hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: { if (goalField.text.trim() !== "") parent.clearGoal(); else parent.clearName() }
-                }
-            }
+
         }
 
         BevelButton {
             id: saveButton
-            label: "▶ SAVE COMMITMENT"
+            objectName: "saveCommitmentButton"
+            enabled: !sheet.busy && sheet.store && sheet.store.recordingReady && !sheet.store.saving
+            label: sheet.busy ? "SAVING…" : "▶ SAVE COMMITMENT"
             width: parent.width
-            focus: true
-            KeyNavigation.tab: nameField
+            onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(saveButton)
+            KeyNavigation.tab: sheet.closeControl
             onActivated: sheet.save()
         }
     }

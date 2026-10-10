@@ -44,7 +44,7 @@ Rectangle {
 
     readonly property bool sessionControlFocused: viewport.cache.Play ? viewport.cache.Play.sessionControlFocused : false
     function focusSessionControl(direction) {
-        return currentSurface === "Play" && viewport.cache.Play ? viewport.cache.Play.focusSessionControl(direction) : false
+        return sheetStack.length === 0 && !recoveryOpen && currentSurface === "Play" && viewport.cache.Play ? viewport.cache.Play.focusSessionControl(direction) : false
     }
 
     function openSurface(name) {
@@ -78,11 +78,12 @@ Rectangle {
         obj.anchors.fill = root   // dotted anchor keys are illegal in a JS
                                   // object literal — set them post-create
         obj.dismissed.connect(root.popSheet)   // destroy happens in one place
-        root.sheetStack.push(obj)
+        root.sheetStack = root.sheetStack.concat([obj])
     }
 
     function popSheet() {
-        var top = root.sheetStack.pop()
+        var top = root.sheetStack[root.sheetStack.length - 1]
+        root.sheetStack = root.sheetStack.slice(0, -1)
         if (top) top.destroy()
     }
 

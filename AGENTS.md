@@ -61,3 +61,21 @@ The tracker uses the default five-role triage vocabulary. See
 
 The repository uses a single-context domain glossary. See
 `docs/agents/domain.md`.
+
+## Local UI refresh and handoff
+
+- Before handing Mohamed UI changes to try locally, install the current feature revision into the local application and reload the running host. Updating files or passing headless tests alone is not a local refresh.
+- For DailyXP, preserve user state and back up the installed plugin, validate the replacement, then reload it. `omarchy-shell shell rescanPlugins` can retain old QML components; if the rendered UI is stale, use `omarchy restart shell`, wait for the production state service to settle, and reopen DailyXP.
+- Verify the installed source matches the intended revision and inspect the actual rendered local UI. A successful reload command or IPC status is insufficient proof that the new components are visible.
+- Do not mutate personal progress to demonstrate the UI. Keep automated verification on the private headless display; touch the personal desktop only for the requested local refresh and handoff.
+- Report the loaded revision, visible result, and any refresh failure. Never claim the local UI is updated while it still shows old components.
+
+## pstack UI verification overrides
+
+- UI delivery requires behavior tests, relevant integration tests, the project `verify` skill against the real application, applicable lint checks, and a rendered design review. These checks complement one another; none replaces another. Report skipped checks and lint warnings accurately.
+- Use `emil-design-eng` for UI implementation and verification. Read `/home/mohamed/.agents/skills/emil-design-eng/SKILL.md`. Check responsive press feedback, visible keyboard focus, interaction frequency, reduced motion, popover origin, timing, interruptibility, and rendering performance. Apply the principles to the project's framework rather than copying CSS rules into QML.
+- Use `review-animations` when motion is added, changed, or implicated in a defect. Read `/home/mohamed/.agents/skills/review-animations/SKILL.md`. Challenge unnecessary motion, keyboard-action animation, sluggish easing, long transitions, layout animation, and missing reduced-motion handling. Record UI findings in a `Before | After | Why` Markdown table as required by Emil's skill.
+- Use `improve-animations` for systemic motion problems and `find-animation-opportunities` when considering missing feedback. Read their installed skill files before applying them. Their audit-only scope does not authorize implementation or expanding the ticket. Do not add animation merely to satisfy a checklist.
+- Deliberately try to break the changed UI inside the isolated verifier. Exercise rapid repeated clicks and key presses, Tab/Shift+Tab/Enter/Space/Escape, interruption and reopen during transitions, narrow available space, long and empty text, loading/saving/error states, reduced motion, and restart/replay where relevant. Use disposable state and include relevant regressions in automated coverage.
+- Assert visible outcomes as well as domain/persistence results: no clipping or overlap, reachable controls, visible focus, correct disabled states, immediate state feedback, and no duplicate actions. Keep adversarial cases focused on the ticket and record evidence, fixes, and remaining limitations.
+- Run these passes sequentially in the main agent. Reuse at most one independent reviewer for the final standards, ticket, UI, and motion review and fix verification. These overrides take precedence over pstack fan-out defaults.

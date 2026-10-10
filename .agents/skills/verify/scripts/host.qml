@@ -40,7 +40,7 @@ ShellRoot {
       if (!item || !item.visible || !item.enabled) return "unavailable"
       input.parent = input.findChild(productionWidget, "dailyxpShell")
       item.forceActiveFocus()
-      var keys = { "Return": Qt.Key_Return, "Space": Qt.Key_Space, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape }
+      var keys = { "Return": Qt.Key_Return, "Space": Qt.Key_Space, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape, "Backtab": Qt.Key_Backtab }
       if (keys[key] === undefined) return "unknown-key"
       input.keyClick(keys[key])
       return "pressed"
@@ -67,6 +67,41 @@ ShellRoot {
       return "requested"
     }
     function captureStatus(): string { return host.captureState }
+    function typeText(name: string, text: string): string {
+      var item = input.findChild(productionWidget, name)
+      if (!item || !item.visible || !item.enabled) return "unavailable"
+      input.parent = input.findChild(productionWidget, "dailyxpShell")
+      item.forceActiveFocus()
+      input.keySequence("Ctrl+A")
+      for (var i = 0; i < text.length; i++) input.keyClick(text.charAt(i))
+      return "typed"
+    }
+    function press(key: string): string {
+      var keys = { "Return": Qt.Key_Return, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape, "Space": Qt.Key_Space, "Backtab": Qt.Key_Backtab }
+      input.keyClick(keys[key])
+      return "pressed"
+    }
+    function formStatus(): string {
+      var form = input.findChild(productionWidget, "commitmentSheet")
+      if (!form) return JSON.stringify({exists:false})
+      var items = []
+      function visit(item) {
+        if (item.visible && (item.objectName || item.text || item.label || item.value)) {
+          var point = item.mapToItem(form,0,0)
+          items.push({name:item.objectName, text:item.text || item.label || item.value || "",
+            x:point.x,y:point.y,width:item.width,height:item.height,focus:item.activeFocus})
+        }
+        for(var j=0;j<item.children.length;j++) visit(item.children[j])
+      }
+      visit(form)
+      return JSON.stringify({exists:true,error:form.errorText,width:form.width,height:form.height,items:items,
+        tasks:store.planningProjection.tasks.length,goals:store.planningProjection.goals.length,saving:store.saving})
+    }
+    function seedGoal(id: string, title: string): string {
+      return store.applyPlanningCommand({type:"goal.create",goal:{id:id,title:title,
+        primarySkill:"general/focus",reason:"isolated verification fixture"}}) ? "requested" : "not-started"
+    }
+    function planningStatus(): string { return JSON.stringify({projection:store.planningProjection,error:store.errorMessage,saving:store.saving}) }
     function readiness(): string { return JSON.stringify({ready:store.ready, journal:store.journalReady, timezone:store.systemTimezone, saving:store.saving, error:store.errorMessage, primaryRead:store._primaryRead, backupRead:store._backupRead, seeded:host.seeded}) }
     function ready(): bool { return host.seeded && store.ready && store.recordingReady && !store.saving && store.errorMessage === "" }
   }

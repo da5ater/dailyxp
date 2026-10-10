@@ -104,7 +104,8 @@ Item {
     Quickshell.execDetached(["xdg-open", String(url)])
   }
   property string systemTimezone: ""
-  readonly property bool recordingReady: journalReady && systemTimezone !== ""
+  property bool recoveringSave: false
+  readonly property bool recordingReady: journalReady && systemTimezone !== "" && !recoveringSave
   property bool ready: false
   property bool saving: false
   property string errorMessage: ""
@@ -178,7 +179,8 @@ Item {
   }
 
   function finishLoad() {
-    if (ready || !_primaryRead || !_backupRead) return
+    if (!_primaryRead || !_backupRead) return
+    if (ready) { recoveringSave = false; return }
     var recovered = StateModel.recoverDetailed(_primaryRaw, _backupRaw)
     envelope = recovered.envelope
     ready = true
@@ -721,12 +723,16 @@ Item {
   }
 
   function failSave(stage, error) {
+    recoveringSave = true
+    _primaryRead = false
+    _backupRead = false
     saving = false
     _pendingEnvelope = null
     _pendingJournal = null
     _pendingPrimaryRaw = ""
     errorMessage = "Could not save DailyXP state (" + stage + ": " + error + ")"
     console.warn("dailyxp/state", errorMessage)
+    Qt.callLater(function() { primaryFile.reload(); backupFile.reload() })
   }
 
   Process {

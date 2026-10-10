@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "linkedTaskSave": true,
+  "rapidSubmitNoDuplicate": true,
+  "goalPreview": true,
+  "keyboardRemoval": true,
+  "failedWriteRetainsForm": true,
+  "retrySucceeds": true,
+  "modalSessionFocusProtected": true,
+  "longLabelsBounded": true,
+  "manyGoalsSaveReachable": true
+}

@@ -41,7 +41,7 @@ This read-only application check verifies PID command-line ownership, the exact 
 
 `call` invokes the real widget's production IPC handler on the exact owned PID. A `requested` response means asynchronous persistence started. Wait for doctor to report `saving:false`, then read the relevant status. If doctor is temporarily busy, retry after the save settles; never resend a mutation merely because its readback was early. `capture` saves status readbacks and a panel PNG rendered inside the private display. Use the mapped commands for feature-specific behavior.
 
-IPC proof covers the command path only. For clicking and keyboard acceptance criteria, the fixture exposes `click NAME` and `key NAME Return|Space|Tab|Escape` using QtTest input against named production controls. `session_flow.py RUN` exercises the real session rail, timer, pause/resume/finish, Tab focus, and hard-kill replay, then saves screenshots and persisted evidence. The optional launch `--seed` creates a disposable commitment through the production planning command; it is setup, not proof of task-entry behavior. Do not call internal QML setters or count Node model tests as panel interaction proof. Production Omarchy installation, multi-monitor coordination, and full-shell restart behavior require separate integration evidence; stopping this host cannot prove a full-shell restart criterion.
+IPC proof covers the command path only. For clicking and keyboard acceptance criteria, the fixture exposes `click NAME` and `key NAME Return|Space|Tab|Escape` using QtTest input against named production controls. `commitment_flow.py RUN` exercises linked goal/task persistence, repeated submission, keyboard removal, failed-write recovery, modal focus, and long-form scrolling. `session_flow.py RUN` exercises the real session rail, timer, pause/resume/finish, Tab focus, and hard-kill replay, then saves screenshots and persisted evidence. The optional launch `--seed` creates a disposable commitment through the production planning command; it is setup, not proof of task-entry behavior. Do not call internal QML setters or count Node model tests as panel interaction proof. Production Omarchy installation, multi-monitor coordination, and full-shell restart behavior require separate integration evidence; stopping this host cannot prove a full-shell restart criterion.
 
 ## Evidence
 
@@ -72,3 +72,11 @@ Cleanup checks PID ownership and stops the run's Quickshell host and private com
 ## Helpers
 
 [control.py](scripts/control.py) is executable. Commands are `launch RUN`, `doctor RUN`, `call RUN METHOD [ARGUMENT...]`, `capture RUN LABEL`, and `cleanup RUN`. [host.qml](scripts/host.qml) is verification scaffolding, not a product entry point. Update both when the production host contract changes.
+
+## Design review and UI stress checks
+
+Follow the repository's pstack UI verification overrides. Read `emil-design-eng` for UI work and `review-animations` for changed motion. Review actual rendered states and record findings in a Before/After/Why table. Use `improve-animations` and `find-animation-opportunities` only when their audit scope applies.
+
+Try to break the changed flow with rapid clicks and keyboard input, focus traversal and Escape, interrupted transitions, long/empty content, constrained dimensions, delayed saves and errors, reduced motion, and restart recovery where relevant. Assert the visible result and persisted state. Use disposable data on the private headless display. Add relevant regression cases; do not claim unexercised cases passed.
+
+Headless verification does not refresh the personal installed plugin. Before a local UI handoff, follow AGENTS.md's refresh procedure and inspect the actual installed rendering. If rescan retains stale QML, restart the Omarchy shell and reopen the plugin after readiness.
