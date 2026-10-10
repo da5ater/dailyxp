@@ -1,2 +1,4 @@
 singleton Theme 1.0 Theme.qml
 Scanlines 1.0 Scanlines.qml
+
+ShellContent 1.0 ShellContent.qml

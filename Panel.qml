@@ -336,9 +336,11 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: false
+      blocked: phaseShell.sessionControlFocused
       onCloseRequested: root.close()
-      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onTabRequested: function(direction) {
+        if (!phaseShell.focusSessionControl(direction)) root.switchPanel(direction)
+      }
       // Phase R (#93): the catcher holds Keys.BeforeItem priority, so every
       // Up/Down/h/j press landed here and died — no consumer existed. Route
       // them into the shell's viewport scroll (48px per step).
@@ -378,10 +380,8 @@ Panel {
           // V2 (#94): the real engine bridge — screens read
           // shellApi.stateStore for planningProjection + applyPlanningCommand.
           stateStore: root.stateStore
+          onCloseRequested: root.close()
 
-          // R8 focus chain: when the panel opens, focus moves from the host
-          // keyCatcher into the shell's controller; Esc bubbles back up via
-          // the shell's Keys.escapePressed default (accept=false falls through).
           Connections {
             target: root
             function onOpenedChanged() {

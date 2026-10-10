@@ -168,13 +168,13 @@ Item {
   function acceptPrimary(raw) {
     _primaryRaw = String(raw || "")
     _primaryRead = true
-    finishLoad()
+    Qt.callLater(finishLoad)
   }
 
   function acceptBackup(raw) {
     _backupRaw = String(raw || "")
     _backupRead = true
-    finishLoad()
+    Qt.callLater(finishLoad)
   }
 
   function finishLoad() {
@@ -739,10 +739,8 @@ Item {
         console.warn("dailyxp/state", root.errorMessage)
         return
       }
-      root._primaryRead = false
-      root._backupRead = false
-      primaryFile.reload()
-      backupFile.reload()
+      primaryFile.preload = true
+      backupFile.preload = true
     }
   }
 
@@ -786,6 +784,7 @@ Item {
   FileView {
     id: primaryFile
     path: root.primaryPath
+    preload: false
     watchChanges: false
     atomicWrites: true
     printErrors: false
@@ -837,6 +836,7 @@ Item {
   FileView {
     id: backupFile
     path: root.backupPath
+    preload: false
     watchChanges: false
     atomicWrites: true
     printErrors: false

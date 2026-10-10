@@ -18,6 +18,7 @@ import "FixtureLoader.js" as FixtureLoader
 
 Rectangle {
     id: root
+    objectName: "dailyxpShell"
 
     // design.md typography: Press Start 2P bundled (OFL). Loads before any
     // Text resolves Theme.fontFamily; fallback chain lives in Theme.
@@ -35,10 +36,16 @@ Rectangle {
     // V2 (#94): host injects the real engine here (Panel passes its
     // StateStore). Screens read shellApi.stateStore; when null they fall
     // back to the V1 fixture path — the harness runs unbound.
+    signal closeRequested()
     property var stateStore: null
     property string currentSurface: "Play"
     property bool recoveryOpen: false    // guarded overlay (P7->P8)
     property var sheetStack: []          // max depth 2; holds mounted sheet Items
+
+    readonly property bool sessionControlFocused: viewport.cache.Play ? viewport.cache.Play.sessionControlFocused : false
+    function focusSessionControl(direction) {
+        return currentSurface === "Play" && viewport.cache.Play ? viewport.cache.Play.focusSessionControl(direction) : false
+    }
 
     function openSurface(name) {
         // any explicit surface choice LEAVES the recovery overlay (#94 live
@@ -343,5 +350,6 @@ Rectangle {
     Keys.onEscapePressed: {
         if (root.recoveryOpen) root.recoveryOpen = false
         else if (root.sheetStack.length > 0) root.popSheet()
+        else root.closeRequested()
     }
 }

@@ -1,6 +1,8 @@
 import QtQuick
 import "../"
 import "../../FixtureLoader.js" as FixtureLoader
+import "../../EventModel.js" as EventModel
+import "../../SessionModel.js" as SessionModel
 
 // P1: PLAY — the dominant daily surface (full cockpit, stub data).
 // Everything PLAY owns is present: selection chips, today rail, session
@@ -35,9 +37,73 @@ ArcadeScreen {
     readonly property int focusIndex: Math.max(0, Math.min(selectedTaskIndex, taskList.length - 1))
     readonly property var focusTask: taskList.length > 0 ? taskList[focusIndex] : null
 
+    readonly property var sessionProjection: bound && store.sessionProjection ? store.sessionProjection : null
+    readonly property var activeSession: sessionProjection ? sessionProjection.activeSession : null
+    readonly property bool sessionReady: bound && store.ready && store.recordingReady && !store.saving
+    property string nowUtc: new Date().toISOString()
+    readonly property var sessionSummary: activeSession ? SessionModel.summaryAt(sessionProjection, nowUtc) : null
+    readonly property var sessionTask: {
+        if (!activeSession) return null
+        for (var i = 0; i < taskList.length; i++)
+            if (taskList[i].id === activeSession.taskId) return taskList[i]
+        return null
+    }
+    readonly property var railTask: activeSession ? sessionTask : focusTask
+    readonly property var lastFinished: {
+        var sessions = sessionProjection ? sessionProjection.sessions : []
+        for (var i = sessions.length - 1; i >= 0; i--)
+            if (sessions[i].status === "finished") return sessions[i]
+        return null
+    }
+    readonly property bool sessionControlFocused: startButton.activeFocus || pauseButton.activeFocus || finishButton.activeFocus
+    readonly property var confirmation: bound ? store.sessionConfirmation : null
+    readonly property bool capConfirmation: confirmation && confirmation.reasons.indexOf("daily-cap") !== -1
+
+    function elapsedText(milliseconds) {
+        var seconds = Math.floor(milliseconds / 1000)
+        return String(Math.floor(seconds / 3600)).padStart(2, "0") + ":"
+            + String(Math.floor(seconds / 60) % 60).padStart(2, "0") + ":"
+            + String(seconds % 60).padStart(2, "0")
+    }
+    function focusSessionControl(direction) {
+        var control = activeSession ? (direction < 0 ? finishButton : pauseButton) : startButton
+        if (!control.visible || !control.enabled) return false
+        control.forceActiveFocus()
+        return true
+    }
+    function startFocus() {
+        if (!sessionReady || activeSession || !focusTask) return
+        store.applySessionCommand({ type: "session.start", session: {
+            id: EventModel.uuidV4(), taskId: focusTask.id, primarySkill: focusTask.primarySkill,
+            plannedMinutes: null, startedAtUtc: new Date().toISOString()
+        } })
+    }
+    function togglePause() {
+        if (!sessionReady || !activeSession) return
+        store.applySessionCommand({ type: activeSession.status === "running" ? "session.pause" : "session.resume",
+                                    atUtc: new Date().toISOString() })
+    }
+    function finishFocus(acknowledgeCap) {
+        if (!sessionReady || !activeSession) return
+        store.applySessionCommand({ type: "session.finish", atUtc: new Date().toISOString(),
+            inactivityDecision: "exclude", dailyCapAcknowledged: acknowledgeCap === true })
+    }
+    onActiveSessionChanged: {
+        nowUtc = new Date().toISOString()
+        if (visible) Qt.callLater(function() { root.focusSessionControl(1) })
+    }
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.visible && root.activeSession && root.activeSession.status === "running"
+        triggeredOnStart: true
+        onTriggered: root.nowUtc = new Date().toISOString()
+    }
+
     // ── selection + today rail ─────────────────────────────────
     ArcadeCard {
-        visible: root.todayList.length > 0 || root.focusTask !== null
+        id: railCard
+        visible: root.activeSession !== null || root.todayList.length > 0 || root.focusTask !== null
         emphasized: true                      // the signature card — one per surface
         width: parent.width
         ribbon: "TODAY · FOCUS"
@@ -48,7 +114,7 @@ ArcadeScreen {
             width: parent.width
             text: root.todayList.length > 0
                   ? root.todayList[0].title
-                  : (root.focusTask ? root.focusTask.title : "")
+                  : (root.railTask ? root.railTask.title : "Free focus")
             color: Theme.textPrimary
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeTitle
@@ -59,7 +125,7 @@ ArcadeScreen {
             width: parent.width
             text: {
                 var o = root.todayList.length > 0 ? root.todayList[0] : null
-                var t = o ? null : root.focusTask
+                var t = o ? null : root.railTask
                 if (o) return o.expectedMinutes + "m budget · " + o.primarySkill
                 if (t) return t.estimateMinutes + "m estimate · " + t.primarySkill + " · one-shot"
                 return ""
@@ -72,33 +138,110 @@ ArcadeScreen {
         // goal badge: only when the commitment is tied to a direction
         // (goalId set on the task by the Commitment Sheet). Resolves the
         // goal title from the projection so the rail reflects saved state.
-        readonly property var focusGoalId: root.focusTask ? root.focusTask.goalId || null : null
+        readonly property var focusGoalId: root.railTask ? root.railTask.goalId || null : null
         readonly property var focusGoal: {
-            if (!root.bound || !root.focusGoalId || !store) return null
+            if (!root.bound || !railCard.focusGoalId || !store) return null
             var gs = store.planningProjection.goals || []
-            for (var i = 0; i < gs.length; i++) if (gs[i].id === root.focusGoalId) return gs[i]
+            for (var i = 0; i < gs.length; i++) if (gs[i].id === railCard.focusGoalId) return gs[i]
             return null
         }
         StatChip {
-            visible: root.focusGoal !== null
+            visible: railCard.focusGoal !== null
             compact: true
             label: ""
-            value: "GOAL · " + root.focusGoal.title
+            value: railCard.focusGoal ? "GOAL · " + railCard.focusGoal.title : ""
             valueColor: Theme.cyberPurple
         }
+        Text {
+            objectName: "sessionTimer"
+            visible: root.activeSession !== null
+            width: parent.width
+            text: root.sessionSummary ? root.elapsedText(root.sessionSummary.focusedMilliseconds) : "00:00:00"
+            color: root.activeSession && root.activeSession.status === "paused" ? Theme.textMuted : Theme.arcadeBlue
+            font.family: "monospace"
+            font.pixelSize: 30
+            horizontalAlignment: Text.AlignHCenter
+            Accessible.name: "Focused time " + text
+        }
+        Text {
+            objectName: "sessionState"
+            visible: root.activeSession !== null
+            width: parent.width
+            text: root.activeSession && root.activeSession.status === "paused" ? "PAUSED · time is held" : "FOCUSING · continuous session"
+            color: Theme.textMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
         BevelButton {
+            id: startButton
+            objectName: "startSessionButton"
+            visible: root.activeSession === null
             label: "▶ START SESSION"
             width: parent.width - Theme.space(2)
             anchors.horizontalCenter: parent.horizontalCenter
-            focus: true   // landing keyboard entry point (R8)
-            enabled: false  // session start binds in V3 (#95)
-            opacity: 0.55
+            enabled: root.sessionReady && root.focusTask !== null
+            opacity: enabled ? 1 : 0.55
+            onActivated: root.startFocus()
+        }
+        Row {
+            visible: root.activeSession !== null
+            width: parent.width
+            spacing: Theme.space(2)
+            BevelButton {
+                id: pauseButton
+                objectName: "pauseSessionButton"
+                width: (parent.width - parent.spacing) / 2
+                label: root.activeSession && root.activeSession.status === "paused" ? "RESUME" : "PAUSE"
+                enabled: root.sessionReady && root.activeSession !== null
+                onActivated: root.togglePause()
+            }
+            BevelButton {
+                id: finishButton
+                objectName: "finishSessionButton"
+                width: (parent.width - parent.spacing) / 2
+                label: root.capConfirmation ? "CONFIRM" : "FINISH"
+                baseColor: Theme.powerGreen
+                textColor: Theme.greenDeep
+                enabled: root.sessionReady && root.activeSession !== null
+                onActivated: root.finishFocus(root.capConfirmation)
+            }
+        }
+        Text {
+            visible: root.confirmation !== null
+            width: parent.width
+            text: root.capConfirmation
+                ? "Daily competitive cap reached. Confirm to keep focused history and apply the cap."
+                : "Finish needs inactivity confirmation. Resume your session, then try Finish again."
+            color: Theme.chromeYellow
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
+        Text {
+            objectName: "sessionResult"
+            visible: !root.activeSession && root.lastFinished !== null
+            width: parent.width
+            text: root.lastFinished ? "SAVED · " + root.elapsedText(root.lastFinished.focusedMilliseconds) + " focused" : ""
+            color: Theme.powerGreen
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
+        Text {
+            visible: root.bound && store.errorMessage !== ""
+            width: parent.width
+            text: root.bound ? store.errorMessage : ""
+            color: Theme.chromeYellow
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
         }
         Flow {
             width: parent.width
             spacing: Theme.space(2)
             Repeater {
-                model: root.taskList
+                model: root.activeSession ? [] : root.taskList
                 delegate: Row {
                     id: taskRow
                     required property int index
@@ -129,7 +272,7 @@ ArcadeScreen {
                         visible: taskRow.taskGoal !== null
                         compact: true
                         label: ""
-                        value: taskRow.taskGoal.title
+                        value: taskRow.taskGoal ? taskRow.taskGoal.title : ""
                         valueColor: Theme.cyberPurple
                     }
                     // delete: red X removes the commitment via the engine
