@@ -1,3 +1,498 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DailyXP · Issue 100 local review</title><style>
-:root{color-scheme:dark;font:16px/1.5 system-ui;background:#101429;color:#eee8d2}body{max-width:1280px;margin:auto;padding:24px}h1{font-size:26px;margin:0}h2{font-size:22px;margin-bottom:6px}a{color:#ffca70}header p{color:#b9c1d6;margin:8px 0}nav{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}button{font:inherit;color:inherit;border:1px solid #65729b;background:#1c2344;padding:9px 16px;cursor:pointer}button[aria-selected=true]{background:#ffc05b;color:#101429}button:focus-visible{outline:3px solid #ffd881;outline-offset:3px}ol{padding-left:24px}li{margin:6px 0}.captures{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}figure{margin:0;padding:14px;background:#171d35;border:1px solid #414e76;text-align:center}figcaption{font-weight:650;margin-bottom:10px}.image{display:inline-block;position:relative;max-width:100%;line-height:0}.image svg{display:block;width:100%;max-width:360px;max-height:440px}.image img{display:block;width:auto;height:auto;max-width:100%;max-height:440px}.marker{position:absolute;transform:translate(-110%,-120%);background:#ffd06a;color:#101429;border:2px solid #11152a;border-radius:50%;width:24px;height:24px;line-height:24px;font:bold 14px/24px system-ui;box-shadow:0 0 0 3px #ffd06a88}figure p{text-align:left;font-size:14px;color:#c4ccdf;line-height:1.45}.meta{font-size:13px;color:#b5bfd8;margin-top:22px}@media(max-width:800px){.captures{grid-template-columns:1fr}.image svg{display:block;width:100%;max-width:360px;max-height:440px}.image img{max-height:480px}body{padding:16px}}
-</style><header><h1>Try the final DailyXP settings slice</h1><p>The actual app is open on Settings with a separate REVIEW PROFILE. Choose one feature below.</p><p><a id="pr" href="https://github.com/da5ater/dailyxp/pull/112">Draft PR</a> · <a href="issue-100-evidence.md">Verification evidence</a></p></header><nav aria-label="Review features"><button data-tab="settings" aria-selected="true">Settings that stay</button><button data-tab="export" aria-selected="false">Own your JSON</button><button data-tab="bar" aria-selected="false">Read the Session at a glance</button><button data-tab="reset" aria-selected="false">Start fresh deliberately</button></nav><section id="settings" ><h2>Settings that stay</h2><p>Exports previously left your preferences behind. Motion also needed a separate Save click.</p><ol><li>In the actual DailyXP window, click Reduce motion. It saves immediately.</li><li>Use DailyXP → Quit DailyXP. Open DailyXP again from your launcher.</li><li>Click Settings. The toggle stays checked.</li></ol><div class="captures"><figure><figcaption>Before</figcaption><div class="image"><svg viewBox="240 270 300 430" role="img" aria-label="Real app capture, detail marked 1"><image href="issue-100/settings-before.png" width="1261" height="1170"/></svg><span class="marker" style="left:50.0%;top:81.3953488372093%">1</span></div><p>1 · Old preferences were absent from the portable backup.</p></figure><figure><figcaption>During</figcaption><div class="image"><svg viewBox="200 240 300 430" role="img" aria-label="Real app capture, detail marked 2"><image href="issue-100/100-settings-during.png" width="684" height="1477"/></svg><span class="marker" style="left:50.0%;top:83.72093023255815%">2</span></div><p>2 · Reduce motion applies as soon as you click it.</p></figure><figure><figcaption>After</figcaption><div class="image"><svg viewBox="170 240 300 430" role="img" aria-label="Real app capture, detail marked 3"><image href="issue-100/100-settings-after.png" width="605" height="1477"/></svg><span class="marker" style="left:46.666666666666664%;top:83.72093023255815%">3</span></div><p>3 · The checked preference survives a real app restart.</p></figure></div></section><section id="export" hidden><h2>Own your JSON</h2><p>The old export was a legacy storage backup and did not include preferences.</p><ol><li>In the actual app, open Settings and scroll to Your data.</li><li>Click Export JSON. Keep the suggested file name and click Save.</li><li>Expect Export saved. The file contains real progress and preferences.</li></ol><div class="captures"><figure><figcaption>Before</figcaption><div class="image"><svg viewBox="20 870 510 180" role="img" aria-label="Real app capture, detail marked 1"><image href="issue-100/settings-before.png" width="1261" height="1170"/></svg><span class="marker" style="left:54.90196078431373%;top:50.0%">1</span></div><p>1 · Only the old Export backup action existed.</p></figure><figure><figcaption>During</figcaption><div class="image"><svg viewBox="140 110 1000 170" role="img" aria-label="Real app capture, detail marked 2"><image href="issue-100/100-export-during.png" width="1280" height="900"/></svg><span class="marker" style="left:95.0%;top:18.823529411764707%">2</span></div><p>2 · Save in the actual system file chooser.</p></figure><figure><figcaption>After</figcaption><div class="image"><svg viewBox="5 855 590 230" role="img" aria-label="Real app capture, detail marked 3"><image href="issue-100/100-export-after.png" width="605" height="1477"/></svg><span class="marker" style="left:44.91525423728814%;top:47.82608695652174%">3</span></div><p>3 · Export JSON now sits beside the compatible backup action.</p></figure></div></section><section id="bar" hidden><h2>Read the Session at a glance</h2><p>Paused status used only a symbol, and XP feedback could briefly cover an active Session.</p><ol><li>Click Play, then Free Session. The bar shows running focused minutes.</li><li>Right-click the DailyXP bar item. It shows Paused and the app offers Resume Session.</li><li>Click Finish Session in the app. The idle bar returns to your level and rank.</li></ol><div class="captures"><figure><figcaption>Before</figcaption><div class="image"><svg viewBox="460 0 360 40" role="img" aria-label="Real app capture, detail marked 1"><image href="issue-100/bar-before.png" width="1280" height="900"/></svg><span class="marker" style="left:50.0%;top:50.0%">1</span></div><p>1 · The old paused label was only Ⅱ 0m.</p></figure><figure><figcaption>During</figcaption><div class="image"><svg viewBox="460 0 360 40" role="img" aria-label="Real app capture, detail marked 2"><image href="issue-100/100-bar-during.png" width="1280" height="900"/></svg><span class="marker" style="left:50.0%;top:50.0%">2</span></div><p>2 · Paused is now explicit and wins over XP feedback.</p></figure><figure><figcaption>After</figcaption><div class="image"><svg viewBox="460 0 360 40" role="img" aria-label="Real app capture, detail marked 3"><image href="issue-100/100-bar-after.png" width="1280" height="900"/></svg><span class="marker" style="left:50.0%;top:50.0%">3</span></div><p>3 · Idle shows both level and rank.</p></figure></div></section><section id="reset" hidden><h2>Start fresh deliberately</h2><p>Settings had no way to return a profile to the first-commitment state.</p><ol><li>Check the REVIEW PROFILE banner in the actual app. This is separate demo progress.</li><li>Open Settings. Scroll to Start fresh and click Reset this profile.</li><li>Cancel keeps everything. To try reset, click Clear this profile. Expect No commitments yet.</li></ol><div class="captures"><figure><figcaption>Before</figcaption><div class="image"><svg viewBox="20 870 510 180" role="img" aria-label="Real app capture, detail marked 1"><image href="issue-100/settings-before.png" width="1261" height="1170"/></svg><span class="marker" style="left:54.90196078431373%;top:77.77777777777779%">1</span></div><p>1 · The old data section had no reset action.</p></figure><figure><figcaption>During</figcaption><div class="image"><svg viewBox="30 1060 540 260" role="img" aria-label="Real app capture, detail marked 2"><image href="issue-100/100-reset-during.png" width="605" height="1477"/></svg><span class="marker" style="left:17.59259259259259%;top:59.61538461538461%">2</span></div><p>2 · Cancel is focused. Enter or Escape keeps the profile.</p></figure><figure><figcaption>After</figcaption><div class="image"><svg viewBox="0 780 605 240" role="img" aria-label="Real app capture, detail marked 3"><image href="issue-100/100-reset-after.png" width="605" height="1260"/></svg><span class="marker" style="left:42.97520661157025%;top:50.0%">3</span></div><p>3 · The first-commitment empty state returns. A local recovery copy remains.</p></figure></div></section><p class="meta">Before captures come from the last installed app, reviewed PR #111 revision 49b98c0. During and After are real packaged-app captures from revision 50071ca on a private display. The prepared local profile has one Task and a completed demo Habit. Personal progress is untouched. Review #99 is retained separately.</p><p class="meta">Cleanup is owned by ~/.local/state/dailyxp-handoff-100/cleanup-review.py. It archives this demo and restores the previous #99 launchers and review. No automatic cleanup runs while you test. Merging needs your review and explicit approval.</p><script>document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('section').forEach(section=>section.hidden=section.id!==button.dataset.tab);document.querySelectorAll('[data-tab]').forEach(other=>other.setAttribute('aria-selected',String(other===button)));}));</script></html>
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>DailyXP · Issue 100 local review</title
+  ><style>
+    :root {
+      color-scheme: dark;
+      font: 16px/1.5 system-ui;
+      background: #101429;
+      color: #eee8d2;
+    }
+    body {
+      max-width: 1280px;
+      margin: auto;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 26px;
+      margin: 0;
+    }
+    h2 {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+    a {
+      color: #ffca70;
+    }
+    header p {
+      color: #b9c1d6;
+      margin: 8px 0;
+    }
+    nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+    button {
+      font: inherit;
+      color: inherit;
+      border: 1px solid #65729b;
+      background: #1c2344;
+      padding: 9px 16px;
+      cursor: pointer;
+    }
+    button[aria-selected="true"] {
+      background: #ffc05b;
+      color: #101429;
+    }
+    button:focus-visible {
+      outline: 3px solid #ffd881;
+      outline-offset: 3px;
+    }
+    ol {
+      padding-left: 24px;
+    }
+    li {
+      margin: 6px 0;
+    }
+    .captures {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    figure {
+      margin: 0;
+      padding: 14px;
+      background: #171d35;
+      border: 1px solid #414e76;
+      text-align: center;
+    }
+    figcaption {
+      font-weight: 650;
+      margin-bottom: 10px;
+    }
+    .image {
+      display: inline-block;
+      position: relative;
+      max-width: 100%;
+      line-height: 0;
+    }
+    .image svg {
+      display: block;
+      width: 100%;
+      max-width: 360px;
+      max-height: 440px;
+    }
+    .image img {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 440px;
+    }
+    .marker {
+      position: absolute;
+      transform: translate(-110%, -120%);
+      background: #ffd06a;
+      color: #101429;
+      border: 2px solid #11152a;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
+      font: bold 14px/24px system-ui;
+      box-shadow: 0 0 0 3px #ffd06a88;
+    }
+    figure p {
+      text-align: left;
+      font-size: 14px;
+      color: #c4ccdf;
+      line-height: 1.45;
+    }
+    .meta {
+      font-size: 13px;
+      color: #b5bfd8;
+      margin-top: 22px;
+    }
+    @media (max-width: 800px) {
+      .captures {
+        grid-template-columns: 1fr;
+      }
+      .image svg {
+        display: block;
+        width: 100%;
+        max-width: 360px;
+        max-height: 440px;
+      }
+      .image img {
+        max-height: 480px;
+      }
+      body {
+        padding: 16px;
+      }
+    }
+  </style>
+  <header>
+    <h1>Try the final DailyXP settings slice</h1>
+    <p>
+      The actual app is open on Settings with a separate REVIEW PROFILE. Choose
+      one feature below.
+    </p>
+    <p>
+      <a id="pr" href="https://github.com/da5ater/dailyxp/pull/112">Draft PR</a>
+      · <a href="issue-100-evidence.md">Verification evidence</a>
+    </p>
+  </header>
+  <nav aria-label="Review features">
+    <button data-tab="settings" aria-selected="true">Settings that stay</button
+    ><button data-tab="export" aria-selected="false">Own your JSON</button
+    ><button data-tab="bar" aria-selected="false">
+      Read the Session at a glance</button
+    ><button data-tab="reset" aria-selected="false">
+      Start fresh deliberately
+    </button>
+  </nav>
+  <section id="settings">
+    <h2>Settings that stay</h2>
+    <p>
+      Exports previously left your preferences behind. Motion also needed a
+      separate Save click.
+    </p>
+    <ol>
+      <li>
+        In the actual DailyXP window, click Reduce motion. It saves immediately.
+      </li>
+      <li>
+        Use DailyXP → Quit DailyXP. Open DailyXP again from your launcher.
+      </li>
+      <li>Click Settings. The toggle stays checked.</li>
+    </ol>
+    <div class="captures">
+      <figure>
+        <figcaption>Before</figcaption>
+        <div class="image">
+          <svg
+            viewBox="240 270 300 430"
+            role="img"
+            aria-label="Real app capture, detail marked 1"
+          >
+            <image
+              href="issue-100/settings-before.png"
+              width="1261"
+              height="1170"
+            /></svg
+          ><span class="marker" style="left: 50%; top: 81.3953488372093%"
+            >1</span
+          >
+        </div>
+        <p>1 · Old preferences were absent from the portable backup.</p>
+      </figure>
+      <figure>
+        <figcaption>During</figcaption>
+        <div class="image">
+          <svg
+            viewBox="200 240 300 430"
+            role="img"
+            aria-label="Real app capture, detail marked 2"
+          >
+            <image
+              href="issue-100/100-settings-during.png"
+              width="684"
+              height="1477"
+            /></svg
+          ><span class="marker" style="left: 50%; top: 83.72093023255815%"
+            >2</span
+          >
+        </div>
+        <p>2 · Reduce motion applies as soon as you click it.</p>
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <div class="image">
+          <svg
+            viewBox="170 240 300 430"
+            role="img"
+            aria-label="Real app capture, detail marked 3"
+          >
+            <image
+              href="issue-100/100-settings-after.png"
+              width="605"
+              height="1477"
+            /></svg
+          ><span
+            class="marker"
+            style="left: 46.666666666666664%; top: 83.72093023255815%"
+            >3</span
+          >
+        </div>
+        <p>3 · The checked preference survives a real app restart.</p>
+      </figure>
+    </div>
+  </section>
+  <section id="export" hidden>
+    <h2>Own your JSON</h2>
+    <p>
+      The old export was a legacy storage backup and did not include
+      preferences.
+    </p>
+    <ol>
+      <li>In the actual app, open Settings and scroll to Your data.</li>
+      <li>Click Export JSON. Keep the suggested file name and click Save.</li>
+      <li>
+        Expect Export saved. The file contains real progress and preferences.
+      </li>
+    </ol>
+    <div class="captures">
+      <figure>
+        <figcaption>Before</figcaption>
+        <div class="image">
+          <svg
+            viewBox="20 870 510 180"
+            role="img"
+            aria-label="Real app capture, detail marked 1"
+          >
+            <image
+              href="issue-100/settings-before.png"
+              width="1261"
+              height="1170"
+            /></svg
+          ><span class="marker" style="left: 54.90196078431373%; top: 50%"
+            >1</span
+          >
+        </div>
+        <p>1 · Only the old Export backup action existed.</p>
+      </figure>
+      <figure>
+        <figcaption>During</figcaption>
+        <div class="image">
+          <svg
+            viewBox="140 110 1000 170"
+            role="img"
+            aria-label="Real app capture, detail marked 2"
+          >
+            <image
+              href="issue-100/100-export-during.png"
+              width="1280"
+              height="900"
+            /></svg
+          ><span class="marker" style="left: 95%; top: 18.823529411764707%"
+            >2</span
+          >
+        </div>
+        <p>2 · Save in the actual system file chooser.</p>
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <div class="image">
+          <svg
+            viewBox="5 855 590 230"
+            role="img"
+            aria-label="Real app capture, detail marked 3"
+          >
+            <image
+              href="issue-100/100-export-after.png"
+              width="605"
+              height="1477"
+            /></svg
+          ><span
+            class="marker"
+            style="left: 44.91525423728814%; top: 47.82608695652174%"
+            >3</span
+          >
+        </div>
+        <p>3 · Export JSON now sits beside the compatible backup action.</p>
+      </figure>
+    </div>
+  </section>
+  <section id="bar" hidden>
+    <h2>Read the Session at a glance</h2>
+    <p>
+      Paused status used only a symbol, and XP feedback could briefly cover an
+      active Session.
+    </p>
+    <ol>
+      <li>
+        Click Play, then Free Session. The bar shows running focused minutes.
+      </li>
+      <li>
+        Right-click the DailyXP bar item. It shows Paused and the app offers
+        Resume Session.
+      </li>
+      <li>
+        Click Finish Session in the app. The idle bar returns to your level and
+        rank.
+      </li>
+    </ol>
+    <div class="captures">
+      <figure>
+        <figcaption>Before</figcaption>
+        <div class="image">
+          <svg
+            viewBox="460 0 360 40"
+            role="img"
+            aria-label="Real app capture, detail marked 1"
+          >
+            <image
+              href="issue-100/bar-before.png"
+              width="1280"
+              height="900"
+            /></svg
+          ><span class="marker" style="left: 50%; top: 50%">1</span>
+        </div>
+        <p>1 · The old paused label was only Ⅱ 0m.</p>
+      </figure>
+      <figure>
+        <figcaption>During</figcaption>
+        <div class="image">
+          <svg
+            viewBox="460 0 360 40"
+            role="img"
+            aria-label="Real app capture, detail marked 2"
+          >
+            <image
+              href="issue-100/100-bar-during.png"
+              width="1280"
+              height="900"
+            /></svg
+          ><span class="marker" style="left: 50%; top: 50%">2</span>
+        </div>
+        <p>2 · Paused is now explicit and wins over XP feedback.</p>
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <div class="image">
+          <svg
+            viewBox="460 0 360 40"
+            role="img"
+            aria-label="Real app capture, detail marked 3"
+          >
+            <image
+              href="issue-100/100-bar-after.png"
+              width="1280"
+              height="900"
+            /></svg
+          ><span class="marker" style="left: 50%; top: 50%">3</span>
+        </div>
+        <p>3 · Idle shows both level and rank.</p>
+      </figure>
+    </div>
+  </section>
+  <section id="reset" hidden>
+    <h2>Start fresh deliberately</h2>
+    <p>
+      Settings had no way to return a profile to the first-commitment state.
+    </p>
+    <ol>
+      <li>
+        Check the REVIEW PROFILE banner in the actual app. This is separate demo
+        progress.
+      </li>
+      <li>
+        Open Settings. Scroll to Start fresh and click Reset this profile.
+      </li>
+      <li>
+        Cancel keeps everything. To try reset, click Clear this profile. Expect
+        No commitments yet.
+      </li>
+    </ol>
+    <div class="captures">
+      <figure>
+        <figcaption>Before</figcaption>
+        <div class="image">
+          <svg
+            viewBox="20 870 510 180"
+            role="img"
+            aria-label="Real app capture, detail marked 1"
+          >
+            <image
+              href="issue-100/settings-before.png"
+              width="1261"
+              height="1170"
+            /></svg
+          ><span
+            class="marker"
+            style="left: 54.90196078431373%; top: 77.77777777777779%"
+            >1</span
+          >
+        </div>
+        <p>1 · The old data section had no reset action.</p>
+      </figure>
+      <figure>
+        <figcaption>During</figcaption>
+        <div class="image">
+          <svg
+            viewBox="30 1060 540 260"
+            role="img"
+            aria-label="Real app capture, detail marked 2"
+          >
+            <image
+              href="issue-100/100-reset-during.png"
+              width="605"
+              height="1477"
+            /></svg
+          ><span
+            class="marker"
+            style="left: 17.59259259259259%; top: 59.61538461538461%"
+            >2</span
+          >
+        </div>
+        <p>2 · Cancel is focused. Enter or Escape keeps the profile.</p>
+      </figure>
+      <figure>
+        <figcaption>After</figcaption>
+        <div class="image">
+          <svg
+            viewBox="0 780 605 240"
+            role="img"
+            aria-label="Real app capture, detail marked 3"
+          >
+            <image
+              href="issue-100/100-reset-after.png"
+              width="605"
+              height="1260"
+            /></svg
+          ><span class="marker" style="left: 42.97520661157025%; top: 50%"
+            >3</span
+          >
+        </div>
+        <p>
+          3 · The first-commitment empty state returns. A local recovery copy
+          remains.
+        </p>
+      </figure>
+    </div>
+  </section>
+  <p class="meta">
+    Before captures come from the last installed app, reviewed PR #111 revision
+    49b98c0. During and After are real packaged-app captures from revision
+    50071ca on a private display. The prepared local profile has one Task and a
+    completed demo Habit. Personal progress is untouched. Review #99 is retained
+    separately.
+  </p>
+  <p class="meta">
+    Cleanup is owned by ~/.local/state/dailyxp-handoff-100/cleanup-review.py. It
+    archives this demo and restores the previous #99 launchers and review. No
+    automatic cleanup runs while you test. Merging needs your review and
+    explicit approval.
+  </p>
+  <script>
+    document.querySelectorAll("[data-tab]").forEach((button) =>
+      button.addEventListener("click", () => {
+        document
+          .querySelectorAll("section")
+          .forEach(
+            (section) => (section.hidden = section.id !== button.dataset.tab),
+          );
+        document
+          .querySelectorAll("[data-tab]")
+          .forEach((other) =>
+            other.setAttribute("aria-selected", String(other === button)),
+          );
+      }),
+    );
+  </script>
+</html>

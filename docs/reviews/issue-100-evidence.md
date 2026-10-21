@@ -20,13 +20,13 @@ The companion shows level and rank when idle, focused minutes when running, and 
 
 The `how` and `architect` passes ran sequentially under AGENTS.md. The choice was between keeping settings beside storage and adding settings to the journal. A small pure SettingsModel makes save, replay and export use one representation. Simplification reused the existing intent adapter, atomic writer and native dialogs. The comment pass found no new explanatory comments or suppressions. No extra animation or motion dependency was added.
 
-| Before | After | Why |
-| --- | --- | --- |
-| Preferences absent from portable history | Canonical settings events | Replay and export preserve the same preference values. |
-| Reduce motion needed a separate save | Immediate persisted toggle | Feedback matches the control action. |
-| Invalid numbers could reach the click handler | Native validity check | Invalid input leaves state unchanged. |
-| No reset or version | Cancel-first confirmation and version text | Deliberate fresh start with a recovery copy. |
-| Symbol-only pause and feedback precedence | Explicit paused state and active Session precedence | Live bar state stays visible. |
+| Before                                        | After                                               | Why                                                    |
+| --------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------ |
+| Preferences absent from portable history      | Canonical settings events                           | Replay and export preserve the same preference values. |
+| Reduce motion needed a separate save          | Immediate persisted toggle                          | Feedback matches the control action.                   |
+| Invalid numbers could reach the click handler | Native validity check                               | Invalid input leaves state unchanged.                  |
+| No reset or version                           | Cancel-first confirmation and version text          | Deliberate fresh start with a recovery copy.           |
+| Symbol-only pause and feedback precedence     | Explicit paused state and active Session precedence | Live bar state stays visible.                          |
 
 The changed controls have instant press feedback, visible keyboard focus and no animated entrance, layout transition or exit delay. Reduced-motion preference and the system media preference disable the existing pointer transform. Review-animations verdict is approve for these controls. Actual narrow and reset captures show reachable controls without horizontal overflow. The design-improve dependency skills audit, critique and polish were not installed. Their focused checks were performed sequentially in the main agent and covered by the independent review, rather than claiming those missing skills ran.
 
