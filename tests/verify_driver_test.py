@@ -24,12 +24,18 @@ class VerifierLifecycleTests(unittest.TestCase):
 
     def test_delivery_rejects_preseeded_habits_or_carryover(self):
         from user_journey import require_empty
-        for collection in ['habits', 'routines']:
+        for collection in ['habits', 'completions', 'skips', 'freezes', 'goals', 'milestones', 'proposals', 'routines', 'tasks', 'occurrences', 'sessions']:
             projections = {'habits': {}, 'planning': {}, 'sessions': {}}
-            owner = 'habits' if collection == 'habits' else 'planning'
+            owner = 'habits' if collection in ['habits', 'completions', 'skips', 'freezes'] else 'sessions' if collection == 'sessions' else 'planning'
             projections[owner][collection] = [{'id': 'seed'}]
             with self.assertRaisesRegex(RuntimeError, 'empty disposable'):
                 require_empty(projections)
+
+    def test_delivery_rejects_unprojected_seed_history(self):
+        from user_journey import require_empty
+        with self.assertRaisesRegex(RuntimeError, 'before domain'):
+            require_empty({'habits': {}, 'planning': {}, 'sessions': {},
+                           'events': [{'type': 'progression.awarded'}]})
 
     def test_rejected_existing_run_is_not_cleaned_up(self):
         with tempfile.TemporaryDirectory() as temporary:
