@@ -157,9 +157,11 @@ async function execute() {
       );
     const controller = path.join(run, "dailyxpctl");
     const quote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
-    const controllerCommand = process.env.DAILYXP_VERIFY_EXECUTABLE
-      ? `ELECTRON_RUN_AS_NODE=1 exec ${quote(process.env.DAILYXP_VERIFY_EXECUTABLE)} ${quote(path.join(path.dirname(process.env.DAILYXP_VERIFY_EXECUTABLE), "resources/app.asar/apps/desktop/core/cli.cjs"))}`
-      : `exec ${quote(process.execPath)} ${quote(path.join(repository, "apps/desktop/core/cli.cjs"))}`;
+    const controllerCommand = process.env.DAILYXP_VERIFY_CONTROLLER
+      ? `exec ${quote(process.env.DAILYXP_VERIFY_CONTROLLER)}`
+      : process.env.DAILYXP_VERIFY_EXECUTABLE
+        ? `ELECTRON_RUN_AS_NODE=1 exec ${quote(process.env.DAILYXP_VERIFY_EXECUTABLE)} ${quote(path.join(path.dirname(process.env.DAILYXP_VERIFY_EXECUTABLE), "resources/app.asar/apps/desktop/core/cli.cjs"))}`
+        : `exec ${quote(process.execPath)} ${quote(path.join(repository, "apps/desktop/core/cli.cjs"))}`;
     fs.writeFileSync(controller, `#!/bin/sh\n${controllerCommand} "$@"\n`, {
       mode: 0o700,
     });
@@ -392,7 +394,10 @@ async function execute() {
       .click();
     await page.getByLabel("Name", { exact: true }).fill("Finish the parser");
     await page.getByRole("button", { name: "Save", exact: true }).click();
+    const xpBeforeMilestone = (await request(profile, "status")).lifetimeXp;
     await page.getByRole("button", { name: "Complete", exact: true }).click();
+    if ((await request(profile, "status")).lifetimeXp <= xpBeforeMilestone)
+      throw new Error("Completed Milestone awarded no XP");
     const completedMilestone = page
       .locator(".entity")
       .filter({ hasText: "Finish the parser" });

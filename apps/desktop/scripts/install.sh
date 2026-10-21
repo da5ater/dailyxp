@@ -6,7 +6,7 @@ app_dir="$install_home/.local/opt/dailyxp"
 bin_dir="$install_home/.local/bin"
 applications="$install_home/.local/share/applications"
 stage="$app_dir.staging.$$"
-backup="$app_dir.backup.$(date +%Y%m%dT%H%M%S)"
+backup="$app_dir.backup.$(date +%Y%m%dT%H%M%S).$$"
 test -x "$source_dir/dailyxp" || { echo 'Run the installer from the extracted DailyXP Linux archive.' >&2; exit 1; }
 command -v flock >/dev/null || { echo 'Install util-linux, which supplies flock, then rerun this installer.' >&2; exit 1; }
 mkdir -p "$(dirname -- "$app_dir")" "$bin_dir" "$applications"
