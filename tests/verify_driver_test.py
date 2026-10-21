@@ -12,6 +12,25 @@ import display
 
 
 class VerifierLifecycleTests(unittest.TestCase):
+    def test_delivery_rejects_engine_seed_before_any_ipc(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            (run / 'user-journey.json').write_text('{}')
+            for method in ['habitCommand', 'planningCommand', 'seedGoal', 'seedTimedSession']:
+                with self.subTest(method=method), patch.object(control.subprocess, 'run') as execute:
+                    with self.assertRaisesRegex(RuntimeError, 'visible product controls'):
+                        control.ipc(run, method, '{}')
+                    execute.assert_not_called()
+
+    def test_delivery_rejects_preseeded_habits_or_carryover(self):
+        from user_journey import require_empty
+        for collection in ['habits', 'routines']:
+            projections = {'habits': {}, 'planning': {}, 'sessions': {}}
+            owner = 'habits' if collection == 'habits' else 'planning'
+            projections[owner][collection] = [{'id': 'seed'}]
+            with self.assertRaisesRegex(RuntimeError, 'empty disposable'):
+                require_empty(projections)
+
     def test_rejected_existing_run_is_not_cleaned_up(self):
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary)
