@@ -47,7 +47,7 @@ IPC proof covers the command path only. For clicking and keyboard acceptance cri
 
 A delivery claim requires a journey from empty disposable progress using visible product controls for every prerequisite. Engine seeding may test a domain edge case, but cannot prove the feature is reachable by Mohamed. If a habit, carryover setting, or other prerequisite has no product entry path, report the feature incomplete.
 
-Call `user_journey.begin(run, projections)` with the actual initial habit, planning and session readbacks. It rejects pre-existing progress and writes a run marker. With that marker present, `control.ipc` rejects engine-only mutation helpers before executing any IPC. The marker survives private-host restarts. Read-only status, QtTest input and explicit test-clock changes remain available. Do not remove the marker or bypass the driver to make a delivery journey pass.
+Call `user_journey.begin(run, projections)` with the actual initial habit, planning and session readbacks plus the original journal in `events`. It rejects pre-existing progress and writes a run marker. With that marker present, `control.ipc` rejects engine-only mutation helpers before executing any IPC. The marker survives private-host restarts. Read-only status, QtTest input and explicit test-clock changes remain available. Do not remove the marker or bypass the driver to make a delivery journey pass.
 
 Retain `user-journey.json`, actual control actions, resulting PNGs and persisted journal evidence. Verify the installed-app starting state separately for a local handoff. A conditional feature that disappears on that starting state needs a visible entry or truthful empty state, not another seeded screenshot.
 

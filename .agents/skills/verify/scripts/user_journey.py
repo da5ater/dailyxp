@@ -30,6 +30,8 @@ def require_empty(projections):
 
 
 def begin(run, projections):
+    if 'events' not in projections:
+        raise RuntimeError('User journey requires the actual initial journal readback')
     require_empty(projections)
     (run / 'user-journey.json').write_text(json.dumps({
         'start': 'empty disposable progress', 'prerequisites': 'visible product controls',
