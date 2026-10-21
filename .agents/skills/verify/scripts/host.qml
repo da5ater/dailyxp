@@ -9,7 +9,11 @@ ShellRoot {
   id: host
   property var shellConfig: ({ plugins: [] })
   function serviceFor(name) { return store }
-  DailyXP.StateStore { id: store; shell: host }
+  DailyXP.StateStore {
+    id: store
+    shell: host
+    planningClock: function() { return new Date(Date.now() + Number(Quickshell.env("DAILYXP_VERIFY_DAY_OFFSET") || 0) * 86400000) }
+  }
   property string captureState: "idle"
   property bool seeded: Quickshell.env("DAILYXP_VERIFY_SEED") !== "true"
   Timer {
@@ -60,7 +64,7 @@ ShellRoot {
     function ui(): string {
       var result = {}
       var shellItem = input.findChild(productionWidget, "dailyxpShell")
-      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld"]
+      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld", "newRoutineButton", "railCommitmentTitle", "railCommitmentDetail", "setupRoutine0"]
       for (var i = 0; i < names.length; i++) {
         var item = host.findControl(names[i])
         var point = item && shellItem ? item.mapToItem(shellItem, 0, 0) : { x: 0, y: 0 }
@@ -137,6 +141,26 @@ ShellRoot {
       return store.applySessionCommand({type:"session.start",session:{id:Date.now().toString(),
         taskId:"verify-commitment",primarySkill:"general/focus",plannedMinutes:null,
         startedAtUtc:new Date(Date.now() - minutes * 60000).toISOString()}}) ? "requested" : "not-started"
+    }
+    function routineStatus(): string {
+      var form = host.findControl("routineSheet")
+      var items = []
+      var viewport = form ? host.findControl("sheetViewport") : null
+      var point = viewport ? viewport.mapToItem(form,0,0) : {x:0,y:0}
+      if (form) {
+        var names = ["routineNameInput","routineMinutesInput","saveRoutineButton"]
+        for (var d = 1; d <= 7; d++) names.push("routineWeekday" + d)
+        for (var i = 0; i < names.length; i++) {
+          var item = host.findControl(names[i])
+          var position = item.mapToItem(form,0,0)
+          items.push({name:names[i],focus:item.activeFocus,x:position.x,y:position.y,width:item.width,height:item.height})
+        }
+      }
+      return JSON.stringify({exists:form !== null,error:form ? form.errorText : "",
+        weekdays:form ? form.weekdays : [],pendingId:form ? form.pendingId : "",
+        name:form ? host.findControl("routineNameInput").text : "",projection:store.planningProjection,events:store.journal.events,
+        items:items,width:form ? form.width : 0,recordingReady:store.recordingReady,
+        viewport:viewport ? {x:point.x,y:point.y,width:viewport.width,height:viewport.height} : null})
     }
     function planningStatus(): string { return JSON.stringify({projection:store.planningProjection,error:store.errorMessage,saving:store.saving}) }
     function readiness(): string { return JSON.stringify({ready:store.ready, journal:store.journalReady, timezone:store.systemTimezone, saving:store.saving, error:store.errorMessage, primaryRead:store._primaryRead, backupRead:store._backupRead, seeded:host.seeded}) }

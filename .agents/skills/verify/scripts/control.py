@@ -16,7 +16,7 @@ TARGET = 'io.github.da5ater.dailyxp'
 
 def ipc(run, method, *args):
     metadata = json.loads((run / 'instance.json').read_text())
-    target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel', 'captureStatus', 'typeText', 'formStatus', 'press', 'planningStatus', 'seedGoal', 'journeyStatus', 'seedTimedSession', 'constrainPanel'] else TARGET
+    target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel', 'captureStatus', 'typeText', 'formStatus', 'press', 'planningStatus', 'seedGoal', 'journeyStatus', 'seedTimedSession', 'constrainPanel', 'routineStatus'] else TARGET
     command = ['quickshell', 'ipc', '--pid', str(metadata['pid']), 'call', target, method, *args]
     result = subprocess.run(command, text=True, capture_output=True, env=display.environment(run))
     with (run / 'actions.jsonl').open('a') as log:
@@ -44,7 +44,7 @@ def doctor(run):
     return status
 
 
-def launch(run, seed=False, restart=False, slow_init=False):
+def launch(run, seed=False, restart=False, slow_init=False, day_offset=0):
     if restart:
         old = json.loads((run / 'instance.json').read_text())
         proc = Path(f"/proc/{old['pid']}/cmdline")
@@ -84,7 +84,7 @@ def launch(run, seed=False, restart=False, slow_init=False):
     revision = subprocess.check_output(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], text=True).strip()
     (run / 'source.diff').write_text(subprocess.check_output(['git', '-C', str(REPO), 'diff'], text=True))
     env = display.start(run)
-    env.update(XDG_STATE_HOME=str(run / 'state'), DAILYXP_VERIFY_SEED='true' if seed else 'false',
+    env.update(DAILYXP_VERIFY_DAY_OFFSET=str(day_offset), XDG_STATE_HOME=str(run / 'state'), DAILYXP_VERIFY_SEED='true' if seed else 'false',
                PATH=str(boundary) + os.pathsep + env.get('PATH', ''))
     try:
         with (run / 'shell.log').open('a') as log:

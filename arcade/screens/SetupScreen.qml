@@ -1,6 +1,7 @@
 import QtQuick
 import "../"
 import "../../FixtureLoader.js" as FixtureLoader
+import "../../RoutineView.js" as RoutineView
 
 // P4: SETUP — editorial surface (full cockpit, stub data). Everything
 // configuration lives here so it never forces traversal of experiential
@@ -10,34 +11,61 @@ ArcadeScreen {
     title: "SETUP"
 
     property var fixture: FixtureLoader.load()
+    readonly property var store: shellApi ? shellApi.stateStore : null
+    readonly property var routines: store ? store.planningProjection.routines : []
+    readonly property var tasks: store ? store.planningProjection.tasks : []
+    function focusRoutineControl() { newRoutineButton.forceActiveFocus() }
 
-    // ── routines ────────────────────────────────────────────────
     ArcadeCard {
         width: parent.width
-        ribbon: "ROUTINES · " + root.fixture.planning.routines.length
-        Text {
+        ribbon: "ROUTINES · " + root.routines.length
+        Column {
             width: parent.width
-            text: root.fixture.planning.routines.length > 0
-                  ? root.fixture.planning.routines[0].title + " · "
-                    + root.fixture.planning.routines[0].expectedMinutes + "m weekdays"
-                  : "none yet — create your first routine"
-            color: Theme.textPrimary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.typeBody
-            wrapMode: Text.WordWrap
+            spacing: Theme.space(3)
+            Text {
+                visible: root.routines.length === 0
+                width: parent.width
+                text: "No routines yet. Create your first routine."
+                color: Theme.textMuted
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.typeBody
+                wrapMode: Text.WordWrap
+            }
+            Repeater {
+                model: root.routines
+                delegate: Text {
+                    required property var modelData
+                    required property int index
+                    objectName: "setupRoutine" + index
+                    width: parent.width
+                    text: modelData.title + " · " + modelData.expectedMinutes + "m\n" + RoutineView.scheduleLabel(modelData)
+                    color: Theme.textPrimary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.typeBody
+                    lineHeight: 1.4
+                    wrapMode: Text.WrapAnywhere
+                }
+            }
+            BevelButton {
+                id: newRoutineButton
+                objectName: "newRoutineButton"
+                width: parent.width
+                label: "+ NEW ROUTINE"
+                enabled: root.store && root.store.ready && root.store.recordingReady && !root.store.saving
+                onActivated: root.shellApi.openRoutineSheet()
+            }
         }
-        BevelButton { label: "+ NEW ROUTINE"; width: parent.width - Theme.space(2) }
     }
 
     // ── one-shot tasks ──────────────────────────────────────────
     ArcadeCard {
         width: parent.width
-        ribbon: "TASKS · " + root.fixture.planning.tasks.length
+        ribbon: "TASKS · " + root.tasks.length
         Column {
             width: parent.width
             spacing: Theme.space(2)
             Repeater {
-                model: root.fixture.planning.tasks
+                model: root.tasks
                 delegate: Row {
                     required property var modelData
                     width: parent.width
