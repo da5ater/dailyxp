@@ -38,6 +38,7 @@ def start(run):
     config = run / 'sway.conf'
     config.write_text('xwayland disable\noutput HEADLESS-1 resolution 1280x900\n'
                       'for_window [title="Export DailyXP backup"] floating enable, resize set 1000 700, move position center\n'
+                      'for_window [title="Export canonical DailyXP JSON"] floating enable, resize set 1000 700, move position center\n'
                       'for_window [title="Import legacy DailyXP state"] floating enable, resize set 1000 700, move position center\n')
     env = dict(os.environ)
     for key in ['DISPLAY', 'WAYLAND_DISPLAY', 'HYPRLAND_INSTANCE_SIGNATURE', 'SWAYSOCK', 'DBUS_SESSION_BUS_ADDRESS']:
