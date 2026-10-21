@@ -12,6 +12,11 @@ def require_empty(projections):
     collections = {
         'habits': projections['habits'].get('habits', []),
         'completions': projections['habits'].get('completions', []),
+        'skips': projections['habits'].get('skips', []),
+        'freezes': projections['habits'].get('freezes', []),
+        'goals': projections['planning'].get('goals', []),
+        'milestones': projections['planning'].get('milestones', []),
+        'proposals': projections['planning'].get('proposals', []),
         'routines': projections['planning'].get('routines', []),
         'tasks': projections['planning'].get('tasks', []),
         'occurrences': projections['planning'].get('occurrences', []),
@@ -19,6 +24,9 @@ def require_empty(projections):
     }
     if any(collections.values()) or projections['sessions'].get('activeSession'):
         raise RuntimeError('User journey must start from empty disposable progress')
+    for event in projections.get('events', []):
+        if event['type'] not in {'planning.day.advanced', 'habit.day.advanced'}:
+            raise RuntimeError('User journey must start before domain or preference history is created')
 
 
 def begin(run, projections):
