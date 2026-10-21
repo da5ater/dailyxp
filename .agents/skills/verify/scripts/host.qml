@@ -25,18 +25,30 @@ ShellRoot {
       } })
     }
   }
+  function findControl(name) {
+    var shellItem = input.findChild(productionWidget, "dailyxpShell")
+    function visit(item) {
+      if (item.objectName === name) return item
+      for (var i = 0; i < item.children.length; i++) {
+        var found = visit(item.children[i])
+        if (found) return found
+      }
+      return null
+    }
+    return shellItem ? visit(shellItem) : null
+  }
   TestCase { id: input; name: "DailyXPDriver"; when: false }
   IpcHandler {
     target: "dailyxp-verify"
     function click(name: string): string {
-      var item = input.findChild(productionWidget, name)
+      var item = host.findControl(name)
       if (!item || !item.visible || !item.enabled) return "unavailable"
       input.parent = input.findChild(productionWidget, "dailyxpShell")
       input.mouseClick(item, item.width / 2, item.height / 2)
       return "clicked"
     }
     function key(name: string, key: string): string {
-      var item = input.findChild(productionWidget, name)
+      var item = host.findControl(name)
       if (!item || !item.visible || !item.enabled) return "unavailable"
       input.parent = input.findChild(productionWidget, "dailyxpShell")
       item.forceActiveFocus()
@@ -48,9 +60,9 @@ ShellRoot {
     function ui(): string {
       var result = {}
       var shellItem = input.findChild(productionWidget, "dailyxpShell")
-      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell"]
+      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld"]
       for (var i = 0; i < names.length; i++) {
-        var item = input.findChild(productionWidget, names[i])
+        var item = host.findControl(names[i])
         var point = item && shellItem ? item.mapToItem(shellItem, 0, 0) : { x: 0, y: 0 }
         if (item) result[names[i]] = { x: point.x, y: point.y, visible: item.visible, enabled: item.enabled,
           text: item.text || item.label || "", focus: item.activeFocus,
@@ -68,7 +80,7 @@ ShellRoot {
     }
     function captureStatus(): string { return host.captureState }
     function typeText(name: string, text: string): string {
-      var item = input.findChild(productionWidget, name)
+      var item = host.findControl(name)
       if (!item || !item.visible || !item.enabled) return "unavailable"
       input.parent = input.findChild(productionWidget, "dailyxpShell")
       item.forceActiveFocus()
@@ -100,6 +112,31 @@ ShellRoot {
     function seedGoal(id: string, title: string): string {
       return store.applyPlanningCommand({type:"goal.create",goal:{id:id,title:title,
         primarySkill:"general/focus",reason:"isolated verification fixture"}}) ? "requested" : "not-started"
+    }
+    function constrainPanel(width: int): string {
+      host.findControl("dailyxpShell").width = width
+      return "constrained"
+    }
+    function journeyStatus(): string {
+      var ledger = input.findChild(productionWidget, "ledgerSheet")
+      var entries = []
+      if (ledger) {
+        for (var i = 0; i < ledger.awards.length; i++) {
+          var item = host.findControl("ledgerAward-" + i)
+          var point = item.mapToItem(ledger, 0, 0)
+          entries.push({award:ledger.awards[i],x:point.x,y:point.y,width:item.width,height:item.height,focus:item.activeFocus})
+        }
+      }
+      var viewport = ledger ? host.findControl("sheetViewport") : null
+      var position = viewport ? viewport.mapToItem(ledger, 0, 0) : {x:0,y:0}
+      return JSON.stringify({projection:store.progressionProjection,events:store.journal.events,
+        ledgerOpen:ledger !== null,entries:entries,
+        viewport:viewport ? {x:position.x,y:position.y,width:viewport.width,height:viewport.height} : null})
+    }
+    function seedTimedSession(minutes: int): string {
+      return store.applySessionCommand({type:"session.start",session:{id:Date.now().toString(),
+        taskId:"verify-commitment",primarySkill:"general/focus",plannedMinutes:null,
+        startedAtUtc:new Date(Date.now() - minutes * 60000).toISOString()}}) ? "requested" : "not-started"
     }
     function planningStatus(): string { return JSON.stringify({projection:store.planningProjection,error:store.errorMessage,saving:store.saving}) }
     function readiness(): string { return JSON.stringify({ready:store.ready, journal:store.journalReady, timezone:store.systemTimezone, saving:store.saving, error:store.errorMessage, primaryRead:store._primaryRead, backupRead:store._backupRead, seeded:host.seeded}) }

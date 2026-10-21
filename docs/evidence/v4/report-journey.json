@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "emptyState": true,
+  "sessionEarnedXp": 61,
+  "journalMetadataMatches": true,
+  "keyboardLedger": true,
+  "restartDeterministic": true,
+  "levelAdvance": true,
+  "manyAwardsReachable": true,
+  "longReasonsAndNarrowPanel": true,
+  "focusReturnsToTrigger": true
+}

@@ -81,10 +81,23 @@ Rectangle {
         root.sheetStack = root.sheetStack.concat([obj])
     }
 
+    function openLedgerSheet() {
+        if (root.sheetStack.length > 0) return
+        var comp = Qt.createComponent("arcade/screens/LedgerSheet.qml")
+        if (comp.status === Component.Error) { console.warn(comp.errorString()); return }
+        var obj = comp.createObject(root, { objectName: "ledgerSheet", shellApi: root, visible: true })
+        if (!obj) return
+        obj.anchors.fill = root
+        obj.dismissed.connect(root.popSheet)
+        root.sheetStack = root.sheetStack.concat([obj])
+    }
+
     function popSheet() {
         var top = root.sheetStack[root.sheetStack.length - 1]
         root.sheetStack = root.sheetStack.slice(0, -1)
         if (top) top.destroy()
+        if (root.currentSurface === "Journey" && viewport.cache.Journey)
+            viewport.cache.Journey.focusLedgerControl()
     }
 
     function scrollBy(delta) {
@@ -298,6 +311,10 @@ Rectangle {
                     ]
                     delegate: Rectangle {
                         id: tabButton
+                        objectName: "navigate" + modelData.name
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: modelData.label
                         required property var modelData
                         required property int index
                         width: controller.width / 4
@@ -306,7 +323,11 @@ Rectangle {
                                ? Theme.surface : "transparent"
 
                         Text {
+                            objectName: "navigationLabel" + tabButton.modelData.name
                             anchors.centerIn: parent
+                            width: parent.width - Theme.space(2)
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
                             text: tabButton.modelData.label
                             color: root.currentSurface === tabButton.modelData.name
                                    ? "#ffebc4" : Theme.textMuted
@@ -332,6 +353,7 @@ Rectangle {
                             onClicked: root.openSurface(tabButton.modelData.name)
                         }
                         Keys.onReturnPressed: root.openSurface(tabButton.modelData.name)
+                        Keys.onSpacePressed: root.openSurface(tabButton.modelData.name)
 
                         // visible focus ring (R8)
                         Rectangle {
