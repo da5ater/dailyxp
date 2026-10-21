@@ -1,11 +1,7 @@
-# Visual implementation reviews
+# Feature click guides
 
-Open a self-contained HTML review after each implementation. Include real before/during/after evidence, the blast radius, verification limits and the shortest manual path. Keep the page current after review fixes.
+Group each guide by feature. Keep the revealing clicks, real Before / During / After captures and short expected results together. Mark exact controls with scalable numbered outlines. Identify the last released or installed baseline. Keep detailed test reports in linked PR evidence.
 
-For the routine review, start from the repository root:
+Serve the current guide from the repository with `python -m http.server 8766 --bind 127.0.0.1 --directory docs/reviews`, then open `http://127.0.0.1:8766/pr-106.html` in the Codex side panel. Feature tabs navigate the illustrated guide only. It contains no application input forms, simulations or browser-to-QML bridge.
 
-```sh
-.agents/skills/verify/scripts/review_page.py docs/reviews/pr-105.html --port 8765
-```
-
-Open http://127.0.0.1:8765. Start private preview creates an isolated instance of the production plugin. The page's controls drive its actual routine form and display the resulting app capture. Stop/reset and idle cleanup operate only on disposable state. The HTML also opens offline for the screenshot comparison; real preview controls need the local server. No external assets or hosted plan service are required.
+All automated interaction belongs on the private display. A personal refresh requires Mohamed's request, a state and installed-plugin backup, validated replacement, a fresh shell host and inspection of the actual rendered application. Do not change progress to demonstrate the feature.

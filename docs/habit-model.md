@@ -78,4 +78,4 @@ vs deleting, and deterministic replay.
 
 `habit.skip` emits `habit.skipped` and adds a dated entry to `skips`. Completion and skip are mutually exclusive, idempotent daily dispositions. A skip awards no XP and does not freeze a streak. Old journals rebuild with an empty skip array. Skipped history makes removal archive the habit.
 
-`HabitView.todayHabits` reads the schedule, completion, skip and streak projections. The PLAY chip completes on tap or Enter/Space, skips on hold or Delete, and also offers a visible Skip button. Creation and editing remain outside this slice.
+`HabitView.todayHabits` reads the schedule, completion, skip and streak projections. The PLAY chip completes on tap or Enter/Space, skips on hold or Delete, and also offers a visible Skip button. PLAY exposes NEW HABIT even with no habits. The shared recurrence sheet accepts a name and weekdays, then saves through HabitModel. Full habit editing remains outside this slice.
