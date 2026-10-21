@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>DailyXP</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <div id="app"></div>
+    <dialog id="editor">
+      <form id="edit-form">
+        <div class="dialog-top">
+          <h2 id="editor-title"></h2>
+          <button
+            type="button"
+            data-action="close-editor"
+            aria-label="Close editor"
+          >
+            ×
+          </button>
+        </div>
+        <div id="fields"></div>
+        <p id="form-error" role="alert"></p>
+        <button class="primary" type="submit">Save</button>
+      </form>
+    </dialog>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,296 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { Core } = require("../core/core.cjs");
+const { serve, request } = require("../core/integration.cjs");
+function fixture(t, options) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dailyxp-core-"));
+  const core = new Core(directory, options);
+  t.after(() => {
+    if (core.ownsLock) core.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  return core;
+}
+function task(id = "task-1") {
+  return {
+    type: "task.create",
+    task: {
+      id,
+      title: "Build parser",
+      estimateMinutes: 25,
+      urgency: "normal",
+      primarySkill: "backend/build",
+      deadline: null,
+      goalId: null,
+      milestoneId: null,
+    },
+  };
+}
+test("a task, Session and awarded XP survive real disk replay", (t) => {
+  let now = new Date("2026-10-21T09:00:00.000Z");
+  const c = fixture(t, { clock: () => now });
+  c.execute("planning", task());
+  c.execute("session", {
+    type: "session.start",
+    session: {
+      taskId: "task-1",
+      primarySkill: "backend/build",
+      plannedMinutes: 25,
+    },
+  });
+  now = new Date("2026-10-21T09:20:00.000Z");
+  c.execute("session", { type: "session.pause" });
+  assert.equal(c.status().session.focusedMilliseconds, 1200000);
+  c.execute("session", { type: "session.finish" });
+  assert.ok(c.status().lifetimeXp > 0);
+  const status = c.status();
+  c.close();
+  const replay = new Core(c.directory, { clock: () => now });
+  try {
+    assert.equal(replay.status().lifetimeXp, status.lifetimeXp);
+    assert.equal(replay.snapshot().planning.tasks[0].title, "Build parser");
+  } finally {
+    replay.close();
+  }
+});
+test("retries are idempotent across restart and reject request ID reuse", (t) => {
+  const c = fixture(t);
+  c.execute("planning", task(), "retry");
+  c.close();
+  const replay = new Core(c.directory);
+  try {
+    replay.execute("planning", task(), "retry");
+    assert.equal(replay.snapshot().planning.tasks.length, 1);
+    assert.throws(
+      () => replay.execute("planning", task("other"), "retry"),
+      /already used/,
+    );
+  } finally {
+    replay.close();
+  }
+});
+test("a failed save leaves the projection and original file unchanged", (t) => {
+  const c = fixture(t);
+  const before = fs.readFileSync(
+    path.join(c.directory, "desktop.json"),
+    "utf8",
+  );
+  c.write = () => {
+    throw new Error("Disk full");
+  };
+  assert.throws(() => c.execute("planning", task()), /Disk full/);
+  assert.equal(c.snapshot().planning.tasks.length, 0);
+  assert.equal(
+    fs.readFileSync(path.join(c.directory, "desktop.json"), "utf8"),
+    before,
+  );
+});
+test("only one writer can open a profile and corrupt import writes nothing", (t) => {
+  const c = fixture(t);
+  assert.throws(() => new Core(c.directory), /already has a writer/);
+  const before = c.exportState();
+  assert.throws(() => c.importLegacy("{bad"), /checksum/);
+  assert.equal(c.exportState(), before);
+});
+test("legacy import preserves its source and earned progress", (t) => {
+  let now = new Date("2026-10-21T09:00:00.000Z");
+  const source = fixture(t, { clock: () => now });
+  source.execute("planning", task());
+  source.execute("session", {
+    type: "session.start",
+    session: {
+      taskId: "task-1",
+      primarySkill: "backend/build",
+      plannedMinutes: 25,
+    },
+  });
+  now = new Date("2026-10-21T09:20:00.000Z");
+  source.execute("session", { type: "session.finish" });
+  assert.ok(source.status().lifetimeXp > 0);
+  const raw = source.exportState();
+  const target = fixture(t);
+  target.importLegacy(raw);
+  assert.equal(target.snapshot().planning.tasks[0].id, "task-1");
+  assert.equal(target.status().lifetimeXp, source.status().lifetimeXp);
+  assert.deepEqual(
+    target.snapshot().progression.ledger,
+    source.snapshot().progression.ledger,
+  );
+  assert.equal(source.exportState(), raw);
+});
+test("companion status hides titles and Recovery and drives the real Session", async (t) => {
+  const c = fixture(t);
+  c.execute("planning", task());
+  c.execute("session", {
+    type: "session.start",
+    session: { taskId: "task-1", primarySkill: "backend/build" },
+  });
+  let opened = 0;
+  const server = await serve(c, () => opened++);
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const status = await request(c.directory, "status");
+  assert.equal(status.session.status, "running");
+  assert.ok(!JSON.stringify(status).includes("Build parser"));
+  assert.ok(!JSON.stringify(status).includes("recovery"));
+  await request(c.directory, "pause", "pause-one");
+  await request(c.directory, "pause", "pause-one");
+  assert.equal(c.status().session.status, "paused");
+  await request(c.directory, "resume");
+  assert.equal(c.status().session.status, "running");
+  await request(c.directory, "open");
+  assert.equal(opened, 1);
+  await assert.rejects(request(c.directory, "export"), /Unsupported/);
+});
+test("corrupt primary recovers only from a validated backup", (t) => {
+  const c = fixture(t);
+  c.execute("planning", task());
+  c.settings({ dailyTargetMinutes: 90 });
+  c.close();
+  fs.writeFileSync(path.join(c.directory, "desktop.json"), "{broken");
+  const replay = new Core(c.directory);
+  try {
+    assert.equal(replay.snapshot().planning.tasks.length, 1);
+    replay.execute("planning", task("two"));
+  } finally {
+    replay.close();
+  }
+  const final = new Core(c.directory);
+  try {
+    assert.equal(final.snapshot().planning.tasks.length, 2);
+  } finally {
+    final.close();
+  }
+});
+test("a Habit completion cannot multiply XP through rapid requests", (t) => {
+  const c = fixture(t);
+  c.execute("habit", {
+    type: "habit.create",
+    habit: {
+      id: "stretch",
+      title: "Stretch",
+      startDate: c.dateAt(),
+      schedule: { type: "daily" },
+      restDates: [],
+    },
+  });
+  c.execute("habit", {
+    type: "habit.complete",
+    habitId: "stretch",
+    dailyXpDate: c.dateAt(),
+  });
+  const xp = c.status().lifetimeXp;
+  for (let i = 0; i < 10; i++)
+    c.execute("habit", {
+      type: "habit.complete",
+      habitId: "stretch",
+      dailyXpDate: c.dateAt(),
+    });
+  assert.equal(c.status().lifetimeXp, xp);
+});
+test("a missing primary uses the last valid backup rather than creating fresh state", (t) => {
+  const c = fixture(t);
+  c.execute("planning", task());
+  c.settings({ dailyTargetMinutes: 80 });
+  c.close();
+  fs.unlinkSync(path.join(c.directory, "desktop.json"));
+  const replay = new Core(c.directory);
+  try {
+    assert.equal(replay.snapshot().planning.tasks[0].id, "task-1");
+  } finally {
+    replay.close();
+  }
+});
+test("inactivity is an explicit scoring decision and keeps persisted progress", (t) => {
+  let now = new Date("2026-10-21T09:00:00.000Z");
+  const c = fixture(t, { clock: () => now });
+  c.execute("session", {
+    type: "session.start",
+    session: { taskId: null, primarySkill: "general/focus" },
+  });
+  now = new Date("2026-10-21T09:05:00.000Z");
+  c.observeDesktop(300);
+  now = new Date("2026-10-21T09:10:00.000Z");
+  c.observeDesktop(0);
+  assert.ok(c.snapshot().session.activeSession.pendingInactivityEndedAtUtc);
+  c.execute("session", {
+    type: "session.inactivity.resolve",
+    decision: "exclude",
+  });
+  now = new Date("2026-10-21T09:15:00.000Z");
+  c.execute("session", { type: "session.finish" });
+  assert.equal(c.snapshot().session.sessions[0].focusedMilliseconds, 300000);
+});
+test("a no-op retry stays a no-op after intervening Habit changes and restart", (t) => {
+  const c = fixture(t);
+  const date = c.dateAt();
+  c.execute("habit", {
+    type: "habit.create",
+    habit: {
+      id: "stretch",
+      title: "Stretch",
+      startDate: date,
+      schedule: { type: "daily" },
+      restDates: [],
+    },
+  });
+  const complete = {
+    type: "habit.complete",
+    habitId: "stretch",
+    dailyXpDate: date,
+  };
+  c.execute("habit", complete, "first");
+  assert.equal(c.execute("habit", complete, "noop").changed, false);
+  c.execute("habit", {
+    type: "habit.uncomplete",
+    habitId: "stretch",
+    dailyXpDate: date,
+  });
+  c.close();
+  const replay = new Core(c.directory);
+  try {
+    assert.equal(replay.execute("habit", complete, "noop").changed, false);
+    assert.equal(replay.snapshot().habit.completions.length, 0);
+  } finally {
+    replay.close();
+  }
+});
+test("an empty profile advances both calendars and materializes a new Routine today", (t) => {
+  const c = fixture(t);
+  const today = c.dateAt();
+  assert.equal(c.snapshot().planning.lastAdvancedDailyXpDate, today);
+  assert.equal(c.snapshot().habit.lastAdvancedDailyXpDate, today);
+  c.execute("planning", {
+    type: "routine.create",
+    routine: {
+      id: "routine",
+      title: "Daily practice",
+      primarySkill: "general/focus",
+      expectedMinutes: 25,
+      carryover: false,
+      startDate: today,
+      endDate: null,
+      restDates: [],
+      schedule: { type: "weekdays", weekdays: [1, 2, 3, 4, 5, 6, 7] },
+      goalId: null,
+      milestoneId: null,
+    },
+  });
+  assert.equal(c.snapshot().planning.occurrences[0].dailyXpDate, today);
+});
+test("companion-independent eligibility excludes a future Habit", (t) => {
+  const c = fixture(t);
+  c.execute("habit", {
+    type: "habit.create",
+    habit: {
+      id: "future",
+      title: "Future habit",
+      schedule: { type: "daily" },
+      startDate: "2099-01-01",
+      restDates: [],
+    },
+  });
+  assert.ok(!c.snapshot().eligibleHabitIds.includes("future"));
+});
