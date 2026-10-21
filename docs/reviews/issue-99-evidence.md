@@ -45,3 +45,7 @@ Local demo data must live in a separate issue-99 profile and be labeled REVIEW P
 ## Independent review fix
 
 The reviewer reproduced a real integration error: Milestone XP did not mark its canonical date active, so a completed Milestone could leave Hollow King present and the earned-activity cause unchanged. ProgressionModel now records the resolved canonical date for that award and marks it active. A Core regression proves clearing and disk replay. A separate actual Electron journey completes the Milestone through Plan after seven inactive days (`/tmp/dailyxp-99-world-milestone-final`). The reviewer also identified two redundant fixture comments, which were removed. The full Node suite now has 207 passing tests.
+
+## Native shutdown finding
+
+The local refresh exposed a shutdown failure in the previous installed app: systemd stopped the whole process group, Chromium tried to restart terminated GPU children, then aborted with `GPU process isn't usable`. The coredump timestamps match the explicit stop commands. The current app handles SIGTERM and SIGINT with `app.quit()`. The edge verifier sends the real signal and asserts exit code 0. Owned local review units use `KillMode=mixed` so systemd signals the main process before forcing child termination. Personal canonical `desktop.json` and its backup match their pre-install hashes; Chromium caches changed during the refresh. No progress was lost.

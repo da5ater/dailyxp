@@ -212,6 +212,8 @@ function show() {
       : "dailyxp://app/",
   );
 }
+for (const signal of ["SIGTERM", "SIGINT"])
+  process.once(signal, () => app.quit());
 app.on("before-quit", () => {
   quitting = true;
   clearInterval(tick);

@@ -130,6 +130,25 @@ function display(action) {
         2,
       ),
     );
+    const stopped = new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("SIGTERM did not stop Electron")),
+        10000,
+      );
+      app.process().once("exit", (code, signal) => {
+        clearTimeout(timeout);
+        resolve({ code, signal });
+      });
+    });
+    app.process().kill("SIGTERM");
+    const exit = await stopped;
+    assert.equal(exit.code, 0);
+    assert.equal(exit.signal, null);
+    app = null;
+    const reportPath = path.join(run, "report.json");
+    const report = JSON.parse(fs.readFileSync(reportPath));
+    report.gracefulShutdown = exit;
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     console.log(`VERIFIED ${run}`);
   } finally {
     if (app) await app.close();
