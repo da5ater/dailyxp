@@ -6,12 +6,15 @@ function levelProgress(progression) {
 
 function ledgerEntries(progression, events) {
   var sources = Object.create(null);
+  var corrections = Object.create(null);
   events.forEach(function(event) {
-    sources[event.eventId] = event;
-    if (event.type === "progression.correction") sources[event.payload.id] = event;
+    if (!sources[event.eventId]) sources[event.eventId] = event;
+    if (event.type === "progression.correction" && !corrections[event.payload.id])
+      corrections[event.payload.id] = event;
   });
   return progression.ledger.map(function(award) {
-    var source = sources[award.sourceEventId];
+    var source = award.calculation && award.calculation.correction
+      ? corrections[award.sourceEventId] : sources[award.sourceEventId];
     return { id: award.id, amount: award.lifetimeXp, ruleVersion: award.ruleVersion,
       reason: award.reason, timestamp: source ? source.occurredAtUtc : null,
       dailyXpDate: award.dailyXpDate || (source ? source.dailyXpDate : null), sourceEventId: award.sourceEventId };

@@ -323,7 +323,11 @@ Rectangle {
                                ? Theme.surface : "transparent"
 
                         Text {
+                            objectName: "navigationLabel" + tabButton.modelData.name
                             anchors.centerIn: parent
+                            width: parent.width - Theme.space(2)
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
                             text: tabButton.modelData.label
                             color: root.currentSurface === tabButton.modelData.name
                                    ? "#ffebc4" : Theme.textMuted

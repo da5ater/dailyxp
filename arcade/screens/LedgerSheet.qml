@@ -16,6 +16,16 @@ ArcadeSheet {
         width: parent.width
         spacing: Theme.space(4)
         Text {
+            objectName: "journeyLifetimeXp"
+            width: parent.width
+            text: (sheet.store ? sheet.store.progressionProjection.totals.lifetimeXp : 0) + " lifetime XP · "
+                  + (sheet.store ? sheet.store.progressionProjection.totals.seasonXp : 0) + " season XP"
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
+        Text {
             visible: sheet.awards.length === 0
             width: parent.width
             text: "No awards yet. Finish a focus session to begin your ledger."

@@ -12,8 +12,12 @@ Further checks cover an empty ledger, Space/Return activation, Escape, focus res
 | Ledger had no keyboard entry point | Accessible trigger, focused rows, scroll-to-focus and return to trigger | Keyboard users can inspect every award |
 | Long entries could exceed available width | Wrapped text and constrained tiles fit a narrow panel | The full reason remains readable |
 
-168 Node tests and four Python verifier tests pass. The session rail crash/recovery regression passes. Plugin validation and scoped qmllint pass. Scoped lint disables inherited dynamic QObject and Quickshell metadata categories; default lint warnings remain. The private bus emits expected DBus warnings. No QML reference or type errors appeared in the final run.
+169 Node tests and four Python verifier tests pass. The session rail crash/recovery regression passes. Plugin validation and scoped qmllint pass. Scoped lint disables inherited dynamic QObject and Quickshell metadata categories; default lint warnings remain. The private bus emits expected DBus warnings. No QML reference or type errors appeared in the final run.
 
 Main-agent simplification, deslop and rendered Emil review kept the view calculations in JourneyModel and reused ArcadeSheet scrolling. The required design principles are applied to QML. No motion was added to keyboard actions. Optional audit/critique/polish dependencies of design-improve are unavailable locally; the rendered design pass used Emil directly. No broader animation audit was needed.
 
 Full Omarchy shell integration and a personal desktop refresh were not exercised for this feature. Mohamed asked to keep using the laptop, so the installed plugin remains on the prior reviewed revision until he requests a refresh.
+
+Independent review found and the main agent fixed two defects. Journal event IDs and correction IDs now have separate indexes, preserving the first source of duplicate corrections. A regression proves that correction IDs cannot change a session award timestamp. The compact XP line follows the owner’s requested `LV n → n+1 · NN%` format and opens the full lifetime/season breakdown and award ledger by mouse or keyboard. Totals appear only on demand. The updated private-display flow passed after these fixes.
+
+The final narrow-panel review also found controller labels overlapping. Navigation labels now have explicit bounds and elision, with full accessible names. The private flow asserts JOURNEY and WORLD text boxes do not overlap at 280 pixels.

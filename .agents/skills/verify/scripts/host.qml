@@ -60,7 +60,7 @@ ShellRoot {
     function ui(): string {
       var result = {}
       var shellItem = input.findChild(productionWidget, "dailyxpShell")
-      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton"]
+      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld"]
       for (var i = 0; i < names.length; i++) {
         var item = host.findControl(names[i])
         var point = item && shellItem ? item.mapToItem(shellItem, 0, 0) : { x: 0, y: 0 }

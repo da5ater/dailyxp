@@ -27,8 +27,8 @@ def run_flow(run):
         time.sleep(.3)
         navigate(run, 'Journey')
         assert ui(run)['journeyLevel']['text'] == 'LV'
-        assert '0 lifetime XP' in ui(run)['journeyLifetimeXp']['text']
-        activate(run, 'openLedgerButton', 'Return')
+        assert ui(run)['journeyXpProgress']['text'] == 'LV 1 → 2 · 0%'
+        activate(run, 'journeyXpProgress', 'Return')
         assert status(run)['ledgerOpen'] and status(run)['entries'] == []
         capture(run, 'empty-ledger')
         control.ipc(run, 'press', 'Escape')
@@ -40,11 +40,11 @@ def run_flow(run):
         earned = status(run)
         assert earned['projection']['totals']['lifetimeXp'] == 61
         navigate(run, 'Journey')
-        assert '61 lifetime XP' in ui(run)['journeyLifetimeXp']['text']
-        assert ui(run)['journeyXpProgress']['text'] == '61 / 500 XP to LV 2'
+        assert ui(run)['journeyXpProgress']['text'] == 'LV 1 → 2 · 12%'
+        assert ui(run)['journeyXpProgress']['text'] == 'LV 1 → 2 · 12%'
         assert '1h 1m focused' in ui(run)['journeyWeeklyInsight']['text']
         capture(run, 'earned-journey')
-        activate(run, 'openLedgerButton', 'Space')
+        activate(run, 'journeyXpProgress', 'Space')
         awards = status(run)['entries']
         assert len(awards) == 1 and awards[0]['award']['amount'] == 61
         event = next(e for e in earned['events'] if e['eventId'] == awards[0]['award']['sourceEventId'])
@@ -64,12 +64,12 @@ def run_flow(run):
         time.sleep(.3)
         navigate(run, 'Journey')
         assert status(run)['projection'] == earned['projection']
-        assert '61 lifetime XP' in ui(run)['journeyLifetimeXp']['text']
-        activate(run, 'openLedgerButton', 'Return')
+        assert ui(run)['journeyXpProgress']['text'] == 'LV 1 → 2 · 12%'
+        activate(run, 'journeyXpProgress', 'Return')
         assert status(run)['entries'][0]['award'] == awards[0]['award']
         capture(run, 'replayed-ledger')
         control.ipc(run, 'press', 'Escape')
-        assert ui(run)['openLedgerButton']['focus']
+        assert ui(run)['journeyXpProgress']['focus']
         for index in range(21):
             assert control.ipc(run, 'progressionCommand', json.dumps({
                 'type':'progression.correction','correction':{'id':f'verify-award-{index}',
@@ -77,7 +77,7 @@ def run_flow(run):
             settled(run)
         assert 'LV' == ui(run)['journeyLevel']['text']
         assert status(run)['projection']['level'] == 2
-        activate(run, 'openLedgerButton', 'Return')
+        activate(run, 'journeyXpProgress', 'Return')
         assert len(status(run)['entries']) == 22
         for _ in range(22):
             control.ipc(run, 'press', 'Tab')
@@ -96,8 +96,13 @@ def run_flow(run):
         capture(run, 'narrow-ledger')
         control.ipc(run, 'press', 'Escape')
         assert '691 XP earned' in ui(run)['journeyWeeklyInsight']['text']
+        labels = ui(run)
+        journey_label = labels['navigationLabelJourney']
+        world_label = labels['navigationLabelWorld']
+        assert journey_label['x'] + journey_label['width'] <= world_label['x']
+        assert world_label['x'] + world_label['width'] <= 280
         capture(run, 'narrow-journey')
-        assert ui(run)['openLedgerButton']['focus']
+        assert ui(run)['journeyXpProgress']['focus']
         report = {'passed':True,'emptyState':True,'sessionEarnedXp':61,'journalMetadataMatches':True,
                   'keyboardLedger':True,'restartDeterministic':True,'levelAdvance':True,
                   'manyAwardsReachable':True,'longReasonsAndNarrowPanel':True,'focusReturnsToTrigger':True}

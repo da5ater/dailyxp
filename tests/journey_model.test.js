@@ -45,3 +45,14 @@ test('empty progression has no fabricated awards and corrections resolve their j
   assert.equal(Journey.view(Progression.project(events), [], {}, events, '2026-10-10').weeklyXp, 10);
   assert.equal(Journey.ledgerEntries(Progression.project(events), events)[0].timestamp, events[0].occurredAtUtc);
 });
+
+test('correction IDs cannot overwrite session provenance and duplicate corrections retain first source', () => {
+  const session = award('session-id', 20, '2026-10-09');
+  const first = {eventId:'correction-event',type:'progression.correction',dailyXpDate:'2026-10-10',
+    occurredAtUtc:'2026-10-10T14:00:00Z',payload:{id:'session-id',lifetimeXp:10,reason:'Correction'}};
+  const duplicate = {...first,eventId:'later-event',occurredAtUtc:'2026-10-11T14:00:00Z'};
+  const events = [session,first,duplicate];
+  const ledger = Journey.ledgerEntries(Progression.project(events), events);
+  assert.equal(ledger[0].timestamp, session.occurredAtUtc);
+  assert.equal(ledger[1].timestamp, first.occurredAtUtc);
+});

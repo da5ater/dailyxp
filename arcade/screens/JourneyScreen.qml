@@ -14,7 +14,7 @@ ArcadeScreen {
         running: root.visible
         onTriggered: root.nowUtc = new Date().toISOString()
     }
-    function focusLedgerControl() { ledgerButton.forceActiveFocus() }
+    function focusLedgerControl() { progressButton.forceActiveFocus() }
     readonly property var journey: JourneyModel.view(
         store ? store.progressionProjection : ProgressionModel.emptyProjection(),
         store ? store.sessionProjection.sessions : [],
@@ -59,42 +59,14 @@ ArcadeScreen {
             fraction: root.journey.progress.have / root.journey.progress.need
             blocks: Math.max(1, Math.min(24, Math.floor(width / 8)))
         }
-        Text {
+        BevelButton {
+            id: progressButton
             objectName: "journeyXpProgress"
             width: parent.width
-            text: root.journey.progress.have + " / " + root.journey.progress.need + " XP to LV " + (root.journey.level + 1)
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.typeBody
-            wrapMode: Text.WordWrap
-        }
-    }
-    ArcadeCard {
-        width: parent.width
-        ribbon: "XP LEDGER"
-        ribbonColor: Theme.coinGold
-        ribbonText: Theme.goldDeep
-        Column {
-            width: parent.width
-            spacing: Theme.space(3)
-            Text {
-                objectName: "journeyLifetimeXp"
-                width: parent.width
-                text: root.journey.lifetimeXp + " lifetime XP · " + root.journey.ledger.length + " awards"
-                color: Theme.textPrimary
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.typeBody
-                wrapMode: Text.WordWrap
-            }
-            BevelButton {
-                id: ledgerButton
-                objectName: "openLedgerButton"
-                width: parent.width
-                label: "VIEW ALL AWARDS"
-                baseColor: Theme.coinGold
-                textColor: Theme.goldDeep
-                onActivated: if (root.shellApi) root.shellApi.openLedgerSheet()
-            }
+            label: "LV " + root.journey.level + " → " + (root.journey.level + 1)
+                   + " · " + Math.floor(100 * root.journey.progress.have / root.journey.progress.need) + "%"
+            Accessible.name: label + ". View XP breakdown and ledger"
+            onActivated: if (root.shellApi) root.shellApi.openLedgerSheet()
         }
     }
     ArcadeCard {
