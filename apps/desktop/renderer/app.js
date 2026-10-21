@@ -517,6 +517,7 @@ window.dailyxp.onChange(() => {
     invoke({ action: "snapshot" })
       .then((value) => {
         state = value;
+        sampledAt = Date.now();
         document.body.dataset.reduced = state.settings.reducedMotion;
       })
       .catch((error) => notice(error.message));

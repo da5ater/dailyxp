@@ -27,6 +27,25 @@ module.exports = async function verifySettings({
     }
     throw new Error("Settings outcome did not settle");
   };
+  await button("Play").click();
+  await button("Free Session").click();
+  await button("Pause Session").waitFor();
+  await button("Settings").click();
+  await page.getByLabel("Daily focus target in minutes").fill("91");
+  await require("../core/integration.cjs").request(profile, "pause");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(
+    await page.getByLabel("Daily focus target in minutes").inputValue(),
+    "91",
+  );
+  await button("Play").click();
+  await button("Resume Session").waitFor();
+  await button("Finish Session").click();
+  await button("Start Session").waitFor();
+  record(
+    "companion update while a settings draft has focus",
+    "draft kept; navigation uses current paused state",
+  );
   await button("Settings").click();
   await page.getByLabel("Day boundary in minutes after midnight").fill("360");
   await page.getByLabel("Daily focus target in minutes").fill("90");
