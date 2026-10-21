@@ -66,7 +66,7 @@ function display(action) {
     await page.setViewportSize({ width: 699, height: 900 });
     assert.ok(
       await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
+        () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     );
     await page.screenshot({
