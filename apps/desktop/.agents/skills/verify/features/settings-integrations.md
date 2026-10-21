@@ -1,17 +1,15 @@
 # Settings and desktop integrations
 
-## Sub-features
+Click Settings to change the daily target or day boundary, toggle reduced motion, export JSON or a legacy backup, import either format into an empty profile, or reset the current profile. About shows the packaged version. Reduced motion saves immediately. Numeric settings use Save settings. Existing history retains its recorded date context.
 
-Daily Target, day boundary, reduced motion, opt-in notifications, legacy import, export and versioned local companion control.
+The default verifier runs `scripts/verify-settings.cjs` after the empty-state product journey. It changes numeric preferences, toggles motion, checks no duplicate event after a repeated save, rejects invalid values, provokes a real read-only-directory save failure and preserves the form. It closes and restarts the real app, checks all preferences, and checks visible focus at 620px width.
 
-## How to get to it (user POV)
+The actual native JSON save dialog writes a checksum-valid canonical journal. The script loads that file with EventModel.loadJournal and imports it into a clean Core directory to compare XP and preferences. The existing native backup import journey proves source bytes stay unchanged. Canonical JSON and storage envelopes are both accepted by Import legacy state.
 
-Click Settings. Use Import legacy state only in an empty desktop profile. The companion button opens DailyXP. Right-click pauses or resumes an active Session.
+Reset opens a native HTML dialog with Cancel focused. Enter cancels. Escape cancels and reopening works. A separate Clear this profile action writes a named `reset-backup-UUID.json` recovery copy before replacing the profile. The script checks fresh visible commitments, default settings, idle companion rank, and empty replay after another restart. Reset is exercised only on disposable state.
 
-## Driving it with Playwright Electron
+The real companion right-click journey checks explicit paused text. Idle shows level and rank. Running shows focused minutes. Active Sessions take precedence over XP feedback. Capture the companion on the private display and inspect labels as well as the safe socket response.
 
-The default journey checks Reduce motion and saves. Assert `body[data-reduced=true]` and the stored boolean. It also runs a real companion widget and right-clicks it through QtTest, then observes Electron's paused state. Node integration tests cover invalid protocol frames, retry IDs, privacy and import compatibility. For a migration change, use the actual native file dialog with a disposable legacy backup and inspect both unchanged source bytes and the imported projection. For packaging, use the packaged-mode journey and installed controller.
+Node tests cover settings migration, failed writes, no-op saves, canonical checksum rejection and full projection round-trip. A controlled local clock checks dated Routine identities and Session slicing across the saved day boundary after restart.
 
-## Gotchas
-
-The headless display lacks a notification bus, so it cannot establish desktop notification delivery. A private socket response proves only the protocol path. Renderer input must use user controls. Never enable personal notifications or import personal Recovery data during automated checks.
+The headless display lacks a personal notification bus. These journeys do not prove OS notification delivery. Never import personal Recovery data into an automated run.

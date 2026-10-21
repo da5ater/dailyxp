@@ -85,6 +85,10 @@ if (!ownsInstance) {
             core.settings(changes);
             return { ok: true };
           }
+          if (action === "reset") {
+            core.reset(message.confirmation);
+            return { ok: true };
+          }
           if (action === "import") {
             const result = await dialog.showOpenDialog(window, {
               title: "Import legacy DailyXP state",
@@ -99,15 +103,25 @@ if (!ownsInstance) {
             }
             return { ok: true, canceled: result.canceled };
           }
-          if (action === "export") {
+          if (action === "export" || action === "export-journal") {
             const result = await dialog.showSaveDialog(window, {
-              title: "Export DailyXP backup",
-              defaultPath: "dailyxp-backup.json",
+              title:
+                action === "export"
+                  ? "Export DailyXP backup"
+                  : "Export canonical DailyXP JSON",
+              defaultPath:
+                action === "export"
+                  ? "dailyxp-backup.json"
+                  : "dailyxp-journal.json",
             });
             if (!result.canceled)
-              fs.writeFileSync(result.filePath, core.exportState(), {
-                mode: 0o600,
-              });
+              fs.writeFileSync(
+                result.filePath,
+                action === "export" ? core.exportState() : core.exportJournal(),
+                {
+                  mode: 0o600,
+                },
+              );
             return { ok: true, canceled: result.canceled };
           }
           throw new Error("Unsupported action");

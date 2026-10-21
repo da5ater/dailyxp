@@ -241,7 +241,14 @@ async function execute() {
     await page
       .getByRole("button", { name: "Resume Session", exact: true })
       .waitFor();
-    record("real companion right click", "Electron shows paused");
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (JSON.parse(companionCall("status")).label.startsWith("Paused · "))
+        break;
+      if (attempt === 39) throw new Error("Companion does not show paused");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    spawnSync("grim", [path.join(run, "100-bar-during.png")], { env });
+    record("real companion right click", "Electron and companion show paused");
     await page
       .getByRole("button", { name: "Resume Session", exact: true })
       .click();
@@ -846,6 +853,20 @@ async function execute() {
       !journal.events.some((e) => e.type === "habit.completed")
     )
       throw new Error("Visible work did not persist");
+    page = await require("./verify-settings.cjs")({
+      page,
+      closeApp: () => app.close(),
+      env,
+      run,
+      profile,
+      shot,
+      record,
+      companionCall,
+      restart: async () => {
+        page = await launch();
+        return page;
+      },
+    });
     fs.writeFileSync(
       path.join(run, "report.json"),
       JSON.stringify(

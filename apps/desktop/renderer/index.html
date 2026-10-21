@@ -49,6 +49,24 @@
         </button>
       </div>
     </dialog>
+    <dialog
+      id="reset-confirmation"
+      aria-labelledby="reset-title"
+      aria-describedby="reset-copy"
+    >
+      <h2 id="reset-title">Reset this profile?</h2>
+      <p id="reset-copy">
+        Your Tasks, Goals, Habits, Sessions, private tracks and settings will be
+        cleared. Export first if you need a portable copy.
+      </p>
+      <p id="reset-error" role="alert"></p>
+      <div class="inline">
+        <button type="button" data-action="cancel-reset">Cancel</button
+        ><button type="button" class="danger" data-action="confirm-reset">
+          Clear this profile
+        </button>
+      </div>
+    </dialog>
     <script type="module" src="app.js"></script>
   </body>
 </html>

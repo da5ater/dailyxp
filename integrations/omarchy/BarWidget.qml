@@ -1,24 +1,23 @@
 import QtQuick
-import Quickshell
-import qs.Commons
-import qs.Ui
+import qs.Ui as Ui
 
-BarWidget {
+Ui.BarWidget {
   id: root
   moduleName: "io.github.da5ater.dailyxp"
-  readonly property var service: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
+  readonly property var hostBar: bar
+  readonly property var service: hostBar && hostBar.shell ? hostBar.shell.serviceFor(moduleName) : null
   readonly property var current: service && service.connected ? service.status : null
   readonly property var session: current ? current.session : null
   function elapsed(ms) { return Math.floor(Number(ms || 0) / 60000) + "m" }
   function label() {
-    if (service && service.feedback) return service.feedback
     if (!current) return "DailyXP"
-    if (session) return (session.status === "running" ? "▶ " : "Ⅱ ") + elapsed(session.focusedMilliseconds)
-    return "Lv " + current.level
+    if (session) return (session.status === "running" ? "▶ " : "Paused · ") + elapsed(session.focusedMilliseconds)
+    if (service && service.feedback) return service.feedback
+    return "Lv " + current.level + " · " + current.storyRank
   }
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
-  WidgetButton {
+  Ui.WidgetButton {
     id: button
     objectName: "dailyxpCompanionButton"
     bar: root.bar

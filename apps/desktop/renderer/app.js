@@ -4,6 +4,7 @@ import { renderView } from "./views.js";
 const root = document.querySelector("#app");
 const dialog = document.querySelector("#editor");
 const privateDialog = document.querySelector("#private-confirmation");
+const resetDialog = document.querySelector("#reset-confirmation");
 let confirmation = null;
 let state,
   surface = "Play";
@@ -395,26 +396,105 @@ async function action(name, id) {
     root.querySelector("#private-heading")?.focus();
     return;
   }
-  if (name === "save-settings") {
-    const data = new FormData(document.querySelector("#settings-form"));
-    await invoke({
-      action: "settings",
-      changes: {
-        dailyTargetMinutes: Number(data.get("dailyTargetMinutes")),
-        dayBoundaryMinutes: Number(data.get("dayBoundaryMinutes")),
-        reducedMotion: data.get("reducedMotion") === "on",
-        notifications: data.get("notifications") === "on",
-      },
-    });
-    await refresh();
-    notice("Settings saved.");
+  if (name === "reset") {
+    document.querySelector("#reset-error").textContent = "";
+    resetDialog.showModal();
+    resetDialog.querySelector('[data-action="cancel-reset"]').focus();
     return;
   }
-  if (name === "import" || name === "export") {
-    await invoke({ action: name });
-    await refresh();
+  if (name === "cancel-reset") {
+    resetDialog.close();
+    focusControl("reset");
+    return;
+  }
+  if (name === "confirm-reset") {
+    busy = true;
+    resetDialog.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    try {
+      await invoke({ action: "reset", confirmation: "reset-profile" });
+      privateOpen = false;
+      selectedId = null;
+      surface = "Play";
+      resetDialog.close();
+      await refresh();
+      focusControl("new", "task");
+      notice("Profile reset. Ready for your first commitment.");
+    } catch (error) {
+      document.querySelector("#reset-error").textContent = error.message;
+    } finally {
+      busy = false;
+      resetDialog
+        .querySelectorAll("button")
+        .forEach((b) => (b.disabled = false));
+    }
+    return;
+  }
+  if (name === "save-settings") {
+    const form = document.querySelector("#settings-form");
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    busy = true;
+    form.querySelector("button").disabled = true;
+    try {
+      await invoke({
+        action: "settings",
+        changes: {
+          dailyTargetMinutes: Number(data.get("dailyTargetMinutes")),
+          dayBoundaryMinutes: Number(data.get("dayBoundaryMinutes")),
+          reducedMotion: data.get("reducedMotion") === "on",
+          notifications: data.get("notifications") === "on",
+        },
+      });
+      await refresh();
+      notice("Settings saved.");
+    } finally {
+      busy = false;
+      document.querySelector("#settings-form button").disabled = false;
+    }
+    return;
+  }
+  if (["import", "export", "export-journal"].includes(name)) {
+    busy = true;
+    try {
+      const response = await window.dailyxp.invoke({ action: name });
+      if (!response.ok) throw new Error(response.error);
+      await refresh();
+      notice(
+        response.canceled
+          ? "Canceled. No file changed."
+          : name === "import"
+            ? "Imported on this device."
+            : "Export saved.",
+      );
+    } finally {
+      busy = false;
+    }
   }
 }
+document.addEventListener("change", async (event) => {
+  if (event.target.name !== "reducedMotion" || busy) return;
+  busy = true;
+  const input = event.target;
+  input.disabled = true;
+  try {
+    await invoke({
+      action: "settings",
+      changes: { reducedMotion: input.checked },
+    });
+    state = await invoke({ action: "snapshot" });
+    document.body.dataset.reduced = state.settings.reducedMotion;
+    notice("Motion preference saved.");
+  } catch (error) {
+    input.checked = state.settings.reducedMotion;
+    notice(error.message);
+  } finally {
+    busy = false;
+    input.disabled = false;
+  }
+});
+resetDialog.addEventListener("close", () => {
+  if (surface === "Settings") focusControl("reset");
+});
 document.addEventListener("click", (event) => {
   const control = event.target.closest("[data-action]");
   if (control) {
@@ -432,7 +512,8 @@ document.addEventListener("submit", (event) => {
   }
 });
 window.dailyxp.onChange(() => {
-  if (!busy) refresh().catch((error) => notice(error.message));
+  if (!busy && !document.activeElement?.closest("#settings-form"))
+    refresh().catch((error) => notice(error.message));
 });
 setInterval(() => {
   const timer = document.querySelector("#session-timer");
