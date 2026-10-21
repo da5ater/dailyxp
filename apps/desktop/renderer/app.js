@@ -512,9 +512,19 @@ document.addEventListener("submit", (event) => {
   }
 });
 window.dailyxp.onChange(() => {
-  if (!busy && !document.activeElement?.closest("#settings-form"))
-    refresh().catch((error) => notice(error.message));
+  if (busy) return;
+  if (document.activeElement?.closest("#settings-form")) {
+    invoke({ action: "snapshot" })
+      .then((value) => {
+        state = value;
+        document.body.dataset.reduced = state.settings.reducedMotion;
+      })
+      .catch((error) => notice(error.message));
+    return;
+  }
+  refresh().catch((error) => notice(error.message));
 });
+
 setInterval(() => {
   const timer = document.querySelector("#session-timer");
   if (timer && state?.session.activeSession)
