@@ -396,14 +396,14 @@ async function execute() {
     await page.getByRole("button", { name: "Save", exact: true }).click();
     const xpBeforeMilestone = (await request(profile, "status")).lifetimeXp;
     await page.getByRole("button", { name: "Complete", exact: true }).click();
-    if ((await request(profile, "status")).lifetimeXp <= xpBeforeMilestone)
-      throw new Error("Completed Milestone awarded no XP");
     const completedMilestone = page
       .locator(".entity")
       .filter({ hasText: "Finish the parser" });
     await completedMilestone
       .getByText("completed · binary", { exact: true })
       .waitFor();
+    if ((await request(profile, "status")).lifetimeXp <= xpBeforeMilestone)
+      throw new Error("Completed Milestone awarded no XP");
     if (
       await completedMilestone
         .getByRole("button", { name: "Complete", exact: true })
