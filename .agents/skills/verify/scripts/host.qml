@@ -56,7 +56,7 @@ ShellRoot {
       if (!item || !item.visible || !item.enabled) return "unavailable"
       input.parent = input.findChild(productionWidget, "dailyxpShell")
       item.forceActiveFocus()
-      var keys = { "Return": Qt.Key_Return, "Space": Qt.Key_Space, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape, "Backtab": Qt.Key_Backtab, "Backspace": Qt.Key_Backspace }
+      var keys = { "Return": Qt.Key_Return, "Space": Qt.Key_Space, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape, "Backtab": Qt.Key_Backtab }
       if (keys[key] === undefined) return "unknown-key"
       input.keyClick(keys[key])
       return "pressed"
@@ -93,7 +93,7 @@ ShellRoot {
       return "typed"
     }
     function press(key: string): string {
-      var keys = { "Return": Qt.Key_Return, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape, "Space": Qt.Key_Space, "Backtab": Qt.Key_Backtab, "Backspace": Qt.Key_Backspace }
+      var keys = { "Return": Qt.Key_Return, "Tab": Qt.Key_Tab, "Escape": Qt.Key_Escape, "Space": Qt.Key_Space, "Backtab": Qt.Key_Backtab }
       input.keyClick(keys[key])
       return "pressed"
     }
