@@ -1,17 +1,5 @@
 # Private Recovery
 
-## Sub-features
+The footer Private Recovery button opens an explicit native HTML confirmation dialog. Cancel has initial focus; Enter cancels and Escape closes. Confirming opens the protected view. + Track creates a named private track with a required nonfuture start date. Check in accepts an optional private note, once per track per day. A separate confirmation records a setback; Restart begins a new attempt without removing XP. Hide tracks returns to Play. Leaving the view, hiding or minimizing the window requires confirmation again; unfinished private fields are cleared on hide.
 
-Protected entry, custom private tracks, attempt start, check-in, explicit setback and restart.
-
-## How to get to it (user POV)
-
-On Play click Private Recovery, then Open private tracks. Use + Track to begin.
-
-## Driving it with Playwright Electron
-
-Click Private Recovery and assert track names are absent before opening private tracks. Open the view, create a custom category and choose an attempt start date. Save and assert it appears. Check in through its form. For a setback, accept the explicit native confirmation, assert Restart replaces Record setback, then restart through the control. Navigate away and return. The privacy gate must return. Check the production companion status contains neither the track name nor its notes.
-
-## Gotchas
-
-The default journey covers creation, check-in, leaving/reopening the privacy gate and companion disclosure. Setback and restart remain additional routes. Recovery information belongs only in its protected view and exports. Automation runs use disposable data and no desktop notification bus.
+The default Playwright journey drives creation from empty state, whitespace rejection, Cancel/Enter, check-in disabled state, Escape from setback, confirmed setback and same-day restart. It asserts canonical Recovery events have `private:true`, only one check-in persists, and the compact companion status excludes names and notes. The World edge journey additionally proves rapid window close/reopen relocks and clears private input. Core tests cover backdating, future-date rejection despite a forged caller date, ordinary projection exclusion and disk replay. Use disposable data only. Export deliberately includes private data and must remain labeled as such.

@@ -10,14 +10,15 @@ function emptyProjection(){ return freeze({ schemaVersion:PROJECTION_SCHEMA_VERS
 function findById(a,id){ for(var i=0;i<a.length;i++) if(a[i].id===id) return a[i]; return null; }
 function dateValue(v,f){ if(!DATE_PATTERN.test(String(v||""))) fail(f,"must be YYYY-MM-DD"); var p=v.split("-").map(Number); var d=new Date(Date.UTC(p[0],p[1]-1,p[2])); if(d.toISOString().slice(0,10)!==v) fail(f,"is not a calendar date"); return d; }
 function daysBetween(a,b){ var da=dateValue(a,"a"), db=dateValue(b,"b"); return Math.floor((db-da)/86400000); }
-function intent(t,p){ return freeze({ type:"recovery."+t, payload: clone(p), occurrenceKey:null }); }
+function intent(t,p){ return freeze({ type:"recovery."+t, private:true, payload: clone(p), occurrenceKey:null }); }
 
 function validateTrack(track){
   if(!track.id) fail("track.id","is required");
-  if(CATEGORIES.indexOf(track.category)===-1 && !track.customCategory) fail("track.category","is invalid");
+  if(CATEGORIES.indexOf(track.category)===-1) fail("track.category","is invalid");
   if(track.customCategory && typeof track.customCategory!=="string") fail("customCategory","must be string");
+  if(track.category==="custom" && !String(track.customCategory||"").trim()) fail("customCategory","is required");
   dateValue(track.startDate,"track.startDate");
-  if(["private","circle","public"].indexOf(track.visibility)===-1) fail("track.visibility","is invalid");
+  if(track.visibility!=="private") fail("track.visibility","is invalid");
 }
 
 function decide(projection, command){
@@ -25,6 +26,9 @@ function decide(projection, command){
   var input=command||{};
   if(input.type==="recovery.track.create"){
     var track=clone(input.track||{});
+    track.visibility="private";
+    if(track.customCategory) track.customCategory=track.customCategory.trim();
+    if(input.dailyXpDate && track.startDate>input.dailyXpDate) fail("track.startDate","cannot be in the future");
     if(findById(state.tracks, track.id)) fail("track.id","already exists");
     // duplicate track cannot multiply: same category active check
     var cat = track.category==="custom"? track.customCategory : track.category;
@@ -41,6 +45,7 @@ function decide(projection, command){
     var att=state.attempts.find(function(a){ return a.trackId===input.trackId && a.status==="active"; });
     if(!att) fail("attempt","no active attempt");
     dateValue(input.dailyXpDate,"dailyXpDate");
+    if(input.dailyXpDate<att.startDate) fail("dailyXpDate","precedes this attempt");
     // relapse ends attempt, preserves XP, offers restart
     return freeze({ events: [intent("relapsed", { trackId: input.trackId, attemptId: att.id, dailyXpDate: input.dailyXpDate })] });
   }
@@ -49,12 +54,17 @@ function decide(projection, command){
     if(!tr2) fail("trackId","was not found");
     if(state.attempts.some(function(a){ return a.trackId===input.trackId && a.status==="active"; })) fail("attempt","already active");
     dateValue(input.dailyXpDate,"dailyXpDate");
-    var newAttempt={ id: input.trackId+":attempt:"+input.dailyXpDate, trackId: input.trackId, startDate: input.dailyXpDate, status:"active", relapseDate:null };
+    var newAttempt={ id: input.trackId+":attempt:"+input.dailyXpDate+":"+state.attempts.length, trackId: input.trackId, startDate: input.dailyXpDate, status:"active", relapseDate:null };
     return freeze({ events: [intent("attempt.started", newAttempt)] });
   }
   if(input.type==="recovery.checkin"){
-    // optional, does not control counter
-    return freeze({ events: [intent("checkin", { trackId: input.trackId, dailyXpDate: input.dailyXpDate, mood: input.mood, trigger: input.trigger, note: input.note })] });
+    if(!findById(state.tracks,input.trackId)) fail("trackId","was not found");
+    var active=state.attempts.find(function(a){ return a.trackId===input.trackId && a.status==="active"; });
+    if(!active) fail("attempt","no active attempt");
+    dateValue(input.dailyXpDate,"dailyXpDate");
+    if(input.dailyXpDate<active.startDate) fail("dailyXpDate","precedes this attempt");
+    if(state.checkIns.some(function(c){ return c.trackId===input.trackId && c.dailyXpDate===input.dailyXpDate; })) return freeze({events:[]});
+    return freeze({ events: [intent("checkin", { trackId: input.trackId, dailyXpDate: input.dailyXpDate, mood: String(input.mood||""), trigger: String(input.trigger||""), note: String(input.note||"") })] });
   }
   if(input.type==="recovery.delete"){
     var t=findById(state.tracks, input.trackId);
@@ -92,17 +102,6 @@ function projectIntents(projection, intents){
   // derive milestones and xp
   var xp=0;
   var milestones=[];
-  next.attempts.forEach(function(att){
-    var track=findById(next.tracks, att.trackId);
-    if(!track) return;
-    // For backdated start, xp from startDate to today (or relapse) is 20 per completed day, but not retroactive competitive before creation? For local, just count days.
-    // Determine end date: relapseDate or today (last checkin or now). For test, use lastAdvanced if available else attempt start + days.
-    // Simplify: xp per attempt = days since start until relapse or lastAdvanced (approx)
-    // For deterministic tests, we will compute xp based on provided "asOfDate" in projection? Instead, xp computed as 20 * completed days where completed = days between start and (relapseDate ? relapse-1 : today) but not requiring checkins.
-    // For now, use a fixed asOf: if attempt active, count days from start to today simulated as start+10? Better to make xp deterministic via test providing asOfDate.
-    // For minimal, xp = 0 for now, tests will compute via helper.
-  });
-  // Instead compute via daysBetween to lastAdvanced if supplied via next._asOfDate
   var asOf = next._asOfDate || null;
   if(asOf){
     next.attempts.forEach(function(att){
@@ -131,8 +130,18 @@ function projectIntents(projection, intents){
   next.milestones=milestones;
   return freeze(next);
 }
+function trackState(projection,trackId,today){
+  var attempt=projection.attempts.find(function(a){return a.trackId===trackId && a.status==="active";});
+  return freeze({active:!!attempt,days:attempt?Math.max(0,daysBetween(attempt.startDate,today)+1):0,checkedIn:projection.checkIns.some(function(c){return c.trackId===trackId && c.dailyXpDate===today;})});
+}
 function project(events){
-  var intents=(events||[]).filter(function(e){ return /^recovery\./.test(e.type); }).map(function(e){ return { type:e.type, payload:e.payload }; });
+  var seen = Object.create(null);
+  var intents=(events||[]).filter(function(e){
+    if (!/^recovery\./.test(e.type)) return false;
+    if (e.eventId && seen[e.eventId]) return false;
+    if (e.eventId) seen[e.eventId] = true;
+    return true;
+  }).map(function(e){ return { type:e.type, payload:e.payload }; });
   return projectIntents(emptyProjection(), intents);
 }
-if(typeof module!=="undefined"&&module.exports) module.exports={ emptyProjection, decide, projectIntents, project, MILESTONES, CATEGORIES };
+if(typeof module!=="undefined"&&module.exports) module.exports={ emptyProjection, decide, projectIntents, project, trackState, MILESTONES, CATEGORIES };

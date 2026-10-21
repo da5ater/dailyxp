@@ -118,6 +118,12 @@ async function execute() {
       record(`capture ${label}`, await request(profile, "status"));
     };
     await shot("01-empty");
+    await page.getByRole("button", { name: "World", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "Your first Province begins with a Goal." })
+      .waitFor();
+    await shot("09-world-empty");
+    await page.getByRole("button", { name: "Play", exact: true }).click();
     await page.getByRole("button", { name: "+ Add", exact: true }).click();
     await page
       .getByLabel("Name", { exact: true })
@@ -426,7 +432,39 @@ async function execute() {
       "create Goal and complete its Milestone",
       "completed label visible; completion persisted",
     );
+    await page
+      .getByRole("button", { name: "+ Milestone", exact: true })
+      .click();
+    await page.getByLabel("Name", { exact: true }).fill("Explain the protocol");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByRole("button", { name: "World", exact: true }).click();
+    await page
+      .getByRole("heading", { name: "Learn systems programming", exact: true })
+      .waitFor();
+    if ((await page.getByRole("progressbar").getAttribute("value")) !== "0.5")
+      throw new Error("World fraction did not follow real Milestones");
+    await page.getByText("1 / 2 landmarks built", { exact: true }).waitFor();
+    await shot("10-world-progress");
+    record(
+      "World follows Goal and Milestone progression",
+      "50%, real Momentum cause, no competition fixtures",
+    );
     await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Private Recovery", exact: true })
+      .click();
+    await page.getByRole("dialog", { name: "Open private tracks?" }).waitFor();
+    if (
+      !(await page
+        .getByRole("button", { name: "Cancel", exact: true })
+        .evaluate((el) => el === document.activeElement))
+    )
+      throw new Error("Private gate did not default to Cancel");
+    await shot("11-private-confirmation");
+    await page.keyboard.press("Enter");
+    await page
+      .getByRole("dialog", { name: "Open private tracks?" })
+      .waitFor({ state: "hidden" });
     await page
       .getByRole("button", { name: "Private Recovery", exact: true })
       .click();
@@ -434,6 +472,12 @@ async function execute() {
       .getByRole("button", { name: "Open private tracks", exact: true })
       .click();
     await page.getByRole("button", { name: "+ Track", exact: true }).click();
+    await page.getByLabel("Private category name").fill("   ");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page
+      .locator("#form-error")
+      .filter({ hasText: /customCategory/i })
+      .waitFor();
     await page.getByLabel("Private category name").fill("Private review track");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page
@@ -442,6 +486,51 @@ async function execute() {
     await page.getByRole("button", { name: "Check in", exact: true }).click();
     await page.getByLabel("Private note").fill("Disposable review note");
     await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Checked in today", exact: true })
+      .waitFor();
+    if (
+      !(await page
+        .getByRole("button", { name: "Checked in today", exact: true })
+        .isDisabled())
+    )
+      throw new Error("Duplicate check-in remains enabled");
+    await shot("12-private-checkin");
+    await page.keyboard.press("Enter");
+    await page
+      .getByRole("button", { name: "Record setback", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Checked in today", exact: true })
+      .waitFor();
+    await page
+      .getByRole("button", { name: "Record setback", exact: true })
+      .click();
+    await page
+      .locator("#private-confirmation")
+      .getByRole("button", { name: "Record setback", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Restart", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Restart", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Checked in today", exact: true })
+      .waitFor();
+    await shot("13-private-restart");
+    const privateJournal = JSON.parse(
+      JSON.parse(fs.readFileSync(path.join(profile, "desktop.json"))).envelope
+        .payload.eventJournalRaw,
+    );
+    const privateEvents = privateJournal.events.filter((e) =>
+      e.type.startsWith("recovery."),
+    );
+    if (
+      privateEvents.some((e) => e.private !== true) ||
+      privateEvents.filter((e) => e.type === "recovery.checkin").length !== 1
+    )
+      throw new Error(
+        "Canonical Recovery privacy or once-a-day check-in failed",
+      );
     if (
       JSON.stringify(await request(profile, "status")).includes(
         "Private review track",
@@ -461,6 +550,7 @@ async function execute() {
         .count()
     )
       throw new Error("Recovery privacy gate did not reset");
+    await page.keyboard.press("Escape");
     record("private Recovery create/check-in/hide", "no companion disclosure");
     await page.getByRole("button", { name: "Play", exact: true }).click();
     await page.getByRole("button", { name: "+ Add", exact: true }).click();

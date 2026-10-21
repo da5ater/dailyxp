@@ -41,7 +41,7 @@ The script uses Playwright's Electron driver. Real handles include `getByRole('b
 
 Drive the UI through these controls, not renderer evaluation that invokes the preload directly. Native integration proof uses the production `dailyxpctl` protocol and a rendered production companion widget. The fixture's QtTest input performs a real right-click on that widget, then asserts the resulting paused state in Electron. The application is restarted and the active Session must replay before the journey continues. It also closes the real window, reopens it through the companion, observes disconnect/reconnect and captures earned XP feedback. Native backup dialogs use wtype on the owned private Wayland socket, with an isolated HOME. The GTK file dialogs float inside that compositor. No personal display fallback is allowed.
 
-Read the feature files before extending the script. Add focused journeys for uncovered acceptance criteria. Do not change expectations just to make a journey pass. Packaged mode must exercise the packaged controller before claiming a portable companion install.
+Read the feature files before extending the script. Run the separate [World edge journey](features/world.md) for the seven-day condition and private window lifecycle. Add focused journeys for uncovered acceptance criteria. Do not change expectations just to make a journey pass. Packaged mode must exercise the packaged controller before claiming a portable companion install.
 
 ## Evidence
 

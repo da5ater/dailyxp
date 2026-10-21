@@ -180,6 +180,7 @@ function createEvent(input) {
     },
     payload: cloneJson(source.payload)
   };
+  if (/^recovery\./.test(candidate.type)) candidate.private = true;
   validateEvent(candidate);
   if (resolved && (candidate.localDateTime !== resolved.localDateTime || candidate.context.utcOffsetMinutes !== resolved.utcOffsetMinutes))
     fail("event.context.timezone", "does not match the timezone rules at occurredAtUtc");
@@ -191,6 +192,8 @@ function validateEvent(value) {
   if (!isUuidV4(value.eventId)) fail("event.eventId", "must be an RFC 4122 version-4 UUID");
   if (!isUuidV4(value.deviceId)) fail("event.deviceId", "must be an RFC 4122 version-4 UUID");
   if (!EVENT_TYPE_PATTERN.test(String(value.type || ""))) fail("event.type", "is invalid");
+  if (/^recovery\./.test(value.type) && value.private !== undefined && value.private !== true)
+    fail("event.private", "recovery events must remain private");
   if (!validUtcInstant(value.occurredAtUtc)) fail("event.occurredAtUtc", "is invalid");
   var parts = localParts(value.localDateTime);
   if (!DATE_PATTERN.test(String(value.dailyXpDate || ""))) fail("event.dailyXpDate", "is invalid");
@@ -228,6 +231,7 @@ function validateJournalShape(journal) {
 function append(journal, value) {
   validateJournalShape(journal);
   validateEvent(value);
+  if (/^recovery\./.test(value.type) && value.private !== true) fail("event.private", "new recovery writes require private:true");
   for (var i = 0; i < journal.events.length; i += 1)
     if (journal.events[i].eventId === value.eventId) return journal;
   var nextEvents = journal.events.map(cloneJson);
@@ -243,7 +247,9 @@ function normalizeJournal(value) {
     var eventId = value.events[i].eventId;
     if (seen[eventId]) continue;
     seen[eventId] = true;
-    events.push(cloneJson(value.events[i]));
+    var normalized = cloneJson(value.events[i]);
+    if (/^recovery\./.test(normalized.type)) normalized.private = true;
+    events.push(normalized);
   }
   return deepFreeze({ schemaVersion: JOURNAL_SCHEMA_VERSION, deviceId: value.deviceId, events: events });
 }
@@ -259,6 +265,7 @@ function rebuildProjection(journal) {
   var lastEventAtUtc = null;
   for (var i = 0; i < journal.events.length; i += 1) {
     var value = journal.events[i];
+    if (value.private === true || /^recovery\./.test(value.type)) continue;
     if (seen[value.eventId]) continue;
     seen[value.eventId] = true;
     appliedEventIds.push(value.eventId);

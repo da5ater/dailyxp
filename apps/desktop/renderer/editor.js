@@ -139,10 +139,17 @@ export function editorFields(kind, item, goalId, state) {
         "",
         "text",
         'required maxlength="120"',
-      ) + input("Attempt start date", "start", state.date, "date", "required");
+      ) +
+      input(
+        "Attempt start date",
+        "start",
+        state.date,
+        "date",
+        `required max="${state.date}"`,
+      );
   if (kind === "checkin")
     fields +=
-      '<label>Private note<textarea name="note" maxlength="2000" required></textarea></label>';
+      '<label>Private note (optional)<textarea name="note" maxlength="2000"></textarea></label>';
   return fields;
 }
 function schedule(data, startDate) {

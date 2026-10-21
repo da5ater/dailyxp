@@ -30,6 +30,25 @@
         <button class="primary" type="submit">Save</button>
       </form>
     </dialog>
+    <dialog
+      id="private-confirmation"
+      aria-labelledby="private-title"
+      aria-describedby="private-copy"
+    >
+      <h2 id="private-title"></h2>
+      <p id="private-copy" class="hint"></p>
+      <div class="inline">
+        <button type="button" data-action="cancel-private">Cancel</button
+        ><button
+          type="button"
+          data-action="confirm-private"
+          class="primary"
+          id="private-accept"
+        >
+          Open private tracks
+        </button>
+      </div>
+    </dialog>
     <script type="module" src="app.js"></script>
   </body>
 </html>

@@ -341,3 +341,114 @@ test("Skill-only Session correction preserves excluded idle time through editor 
     replay.close();
   }
 });
+
+test("Recovery is private in canonical storage, ordinary projections and replay", (t) => {
+  const c = fixture(t, { clock: () => new Date("2026-10-21T09:00:00Z") });
+  const ordinaryBefore = c.status().lifetimeXp;
+  assert.throws(
+    () =>
+      c.execute("recovery", {
+        type: "recovery.track.create",
+        dailyXpDate: "2099-01-01",
+        track: {
+          id: "future",
+          category: "custom",
+          customCategory: "Future",
+          startDate: "2026-10-22",
+        },
+      }),
+    /future/,
+  );
+  c.execute("recovery", {
+    type: "recovery.track.create",
+    track: {
+      id: "private",
+      category: "custom",
+      customCategory: "Secret track",
+      startDate: "2026-10-18",
+      visibility: "public",
+    },
+  });
+  assert.equal(c.snapshot().recoveryTrackStates.private.days, 4);
+  c.execute("recovery", {
+    type: "recovery.checkin",
+    trackId: "private",
+    note: "Secret note",
+  });
+  c.execute("recovery", {
+    type: "recovery.checkin",
+    trackId: "private",
+    note: "Duplicate",
+  });
+  c.execute("recovery", { type: "recovery.relapse", trackId: "private" });
+  c.execute("recovery", { type: "recovery.restart", trackId: "private" });
+  c.execute("recovery", { type: "recovery.relapse", trackId: "private" });
+  c.execute("recovery", { type: "recovery.restart", trackId: "private" });
+  const snapshot = c.snapshot();
+  assert.equal(new Set(snapshot.recovery.attempts.map((a) => a.id)).size, 3);
+  assert.equal(snapshot.recovery.checkIns.length, 1);
+  assert.equal(snapshot.recoveryTrackStates.private.checkedIn, true);
+  assert.equal(c.status().lifetimeXp, ordinaryBefore);
+  assert.ok(
+    c.journal.events
+      .filter((e) => e.type.startsWith("recovery."))
+      .every((e) => e.private === true),
+  );
+  for (const ordinary of [
+    c.status(),
+    snapshot.progression,
+    snapshot.insight,
+    snapshot.share,
+    snapshot.story,
+  ]) {
+    assert.doesNotMatch(
+      JSON.stringify(ordinary),
+      /Secret track|Secret note|Duplicate/,
+    );
+  }
+  c.close();
+  const replay = new Core(c.directory, {
+    clock: () => new Date("2026-10-21T09:00:00Z"),
+  });
+  try {
+    assert.deepEqual(replay.snapshot().recovery, snapshot.recovery);
+    assert.equal(replay.status().lifetimeXp, ordinaryBefore);
+  } finally {
+    replay.close();
+  }
+});
+
+test("World follows real Goal and Milestone events across disk replay", (t) => {
+  const c = fixture(t);
+  c.execute("planning", {
+    type: "goal.create",
+    goal: {
+      id: "province",
+      title: "Build the kingdom",
+      reason: "Learn",
+      primarySkill: "general/focus",
+    },
+  });
+  for (const id of ["one", "two"])
+    c.execute("planning", {
+      type: "milestone.create",
+      milestone: {
+        id,
+        title: id,
+        goalId: "province",
+        measurement: { type: "binary" },
+        significance: 1,
+      },
+    });
+  c.execute("planning", { type: "milestone.progress", id: "one", value: true });
+  const story = c.snapshot().story;
+  assert.equal(story.provinces[0].fraction, 0.5);
+  assert.match(story.momentumCause, /day|activity/i);
+  c.close();
+  const replay = new Core(c.directory);
+  try {
+    assert.deepEqual(replay.snapshot().story, story);
+  } finally {
+    replay.close();
+  }
+});
