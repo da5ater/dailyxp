@@ -206,3 +206,37 @@ test("day boundary applies to dated occurrences and finished Session slicing aft
     replay.close();
   }
 });
+test("invalid settings import preserves disk, live state and restart", (t) => {
+  const c = fixture(t);
+  const before = fs.readFileSync(
+    path.join(c.directory, "desktop.json"),
+    "utf8",
+  );
+  const malformed = structuredClone(c.journal);
+  malformed.events.find(
+    (e) => e.type === "settings.changed",
+  ).payload.settings.reducedMotion = "bad";
+  const raw = Event.exportCheckedJournal(malformed);
+  assert.equal(Event.loadJournal(raw).ok, true);
+  assert.throws(() => c.importLegacy(raw), /Invalid settings/);
+  assert.equal(
+    fs.readFileSync(path.join(c.directory, "desktop.json"), "utf8"),
+    before,
+  );
+  assert.deepEqual(c.snapshot().settings, Settings.DEFAULTS);
+  c.close();
+  const replay = new Core(c.directory);
+  try {
+    assert.deepEqual(replay.snapshot().settings, Settings.DEFAULTS);
+  } finally {
+    replay.close();
+  }
+});
+test("atomic export replaces a permissive file with a private complete journal", (t) => {
+  const c = fixture(t);
+  const file = path.join(c.directory, "export.json");
+  fs.writeFileSync(file, "old", { mode: 0o644 });
+  atomicWrite(file, c.exportJournal());
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  assert.equal(Event.loadJournal(fs.readFileSync(file, "utf8")).ok, true);
+});

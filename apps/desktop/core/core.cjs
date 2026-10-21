@@ -78,6 +78,7 @@ function validateDocument(raw) {
   }
   const journal = Event.loadJournal(data.envelope.payload.eventJournalRaw);
   if (!journal.ok) throw new Error(journal.message);
+  projectJournal(journal.journal);
   return data;
 }
 function serialize(data) {
@@ -91,6 +92,37 @@ function serialize(data) {
       }),
     }) + "\n"
   );
+}
+
+function projectJournal(journal) {
+  const settings = models.settings.project(journal.events);
+  const projections = {};
+  for (const name of [
+    "planning",
+    "session",
+    "habit",
+    "progression",
+    "recovery",
+    "ux",
+    "insight",
+    "share",
+  ])
+    projections[name] = models[name].project(journal.events);
+  const p = projections;
+  p.story = models.story.project(journal.events, {
+    goals: p.planning.goals,
+    tasks: p.planning.tasks,
+    momentumActivity: p.progression._dailyActivity,
+    milestones: p.planning.milestones,
+    occurrences: p.planning.occurrences,
+    sessions: p.session.sessions,
+    habits: p.habit.habits,
+    habitCompletions: p.habit.completions,
+    dailySummaries: p.habit.dailySummaries,
+    lastAdvanced: p.habit.lastAdvancedDailyXpDate,
+    momentum: p.progression.momentum,
+  });
+  return { settings, projections };
 }
 
 class Core extends EventEmitter {
@@ -194,37 +226,16 @@ class Core extends EventEmitter {
     this.recovered = false;
   }
   reproject() {
-    this.journal = Event.loadJournal(
+    const loaded = Event.loadJournal(
       this.data.envelope.payload.eventJournalRaw,
-    ).journal;
-    this.data.settings = models.settings.project(this.journal.events);
-    this.projections = {};
-    for (const name of [
-      "planning",
-      "session",
-      "habit",
-      "progression",
-      "recovery",
-      "ux",
-      "insight",
-      "share",
-    ])
-      this.projections[name] = models[name].project(this.journal.events);
-    const p = this.projections;
-    p.story = models.story.project(this.journal.events, {
-      goals: p.planning.goals,
-      tasks: p.planning.tasks,
-      momentumActivity: p.progression._dailyActivity,
-      milestones: p.planning.milestones,
-      occurrences: p.planning.occurrences,
-      sessions: p.session.sessions,
-      habits: p.habit.habits,
-      habitCompletions: p.habit.completions,
-      dailySummaries: p.habit.dailySummaries,
-      lastAdvanced: p.habit.lastAdvancedDailyXpDate,
-      momentum: p.progression.momentum,
-    });
+    );
+    if (!loaded.ok) throw new Error(loaded.message);
+    const projected = projectJournal(loaded.journal);
+    this.journal = loaded.journal;
+    this.data.settings = projected.settings;
+    this.projections = projected.projections;
   }
+
   context(at = this.clock()) {
     const timezone = Event.systemTimezone();
     const local = Event.localSystemContext(at, timezone);
@@ -501,7 +512,13 @@ class Core extends EventEmitter {
       recovered.envelope.payload.eventJournalRaw,
     );
     if (!loaded.ok) throw new Error(loaded.message);
-    this.commit({ ...this.data, envelope: recovered.envelope, receipts: [] });
+    const { settings } = projectJournal(loaded.journal);
+    this.commit({
+      ...this.data,
+      settings,
+      envelope: recovered.envelope,
+      receipts: [],
+    });
     this.reproject();
     this.advanceDay();
   }

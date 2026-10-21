@@ -12,7 +12,7 @@ const {
 const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
-const { Core } = require("../core/core.cjs");
+const { Core, atomicWrite } = require("../core/core.cjs");
 const { profileDirectory, serve, request } = require("../core/integration.cjs");
 const profile = profileDirectory();
 app.setPath("userData", path.join(profile, "chromium"));
@@ -115,12 +115,9 @@ if (!ownsInstance) {
                   : "dailyxp-journal.json",
             });
             if (!result.canceled)
-              fs.writeFileSync(
+              atomicWrite(
                 result.filePath,
                 action === "export" ? core.exportState() : core.exportJournal(),
-                {
-                  mode: 0o600,
-                },
               );
             return { ok: true, canceled: result.canceled };
           }
