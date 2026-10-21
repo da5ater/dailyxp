@@ -1,0 +1,195 @@
+{
+  "passed": true,
+  "habits": {
+    "schemaVersion": 1,
+    "habits": [
+      {
+        "id": "read",
+        "title": "Read a page",
+        "startDate": "2026-10-21",
+        "schedule": {
+          "type": "daily"
+        },
+        "restDates": [],
+        "status": "active",
+        "revision": 1
+      },
+      {
+        "id": "walk",
+        "title": "Walk outside with a very long habit name",
+        "startDate": "2026-10-21",
+        "schedule": {
+          "type": "daily"
+        },
+        "restDates": [],
+        "status": "active",
+        "revision": 1
+      }
+    ],
+    "completions": [
+      {
+        "habitId": "read",
+        "dailyXpDate": "2026-10-21",
+        "count": 1
+      }
+    ],
+    "skips": [
+      {
+        "habitId": "walk",
+        "dailyXpDate": "2026-10-21"
+      }
+    ],
+    "freezes": [],
+    "lastAdvancedDailyXpDate": "2026-10-21",
+    "streaks": {
+      "read": {
+        "current": 1,
+        "longest": 1,
+        "lastCompletedDailyXpDate": "2026-10-21"
+      },
+      "walk": {
+        "current": 0,
+        "longest": 0,
+        "lastCompletedDailyXpDate": null
+      }
+    },
+    "dailySummaries": {
+      "2026-10-21": {
+        "dailyXpDate": "2026-10-21",
+        "eligibleHabitIds": [
+          "read",
+          "walk"
+        ],
+        "completedHabitIds": [
+          "read"
+        ],
+        "eligibleCount": 2,
+        "completedCount": 1,
+        "isFullSet": false,
+        "fullSetBonusAwarded": 0,
+        "competitiveCount": 1,
+        "personalCount": 0,
+        "lifetimeXp": 20,
+        "seasonXp": 20
+      }
+    }
+  },
+  "planning": {
+    "schemaVersion": 1,
+    "goals": [],
+    "milestones": [],
+    "tasks": [],
+    "routines": [
+      {
+        "carryover": true,
+        "endDate": null,
+        "expectedMinutes": 30,
+        "goalId": null,
+        "id": "long",
+        "milestoneId": null,
+        "primarySkill": "general/focus",
+        "restDates": [],
+        "revision": 1,
+        "schedule": {
+          "type": "weekdays",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        "startDate": "2026-10-21",
+        "status": "active",
+        "title": "A larger commitment"
+      },
+      {
+        "carryover": true,
+        "endDate": null,
+        "expectedMinutes": 10,
+        "goalId": null,
+        "id": "gentle",
+        "milestoneId": null,
+        "primarySkill": "general/focus",
+        "restDates": [],
+        "revision": 1,
+        "schedule": {
+          "type": "weekdays",
+          "weekdays": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ]
+        },
+        "startDate": "2026-10-21",
+        "status": "active",
+        "title": "Read Ruby"
+      }
+    ],
+    "occurrences": [
+      {
+        "dailyXpDate": "2026-10-21",
+        "expectedMinutes": 30,
+        "goalId": null,
+        "id": "routine:long:day:2026-10-21",
+        "milestoneId": null,
+        "occurrenceKey": "routine:long:day:2026-10-21",
+        "primarySkill": "general/focus",
+        "routineId": "long",
+        "routineRevision": 1,
+        "status": "overdue",
+        "title": "A larger commitment"
+      },
+      {
+        "dailyXpDate": "2026-10-21",
+        "expectedMinutes": 10,
+        "goalId": null,
+        "id": "routine:gentle:day:2026-10-21",
+        "milestoneId": null,
+        "occurrenceKey": "routine:gentle:day:2026-10-21",
+        "primarySkill": "general/focus",
+        "routineId": "gentle",
+        "routineRevision": 1,
+        "status": "skipped",
+        "title": "Read Ruby"
+      },
+      {
+        "id": "routine:long:day:2026-10-22",
+        "occurrenceKey": "routine:long:day:2026-10-22",
+        "routineId": "long",
+        "routineRevision": 1,
+        "dailyXpDate": "2026-10-22",
+        "title": "A larger commitment",
+        "expectedMinutes": 30,
+        "primarySkill": "general/focus",
+        "goalId": null,
+        "milestoneId": null,
+        "status": "open"
+      },
+      {
+        "id": "routine:gentle:day:2026-10-22",
+        "occurrenceKey": "routine:gentle:day:2026-10-22",
+        "routineId": "gentle",
+        "routineRevision": 1,
+        "dailyXpDate": "2026-10-22",
+        "title": "Read Ruby",
+        "expectedMinutes": 10,
+        "primarySkill": "general/focus",
+        "goalId": null,
+        "milestoneId": null,
+        "status": "open"
+      }
+    ],
+    "proposals": [],
+    "lastGentleDispositionDate": "2026-10-22",
+    "lastAdvancedDailyXpDate": "2026-10-22"
+  },
+  "session": null
+}
