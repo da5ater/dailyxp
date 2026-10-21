@@ -96,6 +96,9 @@ def run_flow(run):
         control.ipc(run,'press','Tab')
         control.ipc(run,'press','Tab')
         narrow=status(run)
+        assert next(item for item in narrow['items'] if item['name']=='routineCarryoverToggle')['focus']
+        control.ipc(run,'press','Tab')
+        narrow=status(run)
         save=next(item for item in narrow['items'] if item['name']=='saveRoutineButton')
         assert save['focus'] and save['y']+save['height']<=narrow['viewport']['y']+narrow['viewport']['height']
         assert all(item['x']>=0 and item['x']+item['width']<=280 for item in narrow['items'])

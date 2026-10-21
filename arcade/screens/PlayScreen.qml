@@ -1,9 +1,12 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import "../"
 import "../../FixtureLoader.js" as FixtureLoader
 import "../../EventModel.js" as EventModel
 import "../../SessionModel.js" as SessionModel
 import "../../RoutineView.js" as RoutineView
+import "../../HabitView.js" as HabitView
+import "../../HabitModel.js" as HabitModel
 
 // P1: PLAY — the dominant daily surface (full cockpit, stub data).
 // Everything PLAY owns is present: selection chips, today rail, session
@@ -61,7 +64,7 @@ ArcadeScreen {
             if (sessions[i].status === "finished") return sessions[i]
         return null
     }
-    readonly property bool sessionControlFocused: startButton.activeFocus || pauseButton.activeFocus || finishButton.activeFocus
+    readonly property bool sessionControlFocused: startButton.activeFocus || pauseButton.activeFocus || finishButton.activeFocus || quickControlFocused()
     readonly property var confirmation: bound ? store.sessionConfirmation : null
     readonly property bool capConfirmation: confirmation && confirmation.reasons.indexOf("daily-cap") !== -1
 
@@ -78,6 +81,7 @@ ArcadeScreen {
         var control = activeSession ? (direction < 0 ? finishButton : pauseButton) : startButton
         if (!control.visible || !control.enabled) return false
         control.forceActiveFocus()
+        if (shellApi) shellApi.revealControl(control)
         return true
     }
     function startFocus() {
@@ -341,6 +345,78 @@ ArcadeScreen {
         }
     }
 
+    ArcadeCard {
+        objectName: "habitStrip"
+        visible: root.bound
+        width: parent.width
+        ribbon: "HABITS"
+        ribbonColor: Theme.powerGreen
+        Text {
+            width: parent.width
+            text: "Tap to complete · hold or choose Skip to pass today"
+            color: Theme.textMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeTiny
+            wrapMode: Text.WordWrap
+        }
+        Text {
+            objectName: "habitEmptyState"
+            visible: root.todayHabits.length === 0
+            width: parent.width
+            text: root.bound && root.store.habitProjection.habits.length > 0
+                  ? "No habits scheduled today. Add one or return on its scheduled day."
+                  : "No habits yet. Add your first habit to check it off here."
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
+        BevelButton {
+            id: newHabitButton
+            objectName: "newHabitButton"
+            width: parent.width
+            label: "+ NEW HABIT"
+            enabled: root.sessionReady && !root.modalOpen
+            onActivated: root.shellApi.openRecurringSheet("habit")
+            onActiveFocusChanged: root.revealQuickControl(this)
+        }
+        Repeater {
+            id: habitRepeater
+            model: root.todayHabits
+            delegate: Row {
+                id: habitRow
+                required property var modelData
+                required property int index
+                width: parent.width
+                spacing: Theme.space(2)
+                HabitChip {
+                    id: habitChip
+                    objectName: "habitChip" + habitRow.index
+                    width: Math.max(0, parent.width - skipHabit.width - parent.spacing)
+                    onActiveFocusChanged: root.revealQuickControl(this)
+                    title: habitRow.modelData.title
+                    stateLabel: habitRow.modelData.state
+                    streak: habitRow.modelData.streak
+                    enabled: root.sessionReady && !root.modalOpen
+                    onCompleted: root.habitAction(habitRow.modelData, "complete")
+                    onSkipped: root.habitAction(habitRow.modelData, "skip")
+                }
+                BevelButton {
+                    id: skipHabit
+                    onActiveFocusChanged: root.revealQuickControl(this)
+                    objectName: "skipHabit" + habitRow.index
+                    width: 92
+                    label: "SKIP"
+                    baseColor: Theme.surfaceHigh
+                    textColor: Theme.textMuted
+                    enabled: root.sessionReady && !root.modalOpen && habitRow.modelData.state === "open"
+                    opacity: enabled ? 1 : 0.5
+                    onActivated: root.habitAction(habitRow.modelData, "skip")
+                }
+            }
+        }
+    }
+
     // ── V2 add-commitment entry — persists after the first commitment ──
     BevelButton {
         objectName: "addCommitmentButton"
@@ -391,82 +467,105 @@ ArcadeScreen {
         }
     }
 
-    // ── habit quick-strip (R4.3): every habit visible with streaks ──
-    // V2 bound mode: hidden — habits bind in V6 (#98). Fixture keeps V1 read.
-    // All fixture dereferences guard on habitCard.fx because QML evaluates
-    // bindings even while the card is invisible (live error-log lesson).
-    ArcadeCard {
-        id: habitCard
-        readonly property var fx: root.bound ? null : root.fixture
-        visible: fx !== null && fx.habit.habits.length > 0
-        width: parent.width
-        ribbon: fx !== null
-                ? "HABITS · " + fx.habit.dailySummaries["2026-08-24"].completedCount
-                  + "/" + fx.habit.dailySummaries["2026-08-24"].scheduledCount
-                : "HABITS"
-        ribbonColor: Theme.powerGreen
+    readonly property string habitDate: bound ? root.store.habitProjection.lastAdvancedDailyXpDate || "" : ""
+    readonly property var todayHabits: bound ? HabitView.todayHabits(root.store.habitProjection, habitDate, HabitModel) : []
+    readonly property var gentle: bound ? HabitView.gentleSuggestion(root.store.planningProjection) : null
+    property string pendingSmallId: ""
 
-        BevelButton {
-            label: "+ ADD HABIT"
-            baseColor: Theme.manaPurple
-            textColor: Theme.purpleSoft
-            width: parent.width
+    function quickControlFocused() {
+        if (newHabitButton.activeFocus) return true
+        for (var i = 0; i < habitRepeater.count; i++) {
+            var row = habitRepeater.itemAt(i)
+            if (!row) continue
+            for (var k = 0; k < row.children.length; k++)
+                if (row.children[k].activeFocus) return true
         }
+        for (var j = 0; j < overdueRepeater.count; j++) {
+            var control = overdueRepeater.itemAt(j)
+            if (control && control.activeFocus) return true
+        }
+        return false
+    }
+    function revealQuickControl(control) {
+        if (control.activeFocus && shellApi) shellApi.revealControl(control)
+    }
 
-        Column {
+    function focusHabitEntry() { newHabitButton.forceActiveFocus(); revealQuickControl(newHabitButton) }
+
+    function habitAction(habit, action) {
+        if (!sessionReady || modalOpen || habit.state !== "open") return
+        root.store.applyHabitCommand({ type: "habit." + action, habitId: habit.id, dailyXpDate: habitDate })
+    }
+    function disposeOverdue(action) {
+        if (!sessionReady || modalOpen || !gentle || activeSession) return
+        var id = gentle.id
+        var today = root.store.planningProjection.lastAdvancedDailyXpDate
+        if (root.store.applyPlanningCommand({ type: "overdue.disposition", id: id, action: action, dailyXpDate: today })
+            && action === "smaller") pendingSmallId = "gentle:" + encodeURIComponent(id) + ":day:" + today
+    }
+    Connections {
+        target: root.store
+        function onPersisted() {
+          Qt.callLater(function() {
+            if (!root.pendingSmallId || root.store.saving) return
+            var id = root.pendingSmallId
+            root.pendingSmallId = ""
+            for (var i = 0; i < root.taskList.length; i++) {
+                if (root.taskList[i].id === id) {
+                    root.selectedTaskIndex = i
+                    root.startFocus()
+                    return
+                }
+            }
+          })
+        }
+    }
+
+    ArcadeCard {
+        objectName: "overdueStrip"
+        visible: root.gentle !== null
+        width: parent.width
+        ribbon: "A SMALL WAY BACK"
+        ribbonColor: Theme.manaPurple
+        Text {
+            objectName: "gentleSuggestion"
+            width: parent.width
+            text: root.gentle ? root.gentle.title + " · one small step is enough." : ""
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WrapAnywhere
+        }
+        Flow {
             width: parent.width
             spacing: Theme.space(2)
-
             Repeater {
-                model: habitCard.fx !== null ? habitCard.fx.habit.habits : []
-                delegate: Row {
+                id: overdueRepeater
+                model: [{ action: "smaller", label: "START SMALLER" },
+                        { action: "reschedule", label: "TOMORROW" }, { action: "skip", label: "SKIP" }]
+                delegate: BevelButton {
                     required property var modelData
+                    objectName: "overdue" + modelData.action
+                    onActiveFocusChanged: root.revealQuickControl(this)
                     width: parent.width
-                    spacing: Theme.space(2)
-
-                    Rectangle {
-                        id: checkCell
-                        width: 22; height: 22
-                        readonly property bool done: habitCard.fx !== null &&
-                            FixtureLoader.habitDoneToday(habitCard.fx, modelData)
-                        color: done ? Theme.powerGreen : Theme.surfaceLowest
-                        border.color: done ? Theme.greenDeep : Theme.border
-                        border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: checkCell.done ? "✔" : ""
-                            color: Theme.greenDeep
-                            font.pixelSize: Theme.typeBody
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor }
-                    }
-                    Text {
-                        text: modelData.title
-                        color: Theme.textPrimary
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.typeBody
-                        elide: Text.ElideRight
-                        width: parent.width - checkCell.width - Theme.space(8)
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Text {
-                        text: "×" + (habitCard.fx !== null
-                                     ? (habitCard.fx.habit.streaks[modelData.id] || 0) : 0)
-                        color: Theme.chromeYellow
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.typeTiny
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                    label: modelData.label
+                    baseColor: Theme.surfaceHigh
+                    textColor: Theme.textPrimary
+                    enabled: root.sessionReady && !root.modalOpen && !root.activeSession
+                    opacity: enabled ? 1 : 0.5
+                    onActivated: root.disposeOverdue(modelData.action)
                 }
             }
         }
     }
-
-    // ── overdue micro-strip placeholder — real rule lands in V6 ──
-    ArcadeCard {
-        visible: false
+    Text {
+        visible: root.bound && root.store.errorMessage !== "" && (root.todayHabits.length > 0 || root.gentle !== null)
         width: parent.width
-        ribbon: "YESTERDAY"
+        text: root.bound ? root.store.errorMessage : ""
+        color: Theme.chromeYellow
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.typeBody
+        wrapMode: Text.WordWrap
     }
 
     // ── recovery guarded entry (R4.4) ───────────────────────────

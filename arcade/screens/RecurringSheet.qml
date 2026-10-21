@@ -1,11 +1,16 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import "../"
 import "../../EventModel.js" as EventModel
 import "../../RoutineView.js" as RoutineView
+import "../../HabitView.js" as HabitView
 
 ArcadeSheet {
     id: sheet
-    title: "NEW ROUTINE"
+    property string entryKind: "routine"
+    readonly property bool isHabit: entryKind === "habit"
+    property bool carryover: false
+    title: isHabit ? "NEW HABIT" : "NEW ROUTINE"
     property var shellApi: null
     readonly property var store: shellApi ? shellApi.stateStore : null
     property var weekdays: [1, 2, 3, 4, 5, 6, 7]
@@ -26,11 +31,15 @@ ArcadeSheet {
     function save() {
         if (busy || !store || !store.ready || !store.recordingReady || store.saving) return
         try {
-            var routine = RoutineView.createRoutine({ title: nameField.text, minutes: minutesField.text,
-                weekdays: weekdays }, EventModel.uuidV4(), store.sessionDailyXpDate(store.planningClock().toISOString()))
-            pendingId = routine.id
+            var today = store.sessionDailyXpDate(store.planningClock().toISOString())
+            var draft = { title: nameField.text, minutes: minutesField.text, weekdays: weekdays, carryover: carryover }
+            var entity = isHabit ? HabitView.createHabit(draft, EventModel.uuidV4(), today)
+                                 : RoutineView.createRoutine(draft, EventModel.uuidV4(), today)
+            pendingId = entity.id
             errorText = ""
-            if (!store.applyPlanningCommand({ type: "routine.create", routine: routine })) {
+            var accepted = isHabit ? store.applyHabitCommand({ type: "habit.create", habit: entity })
+                                   : store.applyPlanningCommand({ type: "routine.create", routine: entity })
+            if (!accepted) {
                 pendingId = ""
                 errorText = store.errorMessage || "COULD NOT SAVE"
             }
@@ -42,9 +51,9 @@ ArcadeSheet {
             if (!sheet.busy) return
             Qt.callLater(function() {
                 if (!sheet.busy || sheet.store.saving) return
-                var routines = sheet.store.planningProjection.routines
-                for (var i = 0; i < routines.length; i++) {
-                    if (routines[i].id === sheet.pendingId) {
+                var entities = sheet.isHabit ? sheet.store.habitProjection.habits : sheet.store.planningProjection.routines
+                for (var i = 0; i < entities.length; i++) {
+                    if (entities[i].id === sheet.pendingId) {
                         sheet.pendingId = ""
                         sheet.dismissed()
                         return
@@ -65,7 +74,7 @@ ArcadeSheet {
         enabled: !sheet.busy
         Text {
             width: parent.width
-            text: "Name your routine and choose when it repeats."
+            text: sheet.isHabit ? "Name a habit and choose its days. Check it off on PLAY." : "Name your routine and choose when it repeats."
             color: Theme.textMuted
             font.family: Theme.fontFamily
             font.pixelSize: Theme.typeBody
@@ -80,7 +89,7 @@ ArcadeSheet {
             border.width: 2
             TextInput {
                 id: nameField
-                objectName: "routineNameInput"
+                objectName: sheet.isHabit ? "habitNameInput" : "routineNameInput"
                 anchors.fill: parent
                 anchors.margins: Theme.space(2)
                 verticalAlignment: TextInput.AlignVCenter
@@ -90,7 +99,7 @@ ArcadeSheet {
                 maximumLength: 60
                 clip: true
                 activeFocusOnTab: true
-                Accessible.name: "Routine name"
+                Accessible.name: sheet.isHabit ? "Habit name" : "Routine name"
                 KeyNavigation.tab: days.itemAt(0)
                 onTextEdited: sheet.errorText = ""
                 onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(parent)
@@ -111,7 +120,7 @@ ArcadeSheet {
                 delegate: StatChip {
                     required property int index
                     required property string modelData
-                    objectName: "routineWeekday" + (index + 1)
+                    objectName: (sheet.isHabit ? "habitWeekday" : "routineWeekday") + (index + 1)
                     width: 44
                     compact: true
                     interactive: true
@@ -119,13 +128,14 @@ ArcadeSheet {
                     value: modelData
                     valueColor: sheet.weekdays.indexOf(index + 1) >= 0 ? Theme.electricLime : Theme.textMuted
                     Accessible.name: modelData + (sheet.weekdays.indexOf(index + 1) >= 0 ? " selected" : " not selected")
-                    KeyNavigation.tab: index === 6 ? minutesField : days.itemAt(index + 1)
+                    KeyNavigation.tab: index === 6 ? (sheet.isHabit ? saveButton : minutesField) : days.itemAt(index + 1)
                     onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(this)
                     onActivated: sheet.toggleDay(index + 1)
                 }
             }
         }
         Row {
+            visible: !sheet.isHabit
             width: parent.width
             spacing: Theme.space(2)
             Text {
@@ -160,15 +170,39 @@ ArcadeSheet {
                     maximumLength: 4
                     activeFocusOnTab: true
                     Accessible.name: "Daily minutes"
-                    KeyNavigation.tab: saveButton
+                    KeyNavigation.tab: carryoverToggle
                     onTextEdited: sheet.errorText = ""
                     onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(parent)
                     Keys.onReturnPressed: sheet.save()
                 }
             }
         }
+        StatChip {
+            id: carryoverToggle
+            objectName: "routineCarryoverToggle"
+            visible: !sheet.isHabit
+            width: parent.width
+            compact: true
+            interactive: true
+            label: "CARRY MISSED WORK"
+            value: sheet.carryover ? "ON" : "OFF"
+            valueColor: sheet.carryover ? Theme.electricLime : Theme.textMuted
+            Accessible.name: "Carry missed routine work " + (sheet.carryover ? "on" : "off")
+            KeyNavigation.tab: saveButton
+            onActivated: sheet.carryover = !sheet.carryover
+            onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(this)
+        }
         Text {
-            objectName: "routineError"
+            visible: !sheet.isHabit
+            width: parent.width
+            text: "ON keeps missed work for one gentle suggestion the next day. OFF lets it go."
+            color: Theme.textMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeTiny
+            wrapMode: Text.WordWrap
+        }
+        Text {
+            objectName: sheet.isHabit ? "habitError" : "routineError"
             width: parent.width
             visible: sheet.errorText !== ""
             text: sheet.errorText
@@ -180,9 +214,9 @@ ArcadeSheet {
         }
         BevelButton {
             id: saveButton
-            objectName: "saveRoutineButton"
+            objectName: sheet.isHabit ? "saveHabitButton" : "saveRoutineButton"
             width: parent.width
-            label: sheet.busy ? "SAVING…" : "SAVE ROUTINE"
+            label: sheet.busy ? "SAVING…" : sheet.isHabit ? "SAVE HABIT" : "SAVE ROUTINE"
             enabled: !sheet.busy && sheet.store && sheet.store.recordingReady && !sheet.store.saving
             KeyNavigation.tab: sheet.closeControl
             onActiveFocusChanged: if (activeFocus) sheet.ensureVisible(saveButton)

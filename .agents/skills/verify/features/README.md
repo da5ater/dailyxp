@@ -12,3 +12,5 @@ The driver copies the current checkout into a private headless Wayland host. QtT
 - [JOURNEY progression](journey.md). Earned XP, ledger metadata, keyboard scrolling and replay.
 
 - [Routines](routines.md). Routine input, dated occurrences, session references and private-clock restart.
+
+- [Habits and overdue gentleness](habits.md). Quick-check, durable skip, daily single suggestion and replay.

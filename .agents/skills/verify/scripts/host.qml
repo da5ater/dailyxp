@@ -64,7 +64,7 @@ ShellRoot {
     function ui(): string {
       var result = {}
       var shellItem = input.findChild(productionWidget, "dailyxpShell")
-      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld", "newRoutineButton", "railCommitmentTitle", "railCommitmentDetail", "setupRoutine0"]
+      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld", "newRoutineButton", "railCommitmentTitle", "railCommitmentDetail", "setupRoutine0", "newHabitButton", "habitEmptyState", "setupCarryover0", "setupCarryover1", "habitStrip", "habitChip0", "habitChip1", "skipHabit0", "skipHabit1", "overdueStrip", "gentleSuggestion", "overduesmaller", "overduereschedule", "overdueskip"]
       for (var i = 0; i < names.length; i++) {
         var item = host.findControl(names[i])
         var point = item && shellItem ? item.mapToItem(shellItem, 0, 0) : { x: 0, y: 0 }
@@ -143,13 +143,15 @@ ShellRoot {
         startedAtUtc:new Date(Date.now() - minutes * 60000).toISOString()}}) ? "requested" : "not-started"
     }
     function routineStatus(): string {
-      var form = host.findControl("routineSheet")
+      var form = host.findControl("routineSheet") || host.findControl("habitSheet")
+      var habitForm = form && form.entryKind === "habit"
       var items = []
       var viewport = form ? host.findControl("sheetViewport") : null
       var point = viewport ? viewport.mapToItem(form,0,0) : {x:0,y:0}
       if (form) {
-        var names = ["routineNameInput","routineMinutesInput","saveRoutineButton"]
-        for (var d = 1; d <= 7; d++) names.push("routineWeekday" + d)
+        var prefix = habitForm ? "habit" : "routine"
+        var names = habitForm ? ["habitNameInput", "saveHabitButton"] : ["routineNameInput","routineMinutesInput","saveRoutineButton", "routineCarryoverToggle"]
+        for (var d = 1; d <= 7; d++) names.push(prefix + "Weekday" + d)
         for (var i = 0; i < names.length; i++) {
           var item = host.findControl(names[i])
           var position = item.mapToItem(form,0,0)
@@ -158,9 +160,22 @@ ShellRoot {
       }
       return JSON.stringify({exists:form !== null,error:form ? form.errorText : "",
         weekdays:form ? form.weekdays : [],pendingId:form ? form.pendingId : "",
-        name:form ? host.findControl("routineNameInput").text : "",projection:store.planningProjection,events:store.journal.events,
+        name:form ? host.findControl(habitForm ? "habitNameInput" : "routineNameInput").text : "",projection:store.planningProjection,events:store.journal.events,
         items:items,width:form ? form.width : 0,recordingReady:store.recordingReady,
         viewport:viewport ? {x:point.x,y:point.y,width:viewport.width,height:viewport.height} : null})
+    }
+    function planningCommand(command: string): string { return store.applyPlanningCommand(JSON.parse(command)) ? "requested" : "rejected" }
+    function habitCommand(command: string): string { return store.applyHabitCommand(JSON.parse(command)) ? "requested" : "rejected" }
+    function habitStatus(): string { return JSON.stringify({projection:store.habitProjection,planning:store.planningProjection,events:store.journal.events,error:store.errorMessage,saving:store.saving}) }
+    function hold(name: string): string {
+      var item = host.findControl(name)
+      if (!item || !item.visible || !item.enabled) return "unavailable"
+      input.parent = input.findChild(productionWidget, "dailyxpShell")
+      input.mousePress(item, item.width / 2, item.height / 2)
+      input.wait(1000)
+      item = host.findControl(name)
+      input.mouseRelease(item, item.width / 2, item.height / 2)
+      return "held"
     }
     function planningStatus(): string { return JSON.stringify({projection:store.planningProjection,error:store.errorMessage,saving:store.saving}) }
     function readiness(): string { return JSON.stringify({ready:store.ready, journal:store.journalReady, timezone:store.systemTimezone, saving:store.saving, error:store.errorMessage, primaryRead:store._primaryRead, backupRead:store._backupRead, seeded:host.seeded}) }

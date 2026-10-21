@@ -89,8 +89,6 @@ Try to break the changed flow with rapid clicks and keyboard input, focus traver
 
 Headless verification does not refresh the personal installed plugin. Before a local UI handoff, follow AGENTS.md's refresh procedure and inspect the actual installed rendering. If rescan retains stale QML, restart the Omarchy shell and reopen the plugin after readiness.
 
-## Local visual review page
+## Local visual click guide
 
-After implementation, follow AGENTS.md's visual handoff rule. Create a self-contained `docs/reviews/pr-<number>.html` with actual before/during/after captures, affected areas, test evidence, limits and a short manual path. Captures are evidence; label them separately from a running preview.
-
-For this routine slice, run `scripts/review_page.py docs/reviews/pr-105.html --port 8765`. The server binds only 127.0.0.1. Start/reset creates fresh private state through this driver; the browser's form sends QtTest input to the actual QML form and returns a captured result. Stop, 15 idle minutes, or server termination cleans up only the owned preview. The server never installs a plugin or refreshes the personal shell. Open its URL in the Codex side panel.
+Follow AGENTS.md. Use a short illustrated HTML guide with real Before / During / After captures and exact application clicks. Identify the installed baseline. Do not add simulated controls, input forms, browser bridges, engineering reports, or a replacement application. Keep detailed verification on the issue and PR. Open the guide in the Codex side panel. Refresh the personal installation only when Mohamed explicitly requests a local test handoff.

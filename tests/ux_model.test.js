@@ -34,3 +34,14 @@ test("frozen and deterministic",()=>{
   const a=UxModel.project(e); const b=UxModel.project(e);
   assert.deepEqual(a,b); assert.ok(Object.isFrozen(a));
 });
+
+test("reduced motion survives the real journal event contract",()=>{
+  const Event=require("../EventModel.js");
+  const Journal=require("../HabitJournal.js");
+  const intents=UxModel.decide(UxModel.emptyProjection(),{type:"ux.reducedMotion.set",enabled:true}).events;
+  const journal=Journal.appendIntents(Event.createJournal("11111111-1111-4111-8111-111111111111"),intents,{
+    occurredAtUtc:"2026-10-21T12:00:00.000Z",localDateTime:"2026-10-21T15:00:00.000",
+    timezone:"Africa/Cairo",utcOffsetMinutes:180,dayBoundaryMinutes:240
+  },Event);
+  assert.equal(UxModel.project(journal.events).reducedMotion,true);
+});

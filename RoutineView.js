@@ -8,7 +8,7 @@ function createRoutine(draft, id, today) {
   var days = draft.weekdays.slice().sort(function(a, b) { return a - b; });
   if (!days.length) throw new Error("CHOOSE AT LEAST ONE WEEKDAY");
   return { id: id, title: title, expectedMinutes: Number(draft.minutes),
-    startDate: today, endDate: null, restDates: [], carryover: false,
+    startDate: today, endDate: null, restDates: [], carryover: draft.carryover === true,
     schedule: { type: "weekdays", weekdays: days }, primarySkill: "general/focus", goalId: null, milestoneId: null };
 }
 

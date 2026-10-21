@@ -32,6 +32,7 @@ function emptyProjection() {
     schemaVersion: PROJECTION_SCHEMA_VERSION,
     habits: [],
     completions: [],
+    skips: [],
     freezes: [],
     lastAdvancedDailyXpDate: null,
     streaks: {},
@@ -333,13 +334,14 @@ function decide(projection, command) {
     var removable = findById(state.habits, input.id);
     if (!removable) fail("habit.id", "was not found");
     var hasHistory = state.completions.some(function(c) { return c.habitId === input.id; }) ||
-                     state.freezes.some(function(f) { return f.habitId === input.id; });
+                     state.freezes.some(function(f) { return f.habitId === input.id; }) ||
+                     (state.skips || []).some(function(f) { return f.habitId === input.id; });
     var archived = hasHistory;
     if (archived) return freeze({ events: [intent("archived", { id: removable.id })] });
     return freeze({ events: [intent("deleted", { id: removable.id })] });
   }
 
-  if (input.type === "habit.complete") {
+  if (input.type === "habit.complete" || input.type === "habit.skip") {
     required(input.habitId, "habitId");
     dateValue(input.dailyXpDate, "dailyXpDate");
     var habitForComplete = findById(state.habits, input.habitId);
@@ -347,6 +349,10 @@ function decide(projection, command) {
     if (habitForComplete.status === "archived") fail("habitId", "is archived");
     if (!scheduledOn(habitForComplete, input.dailyXpDate)) fail("dailyXpDate", "habit is not eligible on this date");
     if (hasCompletion(state.completions, input.habitId, input.dailyXpDate)) return freeze({ events: [] });
+    if (hasCompletion(state.skips || [], input.habitId, input.dailyXpDate)) return freeze({ events: [] });
+    if (input.type === "habit.skip") return freeze({ events: [intent("skipped", {
+      habitId: input.habitId, dailyXpDate: input.dailyXpDate
+    })] });
     if (input.count !== undefined && input.count !== null) {
       if (!Number.isInteger(input.count) || input.count < 1) fail("count", "must be a positive integer");
     }
@@ -404,6 +410,7 @@ function projectIntents(projection, intents) {
   next.habits = next.habits ? next.habits.slice() : [];
   next.completions = next.completions ? next.completions.slice() : [];
   next.freezes = next.freezes ? next.freezes.slice() : [];
+  next.skips = next.skips ? next.skips.slice() : [];
 
   (intents || []).forEach(function(event) {
     if (event.type === "habit.created") {
@@ -422,6 +429,10 @@ function projectIntents(projection, intents) {
     } else if (event.type === "habit.completed") {
       if (!hasCompletion(next.completions, event.payload.habitId, event.payload.dailyXpDate))
         next.completions.push(clone(event.payload));
+    } else if (event.type === "habit.skipped") {
+      if (!hasCompletion(next.skips, event.payload.habitId, event.payload.dailyXpDate) &&
+          !hasCompletion(next.completions, event.payload.habitId, event.payload.dailyXpDate))
+        next.skips.push(clone(event.payload));
     } else if (event.type === "habit.uncompleted") {
       next.completions = next.completions.filter(function(c) {
         return !(c.habitId === event.payload.habitId && c.dailyXpDate === event.payload.dailyXpDate);
