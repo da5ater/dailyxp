@@ -82,7 +82,7 @@ The repository uses a single-context domain glossary. See
 
 ## Visual review handoff in poteto mode
 
-- After each implementation, open a short local HTML click guide in the Codex side panel. Keep it focused on the actual user-visible features or fixes.
+- After each implementation, open a short local HTML click guide in the Codex side panel. Group it by feature so Mohamed can choose one feature and see its clicks, Before / During / After pictures, and expected result together. Keep it focused on the actual user-visible features or fixes.
 - For each change, explain the exact previous problem in one sentence and show real Before / During / After pictures. Before comes from the last released version, or the last installed version when no tagged release exists; identify that baseline clearly.
 - Next to the pictures, tell Mohamed exactly where to click in the actual application to see the change. Use short numbered actions and familiar control labels. Keep typing to the minimum the real feature requires.
 - Add small numbered markers, arrows or outlines on the exact control, result or region to inspect. Match each marker to a short hint beside the picture; keep markers aligned as the page resizes. A hint states where to look and what should happen. Do not require typing when a click or existing default is sufficient.
