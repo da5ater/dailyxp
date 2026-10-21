@@ -311,6 +311,9 @@ Item {
     if (taskId === null || taskId === undefined) return null
     var tasks = planningProjection.tasks || []
     for (var i = 0; i < tasks.length; i += 1) if (tasks[i].id === taskId) return tasks[i]
+    var occurrences = planningProjection.occurrences || []
+    for (var j = 0; j < occurrences.length; j += 1)
+      if (occurrences[j].id === taskId) return occurrences[j]
     return null
   }
 
@@ -321,15 +324,13 @@ Item {
   // INSIGHT-001 — rebuild statistics from sibling projections. Recovery data is
   // deliberately never an input: protected details cannot reach aggregates.
   function recomputeInsight() {
-    var tasks = planningProjection.tasks || []
     var slices = []
     var raw = sessionProjection.sessions || []
     for (var i = 0; i < raw.length; i += 1) {
       var s = raw[i]
       if (!s || s.status !== "finished") continue
       var goalId = null
-      var task = null
-      for (var t = 0; t < tasks.length; t += 1) if (tasks[t].id === s.taskId) { task = tasks[t]; break }
+      var task = planningTask(s.taskId)
       if (task) goalId = task.goalId || null
       var dailySlices = s.dailySlices || []
       for (var d = 0; d < dailySlices.length; d += 1) {
@@ -434,7 +435,7 @@ Item {
     else if (command.type === "session.start" && command.session) taskId = command.session.taskId
     else if (command.type === "session.correct" && command.changes &&
         command.changes.taskId !== undefined) taskId = command.changes.taskId
-    if (!planningTaskExists(taskId)) throw new Error("taskId must reference a current Task")
+    if (!planningTaskExists(taskId)) throw new Error("taskId must reference a current Task or Task Occurrence")
   }
 
   function applySessionCommand(command) {
@@ -558,9 +559,11 @@ Item {
     }
   }
 
+  property var planningClock: function() { return new Date() }
+
   function ensureCurrentPlanningDay() {
     if (!ready || !recordingReady || saving) return false
-    var now = new Date()
+    var now = planningClock()
     var localContext = EventModel.localSystemContext(now, systemTimezone)
     var dailyXpDate = EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
     return applyPlanningCommand({ type: "day.advance", dailyXpDate: dailyXpDate })

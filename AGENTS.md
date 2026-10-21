@@ -79,3 +79,13 @@ The repository uses a single-context domain glossary. See
 - Deliberately try to break the changed UI inside the isolated verifier. Exercise rapid repeated clicks and key presses, Tab/Shift+Tab/Enter/Space/Escape, interruption and reopen during transitions, narrow available space, long and empty text, loading/saving/error states, reduced motion, and restart/replay where relevant. Use disposable state and include relevant regressions in automated coverage.
 - Assert visible outcomes as well as domain/persistence results: no clipping or overlap, reachable controls, visible focus, correct disabled states, immediate state feedback, and no duplicate actions. Keep adversarial cases focused on the ticket and record evidence, fixes, and remaining limitations.
 - Run these passes sequentially in the main agent. Reuse at most one independent reviewer for the final standards, ticket, UI, and motion review and fix verification. These overrides take precedence over pstack fan-out defaults.
+
+## Visual review handoff in poteto mode
+
+- After every implementation, create and open a self-contained local HTML review page before the final handoff. This is part of the economical poteto workflow, not an optional follow-up.
+- Show the actual before, the interaction during the change, and the resulting after state. Prefer real isolated screenshots. Label diagrams or walkthroughs explicitly; never present a mockup as a running application.
+- Explain the user-visible change, the blast radius across UI/shared code/persistence, what was tested, remaining limits, the feature revision and whether the installed application matches it.
+- Include a short manual test path and the lowest-friction safe preview available. When practical, let Mohamed try the real feature through a disposable private instance from the review page. Keep personal state and the desktop untouched.
+- Link the PR and evidence, keep the page current after review fixes, and provide an obvious way to stop/reset a disposable preview. Do not silently replace a prior approved screenshot with unrelated state.
+- Open the page in the Codex side panel and return its link. Do not take over mouse/keyboard input or restart the personal shell. An installed-plugin refresh requires Mohamed’s explicit refresh request; clearly state when it has not happened.
+- Store project instructions in AGENTS.md and local/global overrides rather than modifying versioned plugin-cache files. These handoff requirements apply when poteto mode is used and preserve manual PR review and merge authorization.

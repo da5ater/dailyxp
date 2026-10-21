@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "inputValidation": true,
+  "keyboardWeekdays": true,
+  "rapidSaveNoDuplicate": true,
+  "todayOccurrencePersisted": true,
+  "routineSessionLink": true,
+  "restartReplay": true,
+  "nextDayGeneratedOnRestart": true,
+  "sameDayRestartNoDuplicate": true,
+  "narrowForm": true,
+  "failedSaveRetainsInput": true,
+  "retrySucceeds": true
+}

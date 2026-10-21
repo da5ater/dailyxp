@@ -81,6 +81,17 @@ Rectangle {
         root.sheetStack = root.sheetStack.concat([obj])
     }
 
+    function openRoutineSheet() {
+        if (root.sheetStack.length > 0) return
+        var comp = Qt.createComponent("arcade/screens/RoutineSheet.qml")
+        if (comp.status === Component.Error) { console.warn(comp.errorString()); return }
+        var obj = comp.createObject(root, { objectName: "routineSheet", shellApi: root, visible: true })
+        if (!obj) return
+        obj.anchors.fill = root
+        obj.dismissed.connect(root.popSheet)
+        root.sheetStack = root.sheetStack.concat([obj])
+    }
+
     function openLedgerSheet() {
         if (root.sheetStack.length > 0) return
         var comp = Qt.createComponent("arcade/screens/LedgerSheet.qml")
@@ -96,6 +107,8 @@ Rectangle {
         var top = root.sheetStack[root.sheetStack.length - 1]
         root.sheetStack = root.sheetStack.slice(0, -1)
         if (top) top.destroy()
+        if (root.currentSurface === "Setup" && viewport.cache.Setup)
+            viewport.cache.Setup.focusRoutineControl()
         if (root.currentSurface === "Journey" && viewport.cache.Journey)
             viewport.cache.Journey.focusLedgerControl()
     }

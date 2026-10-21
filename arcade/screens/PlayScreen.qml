@@ -3,6 +3,7 @@ import "../"
 import "../../FixtureLoader.js" as FixtureLoader
 import "../../EventModel.js" as EventModel
 import "../../SessionModel.js" as SessionModel
+import "../../RoutineView.js" as RoutineView
 
 // P1: PLAY — the dominant daily surface (full cockpit, stub data).
 // Everything PLAY owns is present: selection chips, today rail, session
@@ -19,9 +20,9 @@ ArcadeScreen {
     readonly property var fixture: bound ? null : FixtureLoader.load()
 
     readonly property var todayList: bound
-        ? []   // occurrences arrive with V5 routine generation
+        ? RoutineView.todayOccurrences(store.planningProjection, store.planningProjection.lastAdvancedDailyXpDate)
         : (fixture ? FixtureLoader.todays(fixture) : [])
-    readonly property var taskList: bound ? (store.planningProjection.tasks || [])
+    readonly property var taskList: bound ? todayList.concat(store.planningProjection.tasks || [])
         : (fixture ? fixture.planning.tasks : [])
     readonly property bool hasAnyCommitments: bound
         ? (store.planningProjection.tasks || []).length > 0
@@ -46,6 +47,11 @@ ArcadeScreen {
         if (!activeSession) return null
         for (var i = 0; i < taskList.length; i++)
             if (taskList[i].id === activeSession.taskId) return taskList[i]
+        if (bound) {
+            var occurrences = store.planningProjection.occurrences
+            for (var j = 0; j < occurrences.length; j++)
+                if (occurrences[j].id === activeSession.taskId) return RoutineView.occurrenceTask(occurrences[j])
+        }
         return null
     }
     readonly property var railTask: activeSession ? sessionTask : focusTask
@@ -116,8 +122,9 @@ ArcadeScreen {
         ribbonText: Theme.goldDeep
 
         Text {
+            objectName: "railCommitmentTitle"
             width: parent.width
-            text: root.todayList.length > 0
+            text: !root.bound && root.todayList.length > 0
                   ? root.todayList[0].title
                   : (root.railTask ? root.railTask.title : "Free focus")
             color: Theme.textPrimary
@@ -127,12 +134,13 @@ ArcadeScreen {
             elide: Text.ElideRight
         }
         Text {
+            objectName: "railCommitmentDetail"
             width: parent.width
             text: {
-                var o = root.todayList.length > 0 ? root.todayList[0] : null
+                var o = !root.bound && root.todayList.length > 0 ? root.todayList[0] : null
                 var t = o ? null : root.railTask
                 if (o) return o.expectedMinutes + "m budget · " + o.primarySkill
-                if (t) return t.estimateMinutes + "m estimate · " + t.primarySkill + " · one-shot"
+                if (t) return t.estimateMinutes + "m · " + t.primarySkill + (t.kind === "routine" ? " · routine today" : " · one-shot")
                 return ""
             }
             color: Theme.textMuted
@@ -266,14 +274,11 @@ ArcadeScreen {
                         width: Math.min(implicitWidth, (taskRow.width - delHit.width - taskRow.spacing * 2) / (taskRow.taskGoal ? 2 : 1))
                         compact: true
                         label: taskRow.index === root.focusIndex ? "●" : "○"
-                        value: taskRow.modelData.title.length > 14
-                               ? taskRow.modelData.title.slice(0, 13) + "…" : taskRow.modelData.title
+                        value: taskRow.modelData.title
                         valueColor: taskRow.index === root.focusIndex ? "#ffebc4" : Theme.textMuted
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.selectedTaskIndex = taskRow.index
-                        }
+                        objectName: "selectCommitment" + taskRow.index
+                        interactive: true
+                        onActivated: root.selectedTaskIndex = taskRow.index
                     }
                     // per-task goal badge — direction the commitment is tied to
                     StatChip {
@@ -287,6 +292,7 @@ ArcadeScreen {
                     // delete: red X removes the commitment via the engine
                     Rectangle {
                         id: delHit
+                        visible: taskRow.modelData.kind !== "routine"
                         width: 22; height: 22; radius: 11
                         color: delMouse.containsMouse ? "#ff3b5c" : Theme.surfaceLow
                         border.color: Theme.border; border.width: 1
