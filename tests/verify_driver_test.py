@@ -37,6 +37,14 @@ class VerifierLifecycleTests(unittest.TestCase):
             require_empty({'habits': {}, 'planning': {}, 'sessions': {},
                            'events': [{'type': 'progression.awarded'}]})
 
+    def test_delivery_requires_journal_before_marking_run(self):
+        from user_journey import begin
+        with tempfile.TemporaryDirectory() as temporary:
+            run = Path(temporary)
+            with self.assertRaisesRegex(RuntimeError, 'journal readback'):
+                begin(run, {'habits': {}, 'planning': {}, 'sessions': {}})
+            self.assertFalse((run / 'user-journey.json').exists())
+
     def test_rejected_existing_run_is_not_cleaned_up(self):
         with tempfile.TemporaryDirectory() as temporary:
             run = Path(temporary)
