@@ -56,7 +56,9 @@ export function editorFields(kind, item, goalId, state) {
         [
           ["", "No Milestone"],
           ...state.planning.milestones
-            .filter((m) => m.status !== "completed")
+            .filter(
+              (m) => m.status !== "completed" || m.id === item?.milestoneId,
+            )
             .map((m) => [m.id, m.title]),
         ],
         item?.milestoneId || "",
@@ -257,32 +259,14 @@ export function editorCommand({ kind, item, goalId }, data, state) {
     const unchangedDuration =
       requestedMinutes ===
       Number((item.focusedMilliseconds / 60000).toFixed(4));
-    let remaining = Math.round(requestedMinutes * 60000);
-    const segments = unchangedDuration ? structuredClone(item.segments) : [];
-    for (const original of unchangedDuration ? [] : item.segments) {
-      if (remaining <= 0) break;
-      const duration = Math.min(
-        remaining,
-        Date.parse(original.endedAtUtc) - Date.parse(original.startedAtUtc),
-      );
-      segments.push({
-        startedAtUtc: original.startedAtUtc,
-        endedAtUtc: new Date(
-          Date.parse(original.startedAtUtc) + duration,
-        ).toISOString(),
-      });
-      remaining -= duration;
-    }
-    if (!unchangedDuration && remaining > 0 && segments.length)
-      segments.at(-1).endedAtUtc = new Date(
-        Date.parse(segments.at(-1).endedAtUtc) + remaining,
-      ).toISOString();
     return {
       domain: "session",
       value: {
         type: "session.correct",
         id,
-        segments,
+        focusedMilliseconds: unchangedDuration
+          ? item.focusedMilliseconds
+          : Math.round(requestedMinutes * 60000),
         changes: { primarySkill: skill },
       },
     };

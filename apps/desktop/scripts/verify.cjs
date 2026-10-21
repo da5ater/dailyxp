@@ -393,7 +393,34 @@ async function execute() {
     await page.getByLabel("Name", { exact: true }).fill("Finish the parser");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await page.getByRole("button", { name: "Complete", exact: true }).click();
-    record("create Goal and complete its Milestone", "visible and saved");
+    const completedMilestone = page
+      .locator(".entity")
+      .filter({ hasText: "Finish the parser" });
+    await completedMilestone
+      .getByText("completed · binary", { exact: true })
+      .waitFor();
+    if (
+      await completedMilestone
+        .getByRole("button", { name: "Complete", exact: true })
+        .count()
+    )
+      throw new Error("Milestone completion control remained after completion");
+    const savedMilestoneJournal = JSON.parse(
+      JSON.parse(fs.readFileSync(path.join(profile, "desktop.json"))).envelope
+        .payload.eventJournalRaw,
+    );
+    if (
+      !savedMilestoneJournal.events.some(
+        (e) =>
+          e.type === "planning.milestone.progressed" &&
+          e.payload.status === "completed",
+      )
+    )
+      throw new Error("Milestone completion did not persist");
+    record(
+      "create Goal and complete its Milestone",
+      "completed label visible; completion persisted",
+    );
     await page.getByRole("button", { name: "Play", exact: true }).click();
     await page
       .getByRole("button", { name: "Private Recovery", exact: true })

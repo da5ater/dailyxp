@@ -314,7 +314,7 @@ async function action(name, id) {
     await command("planning", {
       type: "milestone.progress",
       id,
-      progress: m.measurement.target || 1,
+      value: m.measurement.type === "binary" ? true : m.measurement.target,
     });
     return;
   }

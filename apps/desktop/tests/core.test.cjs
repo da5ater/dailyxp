@@ -294,3 +294,50 @@ test("companion-independent eligibility excludes a future Habit", (t) => {
   });
   assert.ok(!c.snapshot().eligibleHabitIds.includes("future"));
 });
+
+test("Skill-only Session correction preserves excluded idle time through editor and disk replay", async (t) => {
+  const { editorCommand } = await import("../renderer/editor.js");
+  let now = new Date("2026-10-21T09:00:00.000Z");
+  const c = fixture(t, { clock: () => now });
+  c.execute("session", {
+    type: "session.start",
+    session: { primarySkill: "general/focus" },
+  });
+  now = new Date("2026-10-21T09:05:00.000Z");
+  c.observeDesktop(300);
+  now = new Date("2026-10-21T09:10:00.000Z");
+  c.observeDesktop(0);
+  c.execute("session", {
+    type: "session.inactivity.resolve",
+    decision: "exclude",
+  });
+  now = new Date("2026-10-21T09:15:00.000Z");
+  c.execute("session", { type: "session.finish" });
+  const before = c.snapshot();
+  const item = before.session.sessions[0];
+  const form = new FormData();
+  form.set(
+    "focusedMinutes",
+    Number((item.focusedMilliseconds / 60000).toFixed(4)),
+  );
+  form.set("skill", "systems/review");
+  const command = editorCommand({ kind: "session", item }, form, before);
+  const result = c.execute(command.domain, command.value);
+  assert.equal(result.confirmation, null);
+  assert.equal(c.snapshot().session.sessions[0].focusedMilliseconds, 300000);
+  assert.equal(c.status().lifetimeXp, before.progression.totals.lifetimeXp);
+  c.close();
+  const replay = new Core(c.directory, { clock: () => now });
+  try {
+    assert.equal(
+      replay.snapshot().session.sessions[0].focusedMilliseconds,
+      300000,
+    );
+    assert.equal(
+      replay.snapshot().session.sessions[0].primarySkill,
+      "systems/review",
+    );
+  } finally {
+    replay.close();
+  }
+});

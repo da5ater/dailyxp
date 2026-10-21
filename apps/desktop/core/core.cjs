@@ -326,6 +326,20 @@ class Core extends EventEmitter {
           (session) => session.id === input.id,
         );
         if (!original) throw new Error("Session was not found");
+        if (input.focusedMilliseconds !== undefined) {
+          const effective = models.session.focusedSegments(
+            original,
+            original.finishedAtUtc,
+          );
+          input.segments =
+            input.focusedMilliseconds === original.focusedMilliseconds
+              ? effective
+              : models.session.resizeFocusedSegments(
+                  effective,
+                  input.focusedMilliseconds,
+                  now,
+                );
+        }
         const focused = (input.segments || []).reduce(
           (total, segment) =>
             total +
