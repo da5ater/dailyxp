@@ -15,6 +15,20 @@ ArcadeScreen {
     readonly property var store: shellApi ? shellApi.stateStore : null
     readonly property var routines: store ? store.planningProjection.routines : []
     readonly property var tasks: store ? store.planningProjection.tasks : []
+    property string pendingCarryoverId: ""
+    function toggleCarryover(routine) {
+        if (!store || store.saving || pendingCarryoverId) return
+        pendingCarryoverId = routine.id
+        if (!store.applyPlanningCommand({ type: "routine.edit", id: routine.id,
+                scope: "today_and_future", dailyXpDate: store.planningProjection.lastAdvancedDailyXpDate,
+                changes: { carryover: !routine.carryover } })) pendingCarryoverId = ""
+    }
+    Connections {
+        target: root.store
+        function onErrorMessageChanged() {
+            if (root.store.errorMessage !== "") root.pendingCarryoverId = ""
+        }
+    }
     function focusRoutineControl() { newRoutineButton.forceActiveFocus() }
 
     ArcadeCard {
@@ -51,19 +65,27 @@ ArcadeScreen {
                         wrapMode: Text.WrapAnywhere
                     }
                     StatChip {
+                        id: carryoverControl
                         objectName: "setupCarryover" + routineRow.index
                         width: parent.width
                         compact: true
                         interactive: true
                         label: "CARRY MISSED WORK"
-                        value: routineRow.modelData.carryover ? "ON" : "OFF"
+                        value: root.store && root.store.saving ? "SAVING" : routineRow.modelData.carryover ? "ON" : "OFF"
                         valueColor: routineRow.modelData.carryover ? Theme.electricLime : Theme.textMuted
                         enabled: root.store && root.store.ready && root.store.recordingReady && !root.store.saving
+                        opacity: enabled ? 1 : 0.55
                         Accessible.name: routineRow.modelData.title + ", carry missed work " + value
                         onActiveFocusChanged: if (activeFocus && root.shellApi) root.shellApi.revealControl(this)
-                        onActivated: root.store.applyPlanningCommand({ type: "routine.edit", id: routineRow.modelData.id,
-                            scope: "today_and_future", dailyXpDate: root.store.planningProjection.lastAdvancedDailyXpDate,
-                            changes: { carryover: !routineRow.modelData.carryover } })
+                        onActivated: root.toggleCarryover(routineRow.modelData)
+                        Component.onCompleted: {
+                            if (root.pendingCarryoverId !== routineRow.modelData.id) return
+                            Qt.callLater(function() {
+                                if (root.pendingCarryoverId !== routineRow.modelData.id) return
+                                root.pendingCarryoverId = ""
+                                if (root.visible) carryoverControl.forceActiveFocus()
+                            })
+                        }
                     }
                 }
             }
@@ -76,6 +98,17 @@ ArcadeScreen {
                 onActivated: root.shellApi.openRecurringSheet()
             }
         }
+    }
+
+    Text {
+        objectName: "setupSaveError"
+        visible: root.store && root.store.errorMessage !== ""
+        width: parent.width
+        text: root.store ? root.store.errorMessage : ""
+        color: Theme.chromeYellow
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.typeBody
+        wrapMode: Text.WordWrap
     }
 
     // ── one-shot tasks ──────────────────────────────────────────

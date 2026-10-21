@@ -26,7 +26,7 @@ def run_flow(run, action="smaller"):
     try:
         initial = status(run)
         user_journey.begin(run, {'habits': initial['projection'], 'planning': initial['planning'],
-                                 'sessions': settled(run)['projection']})
+                                 'sessions': settled(run)['projection'], 'events': initial['events']})
         control.ipc(run, 'open')
         time.sleep(.3)
         today = status(run)['projection']['lastAdvancedDailyXpDate']
@@ -139,9 +139,25 @@ def run_flow(run, action="smaller"):
                 time.sleep(.05)
             assert not form_status(run)['exists']
         assert all(r['carryover'] for r in status(run)['planning']['routines'])
+        state_dir = run / 'state/dailyxp'
+        state_dir.chmod(0o555)
+        try:
+            control.ipc(run, 'key', 'setupCarryover0', 'Space')
+            for _ in range(100):
+                failed = json.loads(control.ipc(run, 'habitStatus'))
+                if failed['error']: break
+                time.sleep(.05)
+            assert failed['error'] and failed['planning']['routines'][0]['carryover']
+            from commitment_flow import diagnostic_capture
+            diagnostic_capture(run, 'failed-carryover-save')
+        finally:
+            state_dir.chmod(0o755)
+        restart(run)
+        navigate(run, 'Setup')
         control.ipc(run, 'key', 'setupCarryover0', 'Space')
         settled(run)
         assert not status(run)['planning']['routines'][0]['carryover']
+        assert ui(run)['setupCarryover0']['focus']
         control.ipc(run, 'key', 'setupCarryover0', 'Space')
         settled(run)
         assert status(run)['planning']['routines'][0]['carryover']
