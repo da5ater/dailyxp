@@ -64,7 +64,7 @@ ShellRoot {
     function ui(): string {
       var result = {}
       var shellItem = input.findChild(productionWidget, "dailyxpShell")
-      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld", "newRoutineButton", "railCommitmentTitle", "railCommitmentDetail", "setupRoutine0", "habitStrip", "habitChip0", "habitChip1", "skipHabit0", "skipHabit1", "overdueStrip", "gentleSuggestion", "overduesmaller", "overduereschedule", "overdueskip"]
+      var names = ["startSessionButton", "pauseSessionButton", "finishSessionButton", "sessionTimer", "sessionState", "sessionResult", "dailyxpShell", "journeyLevel", "journeyMomentum", "journeyRank", "journeyXpBar", "journeyXpProgress", "journeyLifetimeXp", "journeyWeeklyInsight", "openLedgerButton", "navigationLabelJourney", "navigationLabelWorld", "newRoutineButton", "railCommitmentTitle", "railCommitmentDetail", "setupRoutine0", "newHabitButton", "habitEmptyState", "setupCarryover0", "setupCarryover1", "habitStrip", "habitChip0", "habitChip1", "skipHabit0", "skipHabit1", "overdueStrip", "gentleSuggestion", "overduesmaller", "overduereschedule", "overdueskip"]
       for (var i = 0; i < names.length; i++) {
         var item = host.findControl(names[i])
         var point = item && shellItem ? item.mapToItem(shellItem, 0, 0) : { x: 0, y: 0 }
@@ -143,13 +143,15 @@ ShellRoot {
         startedAtUtc:new Date(Date.now() - minutes * 60000).toISOString()}}) ? "requested" : "not-started"
     }
     function routineStatus(): string {
-      var form = host.findControl("routineSheet")
+      var form = host.findControl("routineSheet") || host.findControl("habitSheet")
+      var habitForm = form && form.entryKind === "habit"
       var items = []
       var viewport = form ? host.findControl("sheetViewport") : null
       var point = viewport ? viewport.mapToItem(form,0,0) : {x:0,y:0}
       if (form) {
-        var names = ["routineNameInput","routineMinutesInput","saveRoutineButton"]
-        for (var d = 1; d <= 7; d++) names.push("routineWeekday" + d)
+        var prefix = habitForm ? "habit" : "routine"
+        var names = habitForm ? ["habitNameInput", "saveHabitButton"] : ["routineNameInput","routineMinutesInput","saveRoutineButton", "routineCarryoverToggle"]
+        for (var d = 1; d <= 7; d++) names.push(prefix + "Weekday" + d)
         for (var i = 0; i < names.length; i++) {
           var item = host.findControl(names[i])
           var position = item.mapToItem(form,0,0)
@@ -158,7 +160,7 @@ ShellRoot {
       }
       return JSON.stringify({exists:form !== null,error:form ? form.errorText : "",
         weekdays:form ? form.weekdays : [],pendingId:form ? form.pendingId : "",
-        name:form ? host.findControl("routineNameInput").text : "",projection:store.planningProjection,events:store.journal.events,
+        name:form ? host.findControl(habitForm ? "habitNameInput" : "routineNameInput").text : "",projection:store.planningProjection,events:store.journal.events,
         items:items,width:form ? form.width : 0,recordingReady:store.recordingReady,
         viewport:viewport ? {x:point.x,y:point.y,width:viewport.width,height:viewport.height} : null})
     }

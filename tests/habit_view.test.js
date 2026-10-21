@@ -54,3 +54,14 @@ for (const action of ['smaller', 'reschedule', 'skip']) test(`${action} resolves
   assert.throws(() => Planning.decide(before, { ...command, dailyXpDate: '2026-10-20' }), /current planning day/);
   assert.throws(() => Planning.decide(before, { ...command, action: 'unknown' }), /unsupported/);
 });
+
+test('habit form creates an eligible scheduled habit without engine-only fields', () => {
+  const habit = View.createHabit({title:' Read a page ',weekdays:[7,1,3]},'read','2026-10-21');
+  const state = apply(Habit, Habit.emptyProjection(), {type:'habit.create',habit});
+  assert.equal(state.habits[0].title,'Read a page');
+  assert.deepEqual(state.habits[0].schedule.weekdays,[1,3,7]);
+  assert.equal(View.todayHabits(state,'2026-10-21',Habit).length,1);
+  assert.equal(View.todayHabits(state,'2026-10-22',Habit).length,0);
+  assert.throws(()=>View.createHabit({title:' ',weekdays:[1]},'x','2026-10-21'),/NAME IS REQUIRED/);
+  assert.throws(()=>View.createHabit({title:'Read',weekdays:[]},'x','2026-10-21'),/WEEKDAY/);
+});

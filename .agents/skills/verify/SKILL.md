@@ -43,6 +43,14 @@ This read-only application check verifies PID command-line ownership, the exact 
 
 IPC proof covers the command path only. For clicking and keyboard acceptance criteria, the fixture exposes `click NAME` and `key NAME Return|Space|Tab|Escape` using QtTest input against named production controls. `routine_flow.py RUN` verifies routine creation, weekday input, dated occurrence generation and restart with an injected private planning date. `journey_flow.py RUN` verifies earned session XP, journal-linked ledger metadata, keyboard scrolling, narrow layout and restart replay. `commitment_flow.py RUN` exercises linked goal/task persistence, repeated submission, keyboard removal, failed-write recovery, modal focus, and long-form scrolling. `session_flow.py RUN` exercises the real session rail, timer, pause/resume/finish, Tab focus, and hard-kill replay, then saves screenshots and persisted evidence. The optional launch `--seed` creates a disposable commitment through the production planning command; it is setup, not proof of task-entry behavior. Do not call internal QML setters or count Node model tests as panel interaction proof. Production Omarchy installation, multi-monitor coordination, and full-shell restart behavior require separate integration evidence; stopping this host cannot prove a full-shell restart criterion.
 
+## Product-entry delivery gate
+
+A delivery claim requires a journey from empty disposable progress using visible product controls for every prerequisite. Engine seeding may test a domain edge case, but cannot prove the feature is reachable by Mohamed. If a habit, carryover setting, or other prerequisite has no product entry path, report the feature incomplete.
+
+Call `user_journey.begin(run, projections)` with the actual initial habit, planning and session readbacks. It rejects pre-existing progress and writes a run marker. With that marker present, `control.ipc` rejects engine-only mutation helpers before executing any IPC. The marker survives private-host restarts. Read-only status, QtTest input and explicit test-clock changes remain available. Do not remove the marker or bypass the driver to make a delivery journey pass.
+
+Retain `user-journey.json`, actual control actions, resulting PNGs and persisted journal evidence. Verify the installed-app starting state separately for a local handoff. A conditional feature that disappears on that starting state needs a visible entry or truthful empty state, not another seeded screenshot.
+
 ## Evidence
 
 The run directory contains `instance.json`, tracked `source.diff`, `shell.log`, `actions.jsonl`, labeled status JSON and screenshots. `instance.json` records the checkout revision. Screenshots contain only the production panel on the private display. `display.json` records the owned compositor and socket; `display.log` records startup. Record which entry point was exercised and any omitted paths.

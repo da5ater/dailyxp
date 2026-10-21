@@ -51,3 +51,8 @@ test('weekday schedule excludes unscheduled days from the PLAY rail', () => {
 test('stored interval routines retain a truthful schedule label', () => {
   assert.equal(View.scheduleLabel({schedule:{type:'interval',everyDays:2}}),'EVERY 2 DAYS');
 });
+
+test('routine form preserves the explicit carryover choice',()=>{
+  assert.equal(View.createRoutine({...draft(),carryover:true},'r','2026-10-21').carryover,true);
+  assert.equal(View.createRoutine(draft(),'r','2026-10-21').carryover,false);
+});

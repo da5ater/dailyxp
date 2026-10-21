@@ -9,12 +9,14 @@ import signal
 import subprocess
 import time
 import display
+import user_journey
 
 REPO = Path(__file__).resolve().parents[4]
 TARGET = 'io.github.da5ater.dailyxp'
 
 
 def ipc(run, method, *args):
+    user_journey.check(run, method)
     metadata = json.loads((run / 'instance.json').read_text())
     target = 'dailyxp-verify' if method in ['ready', 'readiness', 'click', 'key', 'ui', 'capturePanel', 'captureStatus', 'typeText', 'formStatus', 'press', 'planningStatus', 'seedGoal', 'journeyStatus', 'seedTimedSession', 'constrainPanel', 'routineStatus', 'planningCommand', 'habitCommand', 'habitStatus', 'hold'] else TARGET
     command = ['quickshell', 'ipc', '--pid', str(metadata['pid']), 'call', target, method, *args]

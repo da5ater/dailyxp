@@ -81,11 +81,11 @@ Rectangle {
         root.sheetStack = root.sheetStack.concat([obj])
     }
 
-    function openRoutineSheet() {
+    function openRecurringSheet(kind) {
         if (root.sheetStack.length > 0) return
-        var comp = Qt.createComponent("arcade/screens/RoutineSheet.qml")
+        var comp = Qt.createComponent("arcade/screens/RecurringSheet.qml")
         if (comp.status === Component.Error) { console.warn(comp.errorString()); return }
-        var obj = comp.createObject(root, { objectName: "routineSheet", shellApi: root, visible: true })
+        var obj = comp.createObject(root, { objectName: kind === "habit" ? "habitSheet" : "routineSheet", entryKind: kind === "habit" ? "habit" : "routine", shellApi: root, visible: true })
         if (!obj) return
         obj.anchors.fill = root
         obj.dismissed.connect(root.popSheet)
@@ -106,7 +106,10 @@ Rectangle {
     function popSheet() {
         var top = root.sheetStack[root.sheetStack.length - 1]
         root.sheetStack = root.sheetStack.slice(0, -1)
+        var returnToHabit = top && top.objectName === "habitSheet"
         if (top) top.destroy()
+        if (returnToHabit && root.currentSurface === "Play" && viewport.cache.Play)
+            viewport.cache.Play.focusHabitEntry()
         if (root.currentSurface === "Setup" && viewport.cache.Setup)
             viewport.cache.Setup.focusRoutineControl()
         if (root.currentSurface === "Journey" && viewport.cache.Journey)

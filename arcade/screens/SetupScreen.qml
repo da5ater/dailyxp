@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import "../"
 import "../../FixtureLoader.js" as FixtureLoader
@@ -33,17 +34,37 @@ ArcadeScreen {
             }
             Repeater {
                 model: root.routines
-                delegate: Text {
+                delegate: Column {
+                    id: routineRow
                     required property var modelData
                     required property int index
-                    objectName: "setupRoutine" + index
                     width: parent.width
-                    text: modelData.title + " · " + modelData.expectedMinutes + "m\n" + RoutineView.scheduleLabel(modelData)
-                    color: Theme.textPrimary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.typeBody
-                    lineHeight: 1.4
-                    wrapMode: Text.WrapAnywhere
+                    spacing: Theme.space(2)
+                    Text {
+                        objectName: "setupRoutine" + routineRow.index
+                        width: parent.width
+                        text: routineRow.modelData.title + " · " + routineRow.modelData.expectedMinutes + "m\n" + RoutineView.scheduleLabel(routineRow.modelData)
+                        color: Theme.textPrimary
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.typeBody
+                        lineHeight: 1.4
+                        wrapMode: Text.WrapAnywhere
+                    }
+                    StatChip {
+                        objectName: "setupCarryover" + routineRow.index
+                        width: parent.width
+                        compact: true
+                        interactive: true
+                        label: "CARRY MISSED WORK"
+                        value: routineRow.modelData.carryover ? "ON" : "OFF"
+                        valueColor: routineRow.modelData.carryover ? Theme.electricLime : Theme.textMuted
+                        enabled: root.store && root.store.ready && root.store.recordingReady && !root.store.saving
+                        Accessible.name: routineRow.modelData.title + ", carry missed work " + value
+                        onActiveFocusChanged: if (activeFocus && root.shellApi) root.shellApi.revealControl(this)
+                        onActivated: root.store.applyPlanningCommand({ type: "routine.edit", id: routineRow.modelData.id,
+                            scope: "today_and_future", dailyXpDate: root.store.planningProjection.lastAdvancedDailyXpDate,
+                            changes: { carryover: !routineRow.modelData.carryover } })
+                    }
                 }
             }
             BevelButton {
@@ -52,7 +73,7 @@ ArcadeScreen {
                 width: parent.width
                 label: "+ NEW ROUTINE"
                 enabled: root.store && root.store.ready && root.store.recordingReady && !root.store.saving
-                onActivated: root.shellApi.openRoutineSheet()
+                onActivated: root.shellApi.openRecurringSheet()
             }
         }
     }

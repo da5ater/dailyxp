@@ -1,3 +1,12 @@
+function createHabit(draft, id, today) {
+  var title = draft.title.trim();
+  if (!title) throw new Error("NAME IS REQUIRED");
+  var days = draft.weekdays.slice().sort(function(a, b) { return a - b; });
+  if (!days.length) throw new Error("CHOOSE AT LEAST ONE WEEKDAY");
+  return { id: id, title: title, startDate: today, endDate: null, restDates: [],
+    schedule: { type: "weekdays", weekdays: days } };
+}
+
 function todayHabits(projection, today, habitModel) {
   if (!today) return [];
   return projection.habits.filter(function(habit) { return habitModel.scheduledOn(habit, today); })
@@ -20,4 +29,4 @@ function gentleSuggestion(plan) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-  module.exports = { todayHabits: todayHabits, gentleSuggestion: gentleSuggestion };
+  module.exports = { createHabit: createHabit, todayHabits: todayHabits, gentleSuggestion: gentleSuggestion };

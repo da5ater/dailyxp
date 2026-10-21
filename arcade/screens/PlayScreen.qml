@@ -345,6 +345,78 @@ ArcadeScreen {
         }
     }
 
+    ArcadeCard {
+        objectName: "habitStrip"
+        visible: root.bound
+        width: parent.width
+        ribbon: "HABITS"
+        ribbonColor: Theme.powerGreen
+        Text {
+            width: parent.width
+            text: "Tap to complete · hold or choose Skip to pass today"
+            color: Theme.textMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeTiny
+            wrapMode: Text.WordWrap
+        }
+        Text {
+            objectName: "habitEmptyState"
+            visible: root.todayHabits.length === 0
+            width: parent.width
+            text: root.bound && root.store.habitProjection.habits.length > 0
+                  ? "No habits scheduled today. Add one or return on its scheduled day."
+                  : "No habits yet. Add your first habit to check it off here."
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.typeBody
+            wrapMode: Text.WordWrap
+        }
+        BevelButton {
+            id: newHabitButton
+            objectName: "newHabitButton"
+            width: parent.width
+            label: "+ NEW HABIT"
+            enabled: root.sessionReady && !root.modalOpen
+            onActivated: root.shellApi.openRecurringSheet("habit")
+            onActiveFocusChanged: root.revealQuickControl(this)
+        }
+        Repeater {
+            id: habitRepeater
+            model: root.todayHabits
+            delegate: Row {
+                id: habitRow
+                required property var modelData
+                required property int index
+                width: parent.width
+                spacing: Theme.space(2)
+                HabitChip {
+                    id: habitChip
+                    objectName: "habitChip" + habitRow.index
+                    width: Math.max(0, parent.width - skipHabit.width - parent.spacing)
+                    onActiveFocusChanged: root.revealQuickControl(this)
+                    title: habitRow.modelData.title
+                    stateLabel: habitRow.modelData.state
+                    streak: habitRow.modelData.streak
+                    enabled: root.sessionReady && !root.modalOpen
+                    onCompleted: root.habitAction(habitRow.modelData, "complete")
+                    onSkipped: root.habitAction(habitRow.modelData, "skip")
+                }
+                BevelButton {
+                    id: skipHabit
+                    onActiveFocusChanged: root.revealQuickControl(this)
+                    objectName: "skipHabit" + habitRow.index
+                    width: 92
+                    label: "SKIP"
+                    baseColor: Theme.surfaceHigh
+                    textColor: Theme.textMuted
+                    enabled: root.sessionReady && !root.modalOpen && habitRow.modelData.state === "open"
+                    opacity: enabled ? 1 : 0.5
+                    onActivated: root.habitAction(habitRow.modelData, "skip")
+                }
+            }
+        }
+    }
+
     // ── V2 add-commitment entry — persists after the first commitment ──
     BevelButton {
         objectName: "addCommitmentButton"
@@ -401,6 +473,7 @@ ArcadeScreen {
     property string pendingSmallId: ""
 
     function quickControlFocused() {
+        if (newHabitButton.activeFocus) return true
         for (var i = 0; i < habitRepeater.count; i++) {
             var row = habitRepeater.itemAt(i)
             if (!row) continue
@@ -416,6 +489,8 @@ ArcadeScreen {
     function revealQuickControl(control) {
         if (control.activeFocus && shellApi) shellApi.revealControl(control)
     }
+
+    function focusHabitEntry() { newHabitButton.forceActiveFocus(); revealQuickControl(newHabitButton) }
 
     function habitAction(habit, action) {
         if (!sessionReady || modalOpen || habit.state !== "open") return
@@ -446,56 +521,6 @@ ArcadeScreen {
         }
     }
 
-    ArcadeCard {
-        objectName: "habitStrip"
-        visible: root.todayHabits.length > 0
-        width: parent.width
-        ribbon: "HABITS"
-        ribbonColor: Theme.powerGreen
-        Text {
-            width: parent.width
-            text: "Tap to complete · hold or choose Skip to pass today"
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.typeTiny
-            wrapMode: Text.WordWrap
-        }
-        Repeater {
-            id: habitRepeater
-            model: root.todayHabits
-            delegate: Row {
-                id: habitRow
-                required property var modelData
-                required property int index
-                width: parent.width
-                spacing: Theme.space(2)
-                HabitChip {
-                    id: habitChip
-                    objectName: "habitChip" + habitRow.index
-                    width: Math.max(0, parent.width - skipHabit.width - parent.spacing)
-                    onActiveFocusChanged: root.revealQuickControl(this)
-                    title: habitRow.modelData.title
-                    stateLabel: habitRow.modelData.state
-                    streak: habitRow.modelData.streak
-                    enabled: root.sessionReady && !root.modalOpen
-                    onCompleted: root.habitAction(habitRow.modelData, "complete")
-                    onSkipped: root.habitAction(habitRow.modelData, "skip")
-                }
-                BevelButton {
-                    id: skipHabit
-                    onActiveFocusChanged: root.revealQuickControl(this)
-                    objectName: "skipHabit" + habitRow.index
-                    width: 92
-                    label: "SKIP"
-                    baseColor: Theme.surfaceHigh
-                    textColor: Theme.textMuted
-                    enabled: root.sessionReady && !root.modalOpen && habitRow.modelData.state === "open"
-                    opacity: enabled ? 1 : 0.5
-                    onActivated: root.habitAction(habitRow.modelData, "skip")
-                }
-            }
-        }
-    }
     ArcadeCard {
         objectName: "overdueStrip"
         visible: root.gentle !== null
