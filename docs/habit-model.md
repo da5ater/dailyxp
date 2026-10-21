@@ -73,3 +73,9 @@ The suite covers schedule eligibility, rest-day handling, streak breaks,
 explicit freeze preservation, duplicate completion idempotency, day-boundary
 frozen dates, seven-per-day competitive cap, single full-set bonus, archiving
 vs deleting, and deterministic replay.
+
+## Quick-check dispositions
+
+`habit.skip` emits `habit.skipped` and adds a dated entry to `skips`. Completion and skip are mutually exclusive, idempotent daily dispositions. A skip awards no XP and does not freeze a streak. Old journals rebuild with an empty skip array. Skipped history makes removal archive the habit.
+
+`HabitView.todayHabits` reads the schedule, completion, skip and streak projections. The PLAY chip completes on tap or Enter/Space, skips on hold or Delete, and also offers a visible Skip button. Creation and editing remain outside this slice.

@@ -105,3 +105,9 @@ completed history, reschedule/merge, Milestone locking, lifecycle
 delete-vs-archive, template/adaptive proposal preview/edit/dismiss/accept consent,
 3-miss rescheduling (including carryover-disabled), duplicate-suppression, and
 the cross-repo fixture contract.
+
+## One gentle overdue suggestion
+
+`HabitView.gentleSuggestion` selects the overdue occurrence with the smallest expected duration. Equal durations sort by date, then stable ID. `overdue.disposition` resolves only that occurrence and journals `planning.overdue.disposed` for the current planning date. The persisted `lastGentleDispositionDate` suppresses the remaining suggestions for that day without changing the other overdue work.
+
+Start smaller creates an occurrence for today with at most five expected minutes. Tomorrow preserves the duration and creates an occurrence for the next DailyXP date. Skip writes a terminal transition. All disposition events commit together in one envelope. A session for Start smaller begins after that save and has its own durable session transaction. If that session cannot save, the smaller occurrence remains on PLAY for retry.

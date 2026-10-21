@@ -11,7 +11,7 @@ function decide(projection, command){
   if(i.type==="ux.navigate"){ if(SURFACES.indexOf(i.surface)===-1) fail("surface","is invalid"); return freeze({ events:[{ type:"ux.navigated", payload:{ surface:i.surface } }] }); }
   if(i.type==="ux.sheet.open"){ return freeze({ events:[{ type:"ux.sheet.opened", payload:{ sheetId:i.sheetId } }] }); }
   if(i.type==="ux.sheet.close"){ return freeze({ events:[{ type:"ux.sheet.closed", payload:{ sheetId:i.sheetId } }] }); }
-  if(i.type==="ux.reducedMotion.set"){ return freeze({ events:[{ type:"ux.reducedMotion.set", payload:{ enabled: !!i.enabled } }] }); }
+  if(i.type==="ux.reducedMotion.set"){ return freeze({ events:[{ type:"ux.reduced_motion.set", payload:{ enabled: !!i.enabled } }] }); }
   if(i.type==="ux.scale.set"){ if(typeof i.scale!=="number"||i.scale<0.5||i.scale>2) fail("scale","must be 0.5-2"); return freeze({ events:[{ type:"ux.scale.set", payload:{ scale:i.scale } }] }); }
   fail("command.type","is unsupported");
 }
@@ -21,7 +21,7 @@ function projectIntents(projection,intents){
     if(e.type==="ux.navigated") next.currentSurface=e.payload.surface;
     else if(e.type==="ux.sheet.opened") { if(next.sheets.indexOf(e.payload.sheetId)===-1) next.sheets.push(e.payload.sheetId); }
     else if(e.type==="ux.sheet.closed") next.sheets=next.sheets.filter(function(s){ return s!==e.payload.sheetId; });
-    else if(e.type==="ux.reducedMotion.set") next.reducedMotion=!!e.payload.enabled;
+    else if(e.type==="ux.reduced_motion.set") next.reducedMotion=!!e.payload.enabled;
     else if(e.type==="ux.scale.set") next.scale=e.payload.scale;
   });
   return freeze(next);

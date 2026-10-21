@@ -113,6 +113,13 @@ Rectangle {
             viewport.cache.Journey.focusLedgerControl()
     }
 
+    function revealControl(item) {
+        var position = item.mapToItem(viewport, 0, 0)
+        if (position.y < 8) root.scrollBy(position.y - 8)
+        else if (position.y + item.height > viewport.height - 8)
+            root.scrollBy(position.y + item.height - viewport.height + 8)
+    }
+
     function scrollBy(delta) {
         // keyboard scroll entry point — host PanelKeyCatcher routes arrows /
         // j/k here (its onMoveRequested was previously unconnected, so every

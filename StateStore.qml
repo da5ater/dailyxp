@@ -571,7 +571,7 @@ Item {
 
   function ensureCurrentHabitDay() {
     if (!ready || !recordingReady || saving) return false
-    var now = new Date()
+    var now = planningClock()
     var localContext = EventModel.localSystemContext(now, systemTimezone)
     var dailyXpDate = EventModel.dailyXpDate(localContext.localDateTime, configuredDayBoundaryMinutes)
     return applyHabitCommand({ type: "habit.day.advance", dailyXpDate: dailyXpDate })

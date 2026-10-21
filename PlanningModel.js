@@ -36,6 +36,7 @@ function emptyProjection() {
   return freeze({
     schemaVersion: PROJECTION_SCHEMA_VERSION,
     goals: [], milestones: [], tasks: [], routines: [], occurrences: [], proposals: [],
+    lastGentleDispositionDate: null,
     lastAdvancedDailyXpDate: null
   });
 }
@@ -309,6 +310,32 @@ function decide(projection, command) {
     }
     return freeze({ events: events });
   }
+  if (input.type === "overdue.disposition") {
+    dateValue(input.dailyXpDate, "dailyXpDate");
+    if (input.dailyXpDate !== plan.lastAdvancedDailyXpDate) fail("dailyXpDate", "must be the current planning day");
+    if (plan.lastGentleDispositionDate === input.dailyXpDate) return freeze({ events: [] });
+    if (["smaller", "reschedule", "skip"].indexOf(input.action) === -1) fail("action", "is unsupported");
+    var gentle = findById(plan.occurrences, input.id);
+    if (!gentle || gentle.status !== "overdue") fail("occurrence", "must be overdue");
+    var dispositionEvents = [];
+    if (input.action === "skip") {
+      dispositionEvents.push(intent("occurrence.transitioned", { id: gentle.id, status: "skipped" }));
+    } else {
+      var targetDate = input.action === "smaller" ? input.dailyXpDate : nextDate(input.dailyXpDate);
+      var replacementKey = "gentle:" + encodeURIComponent(gentle.id) + ":day:" + targetDate;
+      var small = clone(gentle);
+      small.id = replacementKey;
+      small.occurrenceKey = replacementKey;
+      small.dailyXpDate = targetDate;
+      small.status = "open";
+      small.rescheduledFrom = gentle.id;
+      if (input.action === "smaller") small.expectedMinutes = Math.min(5, gentle.expectedMinutes);
+      dispositionEvents.push(intent("occurrence.transitioned", { id: gentle.id, status: "rescheduled" }));
+      dispositionEvents.push(intent("occurrence.created", small, replacementKey));
+    }
+    dispositionEvents.push(intent("overdue.disposed", { id: gentle.id, action: input.action, dailyXpDate: input.dailyXpDate }));
+    return freeze({ events: dispositionEvents });
+  }
   if (input.type === "occurrence.transition") {
     var occurrence = findById(plan.occurrences, input.id);
     if (!occurrence) fail("occurrence.id", "was not found");
@@ -538,6 +565,8 @@ function projectIntents(projection, intents) {
     else if (event.type === "planning.milestone.created") next.milestones = replace(next.milestones, event.payload);
     else if (event.type === "planning.task.created") next.tasks = replace(next.tasks, event.payload);
     else if (event.type === "planning.routine.created") next.routines = replace(next.routines, event.payload);
+    else if (event.type === "planning.overdue.disposed")
+      next.lastGentleDispositionDate = event.payload.dailyXpDate;
     else if (event.type === "planning.day.advanced")
       next.lastAdvancedDailyXpDate = event.payload.dailyXpDate;
     else if (event.type === "planning.occurrence.created") {

@@ -82,10 +82,10 @@ The repository uses a single-context domain glossary. See
 
 ## Visual review handoff in poteto mode
 
-- After every implementation, create and open a self-contained local HTML review page before the final handoff. This is part of the economical poteto workflow, not an optional follow-up.
-- Show the actual before, the interaction during the change, and the resulting after state. Prefer real isolated screenshots. Label diagrams or walkthroughs explicitly; never present a mockup as a running application.
-- Explain the user-visible change, the blast radius across UI/shared code/persistence, what was tested, remaining limits, the feature revision and whether the installed application matches it.
-- Include a short manual test path and the lowest-friction safe preview available. When practical, let Mohamed try the real feature through a disposable private instance from the review page. Keep personal state and the desktop untouched.
-- Link the PR and evidence, keep the page current after review fixes, and provide an obvious way to stop/reset a disposable preview. Do not silently replace a prior approved screenshot with unrelated state.
-- Open the page in the Codex side panel and return its link. Do not take over mouse/keyboard input or restart the personal shell. An installed-plugin refresh requires Mohamed’s explicit refresh request; clearly state when it has not happened.
-- Store project instructions in AGENTS.md and local/global overrides rather than modifying versioned plugin-cache files. These handoff requirements apply when poteto mode is used and preserve manual PR review and merge authorization.
+- After each implementation, open a short local HTML click guide in the Codex side panel. Keep it focused on the actual user-visible features or fixes.
+- For each change, explain the exact previous problem in one sentence and show real Before / During / After pictures. Before comes from the last released version, or the last installed version when no tagged release exists; identify that baseline clearly.
+- Next to the pictures, tell Mohamed exactly where to click in the actual application to see the change. Use short numbered actions and familiar control labels. Keep typing to the minimum the real feature requires.
+- The HTML is an illustrated guide, not a replacement app. Do not add duplicate input forms, simulated app controls, browser-to-QML control bridges, blast-radius sections, test reports or long engineering explanations. Keep detailed verification in the issue/PR evidence.
+- Real interactions happen in the actual application. For an explicitly requested local test handoff, back up personal state and the installed plugin, install the current revision, reload the host and inspect the real rendered app. Clearly report if that refresh is deferred or blocked. Do not mutate personal progress to demonstrate it.
+- Automated tests remain on the private display. Do not take over personal mouse/keyboard input. Personal shell refresh/open is limited to the requested local handoff.
+- Keep the guide current after fixes and link the PR. Preserve manual review and explicit merge authorization. Save these overrides in AGENTS.md rather than editing plugin-cache skills.
