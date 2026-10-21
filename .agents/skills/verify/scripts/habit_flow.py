@@ -89,7 +89,7 @@ def run_flow(run, action="smaller"):
             assert item['x'] >= 0 and item['x'] + item['width'] <= 280
             assert item['y'] >= 0 and item['y'] + item['height'] < 588
         capture(run, 'overdue-narrow')
-        control.ipc(run, 'constrainPanel', '600')
+        control.ipc(run, 'constrainPanel', '388')
         assert control.ipc(run, 'key', 'overdue' + action, 'Return') == 'pressed'
         for _ in range(3): control.ipc(run, 'press', 'Return')
         time.sleep(.3)

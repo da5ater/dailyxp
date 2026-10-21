@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import "../"
 import "../../FixtureLoader.js" as FixtureLoader
@@ -80,6 +81,7 @@ ArcadeScreen {
         var control = activeSession ? (direction < 0 ? finishButton : pauseButton) : startButton
         if (!control.visible || !control.enabled) return false
         control.forceActiveFocus()
+        if (shellApi) shellApi.revealControl(control)
         return true
     }
     function startFocus() {
@@ -401,7 +403,9 @@ ArcadeScreen {
     function quickControlFocused() {
         for (var i = 0; i < habitRepeater.count; i++) {
             var row = habitRepeater.itemAt(i)
-            if (row && row.controlFocused) return true
+            if (!row) continue
+            for (var k = 0; k < row.children.length; k++)
+                if (row.children[k].activeFocus) return true
         }
         for (var j = 0; j < overdueRepeater.count; j++) {
             var control = overdueRepeater.itemAt(j)
@@ -465,7 +469,6 @@ ArcadeScreen {
                 required property int index
                 width: parent.width
                 spacing: Theme.space(2)
-                readonly property bool controlFocused: habitChip.activeFocus || skipHabit.activeFocus
                 HabitChip {
                     id: habitChip
                     objectName: "habitChip" + habitRow.index
