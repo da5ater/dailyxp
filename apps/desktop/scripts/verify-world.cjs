@@ -74,7 +74,8 @@ function display(action) {
       fullPage: true,
     });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    const actionPage = process.argv[3] === "milestone" ? "Plan" : "Play";
+    await page.getByRole("button", { name: actionPage, exact: true }).click();
     await page.getByRole("button", { name: "Complete", exact: true }).click();
     await page.getByRole("button", { name: "World", exact: true }).click();
     assert.equal(

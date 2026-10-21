@@ -452,3 +452,36 @@ test("World follows real Goal and Milestone events across disk replay", (t) => {
     replay.close();
   }
 });
+
+test("a real Milestone after inactivity clears Hollow King and replays its activity date", (t) => {
+  const { prepareWorld } = require("../scripts/world-fixture.cjs");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dailyxp-world-"));
+  const now = new Date("2026-10-21T12:00:00Z");
+  prepareWorld(directory, now);
+  const c = new Core(directory, { clock: () => now });
+  t.after(() => {
+    if (c.ownsLock) c.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+  assert.ok(c.snapshot().story.antagonists.some((a) => a.id === "hollow-king"));
+  c.execute("planning", {
+    type: "milestone.progress",
+    id: "planned",
+    value: true,
+  });
+  const snapshot = c.snapshot();
+  assert.ok(!snapshot.story.antagonists.some((a) => a.id === "hollow-king"));
+  assert.equal(snapshot.story.provinces[0].fraction, 1);
+  assert.match(snapshot.story.momentumCause, /1 day with earned activity/);
+  const award = snapshot.progression.ledger.find(
+    (entry) => entry.reason === "milestone completed: planned",
+  );
+  assert.equal(award.dailyXpDate, c.dateAt());
+  c.close();
+  const replay = new Core(directory, { clock: () => now });
+  try {
+    assert.deepEqual(replay.snapshot().story, snapshot.story);
+  } finally {
+    replay.close();
+  }
+});

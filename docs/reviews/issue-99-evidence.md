@@ -13,6 +13,7 @@ npm test
 npm run lint
 node apps/desktop/scripts/verify.cjs run /tmp/dailyxp-99-UNIQUE
 node apps/desktop/scripts/verify-world.cjs /tmp/dailyxp-world-99-UNIQUE
+node apps/desktop/scripts/verify-world.cjs /tmp/dailyxp-world-milestone-99-UNIQUE milestone
 ```
 
 The main journey starts empty and drives actual controls through Task, Session, companion, Goal, Milestone, World, Recovery, Settings and native backup dialogs. The World edge journey uses only a disposable profile and production commands with a controlled clock to reach the seven-day prerequisite. It then drives real Electron controls on a private headless display. It does not substitute seeded state for the empty-entry journey.
@@ -40,3 +41,7 @@ The architecture pass keeps one core writer and one StoryModel projection. It ad
 ## Local review ownership
 
 Local demo data must live in a separate issue-99 profile and be labeled REVIEW PROFILE. The normal profile and installed app are backed up before replacement. The guide gives click paths and real Before/During/After captures. Demo changes remain available until Mohamed finishes local review, then the owned cleanup archives them and restores the normal launcher. This PR remains draft until manual review; no auto-merge.
+
+## Independent review fix
+
+The reviewer reproduced a real integration error: Milestone XP did not mark its canonical date active, so a completed Milestone could leave Hollow King present and the earned-activity cause unchanged. ProgressionModel now records the resolved canonical date for that award and marks it active. A Core regression proves clearing and disk replay. A separate actual Electron journey completes the Milestone through Plan after seven inactive days (`/tmp/dailyxp-99-world-milestone-final`). The reviewer also identified two redundant fixture comments, which were removed. The full Node suite now has 207 passing tests.

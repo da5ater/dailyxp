@@ -1,7 +1,5 @@
 const { Core } = require("../core/core.cjs");
 
-// Reaches the seven-day condition with production commands and an owned clock.
-// The normal verifier independently proves entry from an empty profile via UI.
 function prepareWorld(directory, today = new Date()) {
   let now = new Date(today);
   now.setHours(12, 0, 0, 0);
