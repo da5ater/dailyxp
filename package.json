@@ -1,0 +1,69 @@
+{
+  "name": "dailyxp",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Local-first DailyXP desktop application and integration service",
+  "author": "Mohamed Osama Mohamed Khater",
+  "license": "GPL-3.0",
+  "main": "apps/desktop/electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "core": "node apps/desktop/core/server.cjs",
+    "test": "node --test tests/*.test.js apps/desktop/tests/*.test.cjs",
+    "test:core": "node --test apps/desktop/tests/*.test.cjs",
+    "package:linux": "electron-builder --linux AppImage tar.gz --publish never",
+    "verify:desktop": "node apps/desktop/scripts/verify.cjs",
+    "lint": "eslint apps/desktop/",
+    "install:linux": "sh dist/linux-unpacked/install.sh"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3",
+    "eslint": "10.13.0",
+    "playwright": "1.64.1",
+    "prettier": "3.9.10"
+  },
+  "build": {
+    "appId": "io.github.da5ater.dailyxp.desktop",
+    "productName": "DailyXP",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "apps/desktop/core/**",
+      "apps/desktop/electron/**",
+      "apps/desktop/renderer/**",
+      "*Model.js",
+      "*Journal.js",
+      "package.json"
+    ],
+    "linux": {
+      "category": "Utility",
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "executableName": "dailyxp",
+      "icon": "apps/desktop/renderer/icon.png",
+      "syncDesktopName": true
+    },
+    "extraFiles": [
+      {
+        "from": "apps/desktop/scripts/install.sh",
+        "to": "install.sh"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "integrations/omarchy",
+        "to": "omarchy-companion"
+      }
+    ],
+    "asarUnpack": [
+      "apps/desktop/renderer/icon.png"
+    ]
+  },
+  "desktopName": "dailyxp.desktop"
+}

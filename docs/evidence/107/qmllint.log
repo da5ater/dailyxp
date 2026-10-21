@@ -1,0 +1,18 @@
+Warning: integrations/omarchy/Service.qml:61:5: Type QProcess::ExitStatus of parameter exitStatus in signal called exited was not found, but is required to compile onExited. Did you add all imports and dependencies? [signal-handler-parameters]
+    onExited: (code, status) => {
+    ^^^^^^^^
+Warning: integrations/omarchy/Service.qml:68:5: Type QProcess::ExitStatus of parameter exitStatus in signal called exited was not found, but is required to compile onExited. Did you add all imports and dependencies? [signal-handler-parameters]
+    onExited: (code, status) => { root.poll() }
+    ^^^^^^^^
+Info: integrations/omarchy/BarWidget.qml:3:1: Unused import [unused-imports]
+import qs.Commons
+^^^^^^
+Info: integrations/omarchy/BarWidget.qml:2:1: Unused import [unused-imports]
+import Quickshell
+^^^^^^
+Warning: integrations/omarchy/BarWidget.qml:9:45: Member "shell" not found on type "QObject" [missing-property]
+  readonly property var service: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
+                                            ^^^^^
+Warning: integrations/omarchy/BarWidget.qml:9:57: Member "shell" not found on type "QObject" [missing-property]
+  readonly property var service: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
+                                                        ^^^^^

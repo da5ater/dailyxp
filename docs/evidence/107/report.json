@@ -1,0 +1,39 @@
+{
+  "verified": true,
+  "status": {
+    "version": 1,
+    "revision": 21,
+    "session": null,
+    "lifetimeXp": 270,
+    "level": 1,
+    "storyRank": "Wanderer",
+    "events": [
+      {
+        "id": "b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1",
+        "xp": 20
+      },
+      {
+        "id": "433cc943-e111-45d6-94e3-9be342dcc526:v1",
+        "xp": 250
+      }
+    ]
+  },
+  "eventCount": 22,
+  "screenshots": [
+    "01-empty.png",
+    "02-companion-xp.png",
+    "02-companion.png",
+    "02-running.png",
+    "03-journey.png",
+    "04-quest-cartridge.png",
+    "05-narrow.png",
+    "06-long-editor.png",
+    "07-settings.png",
+    "08-save-error.png",
+    "09-backup-exported.png",
+    "09-native-save-dialog.png",
+    "09-native-save-result.png",
+    "10-native-import.png",
+    "10-native-open-dialog.png"
+  ]
+}

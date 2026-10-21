@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1, "id": "io.github.da5ater.dailyxp", "name": "DailyXP companion", "version": "0.2.0",
+  "author": "Mohamed Osama Mohamed Khater", "description": "Compact DailyXP desktop status and Session controls.",
+  "kinds": ["bar-widget", "service"], "entryPoints": {"barWidget": "BarWidget.qml", "service": "Service.qml"},
+  "barWidget": {"displayName": "DailyXP", "description": "Open DailyXP or pause/resume your Session", "category": "Productivity", "allowMultiple": false}
+}

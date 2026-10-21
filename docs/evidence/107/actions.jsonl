@@ -1,0 +1,28 @@
+{"at":"2026-10-21T15:47:09.949Z","action":"launch from owned profile","result":{"ready":true,"instrumentedMilliseconds":263}}
+{"at":"2026-10-21T15:47:10.073Z","action":"capture 01-empty","result":{"version":1,"revision":3,"session":null,"lifetimeXp":0,"level":1,"storyRank":"Wanderer","events":[]}}
+{"at":"2026-10-21T15:47:10.141Z","action":"create commitment through form","result":"visible"}
+{"at":"2026-10-21T15:47:10.368Z","action":"capture 02-running","result":{"version":1,"revision":6,"session":{"id":"8e48864b-e81c-4d95-944d-adbcea79c822","status":"running","focusedMilliseconds":121,"plannedMinutes":25},"lifetimeXp":0,"level":1,"storyRank":"Wanderer","events":[]}}
+{"at":"2026-10-21T15:47:10.984Z","action":"close window then real companion left click","result":"same application window reopened"}
+{"at":"2026-10-21T15:47:11.115Z","action":"real companion right click","result":"Electron shows paused"}
+{"at":"2026-10-21T15:47:11.262Z","action":"adapter pause and duplicate retry","result":"paused once"}
+{"at":"2026-10-21T15:47:12.973Z","action":"launch from owned profile","result":{"ready":true,"instrumentedMilliseconds":265}}
+{"at":"2026-10-21T15:47:14.880Z","action":"companion disconnect and reconnect","result":"stale status cleared; no old celebration"}
+{"at":"2026-10-21T15:47:14.883Z","action":"restart","result":"active Session replayed after SIGKILL"}
+{"at":"2026-10-21T15:47:14.978Z","action":"finish Session then complete Task separately","result":"completed"}
+{"at":"2026-10-21T15:47:16.857Z","action":"earned Habit XP reaches companion","result":"brief safe XP feedback visible"}
+{"at":"2026-10-21T15:47:16.857Z","action":"complete Habit through real control","result":{"version":1,"revision":14,"session":null,"lifetimeXp":20,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20}]}}
+{"at":"2026-10-21T15:47:17.043Z","action":"capture 03-journey","result":{"version":1,"revision":14,"session":null,"lifetimeXp":20,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20}]}}
+{"at":"2026-10-21T15:47:17.147Z","action":"create Routine","result":"visible"}
+{"at":"2026-10-21T15:47:17.319Z","action":"capture 04-quest-cartridge","result":{"version":1,"revision":15,"session":null,"lifetimeXp":20,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20}]}}
+{"at":"2026-10-21T15:47:17.445Z","action":"capture 05-narrow","result":{"version":1,"revision":15,"session":null,"lifetimeXp":20,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20}]}}
+{"at":"2026-10-21T15:47:17.552Z","action":"capture 06-long-editor","result":{"version":1,"revision":15,"session":null,"lifetimeXp":20,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20}]}}
+{"at":"2026-10-21T15:47:17.745Z","action":"capture 07-settings","result":{"version":1,"revision":15,"session":null,"lifetimeXp":20,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20}]}}
+{"at":"2026-10-21T15:47:17.947Z","action":"create Goal and complete its Milestone","result":"completed label visible; completion persisted"}
+{"at":"2026-10-21T15:47:18.251Z","action":"private Recovery create/check-in/hide","result":"no companion disclosure"}
+{"at":"2026-10-21T15:47:18.419Z","action":"capture 08-save-error","result":{"version":1,"revision":20,"session":null,"lifetimeXp":270,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20},{"id":"433cc943-e111-45d6-94e3-9be342dcc526:v1","xp":250}]}}
+{"at":"2026-10-21T15:47:18.423Z","action":"real read-only profile save failure","result":"error shown; no phantom Task"}
+{"at":"2026-10-21T15:47:18.438Z","action":"Enter, Space, Tab and Shift+Tab navigation","result":"focus remains visible on resulting control"}
+{"at":"2026-10-21T15:47:18.510Z","action":"correct finished Session through form","result":"revised Skill is visible"}
+{"at":"2026-10-21T15:47:24.118Z","action":"native export dialog","result":"backup file written"}
+{"at":"2026-10-21T15:47:24.167Z","action":"capture 09-backup-exported","result":{"version":1,"revision":21,"session":null,"lifetimeXp":270,"level":1,"storyRank":"Wanderer","events":[{"id":"b7204763-d829-4e6d-9e34-5d2215b0d09a:191a8ec1-f170-460d-aa63-ed06aff9b427:2026-10-21:v1","xp":20},{"id":"433cc943-e111-45d6-94e3-9be342dcc526:v1","xp":250}]}}
+{"at":"2026-10-21T15:47:30.272Z","action":"native import into empty profile","result":"XP and Goal preserved; source backup bytes unchanged"}

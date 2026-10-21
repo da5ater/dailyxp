@@ -3,17 +3,17 @@
 DailyXP is an Omarchy-first life-gamification product for focused work, goals,
 habits, recovery, social competition, and a persistent comeback story.
 
-This repository currently contains the installable Omarchy Quattro foundation:
-a bar widget, its nested panel, and one headless in-shell state service shared
-by every monitor. The probe button is intentionally temporary; product
-workflows arrive in later tickets. The versioned offline journal contract is
-documented in [`docs/event-model.md`](docs/event-model.md). The PLAN-001 model
-now provides durable Goals, Milestones, Tasks, Routines, Task Occurrences,
-carryover, and consent-gated proposals; see
-[`docs/planning-model.md`](docs/planning-model.md).
-FOCUS-001 adds restart-safe selected work and focused Sessions with pause,
-resume, confirmation, correction, inactivity, cross-boundary, and competitive
-cap rules; see [`docs/session-model.md`](docs/session-model.md).
+The full Linux application now lives in [apps/desktop](apps/desktop/README.md).
+It uses Electron with the existing deterministic domain models and journal.
+The optional [Omarchy companion](integrations/omarchy) provides compact status,
+open and pause/resume controls. Build, install, migration and verification
+instructions are in the desktop guide. Mohamed selected the Quest cartridge
+PS1 adventure direction for this application.
+
+The original QML panel and state service remain in the repository for legacy
+rollback and regression verification. The requirements below describe that
+legacy plugin. Do not run its state-owning service alongside the companion
+during migration.
 
 ## Requirements
 

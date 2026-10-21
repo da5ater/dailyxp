@@ -1,0 +1,13 @@
+ts	phase	decision	why	evidence	result
+2026-10-21T14:23:37Z	frame	Started migration on isolated origin/main worktree	Preserve dirty original checkout; latest main includes V6	a323cb1; issue 107 kickoff comment	open
+2026-10-21T14:54:54Z	design	Created three editable Paper directions; production choice remains open	User asked to choose among three prototypes; review build retains all candidates	https://app.paper.design/file/01M5FDMA11GZ3PXF4YR7BQ7CGS	awaiting design choice
+2026-10-21T14:54:54Z	core	Reused deterministic models behind one profile writer and private socket	Keep domain and progress independent of Electron and desktop adapters	apps/desktop/core; docs/architecture/electron-core.md	11 core tests pass
+2026-10-21T14:54:54Z	verification	Replaced environment ownership probe with writer PID and socket checks	Electron did not retain the probed initial environment entry	/tmp/dailyxp-107-ui-2; apps/desktop/scripts/verify.cjs	source journey passes
+2026-10-21T14:54:54Z	verification	Verified real UI and companion controls with SIGKILL replay and save failure	Check visible behavior and persistence without touching personal data	/tmp/dailyxp-107-ui-8/report.json; /tmp/dailyxp-107-ui-8/actions.jsonl	VERIFIED
+2026-10-21T14:54:54Z	correction	Carried explicit inactivity exclusion into finish command and recovered missing primary from backup	Focused slices must match the users scoring decision; missing primary must not create fresh progress	apps/desktop/tests/core.test.cjs	regressions pass
+2026-10-21	design	Mohamed explicitly chose A Quest cartridge	chat selection reply	dark PS1 adventure applied; rejected preview selector removed	recorded
+2026-10-21	tool-limit	Paper weekly MCP quota stopped third arcade board	Paper quota error	local three-tab comparison completed and shown before selection; no upgrade purchased	recorded
+2026-10-21	simplify	Single approved design and one installer	remove rejected theme CSS and duplicate Node installer	source lint and real-app rerun	recorded
+2026-10-21	review	Corrected excluded-idle editing, Milestone completion and link preservation	Independent review found domain-command errors	332841c; 197 passing tests	approved
+2026-10-21	package	Executed installed archive launcher and controller	Prove packaged production path rather than source only	/tmp/dailyxp-107-installed-final/report.json	passed
+2026-10-21	handoff	Installed matching app and companion; restarted host	Deliver immediately reviewable local result	local/refresh.json and actual rendered captures	39 source files match; personal source unchanged

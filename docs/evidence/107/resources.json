@@ -1,0 +1,8 @@
+{
+  "scope": "One instrumented software-rendered Electron process tree on this Omarchy host; includes Playwright debugging overhead; no cross-distro or speedup claim",
+  "processes": 5,
+  "proportionalMemoryMiB": 296.58203125,
+  "idleWindowMilliseconds": 3009,
+  "cpuPercentOfOneCore": 0,
+  "pidsStable": true
+}

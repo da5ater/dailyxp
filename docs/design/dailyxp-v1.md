@@ -9,10 +9,21 @@ of personal progress. The product must make starting useful work easier, make
 progress emotionally legible, and create healthy social competition without
 selling power, punishing setbacks, or exposing sensitive activity.
 
-The first client is an Omarchy 4/Quattro plugin. DailyXP remains a portable
-product rather than an Omarchy-only implementation: local rules and the sync
-protocol are platform-neutral, and the hosted Rails/PostgreSQL service can move
-from AWS to a small home server without a product rewrite.
+The first full client is a standalone Electron application for Linux, with
+Omarchy as an optional compact companion. Issue #107 and Mohamed's 2026-10-21
+direction supersede the earlier full-panel plugin client. The app owns the
+canonical local journal, planning, Sessions, progress and private Recovery.
+The companion opens the application and exposes safe status and quick Session
+controls through a versioned private local protocol. It never writes progress.
+
+The approved interface is Quest cartridge, a dark PS1 adventure direction.
+[The desktop guide](../../apps/desktop/README.md) describes installation,
+migration, backup and rollback. [The architecture](../architecture/electron-core.md)
+defines state ownership and integration boundaries. Linux/Omarchy is the current
+delivery target. Other Linux environments need runtime verification; Windows,
+macOS and mobile are later clients. The broader hosted competition and sync
+requirements below remain future product requirements, not claims about this
+offline desktop build.
 
 ## Goals
 
