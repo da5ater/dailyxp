@@ -1,5 +1,6 @@
 # Core application feature map
 
+- [Day blocks](day-blocks.md). Explicit ordered elapsed-time plan, task targets, next-block prompts and restart.
 - [Daily work and Sessions](sessions.md). Empty-state Task creation, selection, start, companion control, finish and replay.
 - [Planning and Routines](planning.md). Goals, Milestones, Tasks and dated Routine work.
 - [Habits and Journey](progress.md). Habit completion, permanent XP and explainable history.

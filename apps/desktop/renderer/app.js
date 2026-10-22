@@ -1,3 +1,4 @@
+import { blockFields, blockEditorCommand, taskRow } from "./day-blocks.js";
 import { editorFields, editorCommand } from "./editor.js";
 import { escape, time } from "./view-utils.js";
 import { renderView } from "./views.js";
@@ -77,7 +78,8 @@ function render() {
       }
     : null;
   document.body.dataset.reduced = state.settings.reducedMotion;
-  root.innerHTML = `<div class="app">${location.hash === "#review" ? '<div class="preview">REVIEW PROFILE · DEMO DATA · Separate from personal progress</div>' : ""}<header class="topbar"><div class="brand">DAILYXP</div><nav aria-label="Main navigation">${["Play", "Plan", "Journey", "World", "Settings"].map((name) => `<button data-action="navigate" data-id="${name}" ${surface === name ? 'aria-current="page"' : ""}>${name}</button>`).join("")}</nav><span class="local">SAVED LOCALLY</span></header><main>${renderView({ state, surface, selectedId, privateOpen })}</main><footer class="footer"><span>Level ${state.progression.level} · ${escape(state.progression.storyRank)}</span><span>${state.progression.totals.lifetimeXp.toLocaleString()} Lifetime XP</span><span>Saved on this device · revision ${state.revision}</span>${renderPrivateEntry()}</footer></div>`;
+  renderBlockReminder();
+  root.innerHTML = `<div class="app">${location.hash === "#review" ? '<div class="preview">REVIEW PROFILE · DEMO DATA · Separate from personal progress</div>' : ""}<header class="topbar"><div class="brand">DAILYXP</div><nav aria-label="Main navigation">${["Play", "Day blocks", "Plan", "Journey", "World", "Settings"].map((name) => `<button data-action="navigate" data-id="${name}" ${surface === name ? 'aria-current="page"' : ""}>${name}</button>`).join("")}</nav><span class="local">SAVED LOCALLY</span></header><main>${renderView({ state, surface, selectedId, privateOpen })}</main><footer class="footer"><span>Level ${state.progression.level} · ${escape(state.progression.storyRank)}</span><span>${state.progression.totals.lifetimeXp.toLocaleString()} Lifetime XP</span><span>Saved on this device · revision ${state.revision}</span>${renderPrivateEntry()}</footer></div>`;
   if (focused?.action) {
     const next = {
       start: "pause",
@@ -97,6 +99,18 @@ function render() {
       existing ? focused.id : undefined,
     );
   }
+}
+function renderBlockReminder() {
+  const view = state?.dayBlocks;
+  const container = document.querySelector("#day-block-reminder");
+  const due =
+    view &&
+    ["block-due", "task-due"].includes(view.phase) &&
+    surface !== "Day blocks";
+  container.innerHTML = due
+    ? `<span>${view.phase === "block-due" ? `${escape(view.current.blockSnapshot.title)} reached its time limit.` : `${escape(view.task.title)} reached its target.`}</span><button data-action="navigate" data-id="Day blocks">View day block</button>`
+    : "";
+  container.hidden = !due;
 }
 function renderPrivateEntry() {
   return '<button data-action="navigate" data-id="Recovery">Private Recovery</button>';
@@ -136,18 +150,24 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) lockPrivate();
 });
 function edit(kind, item = null, goalId = null) {
-  editing = { kind, item, goalId };
-  document.querySelector("#editor-title").textContent =
-    kind === "session"
-      ? "Correct Session"
-      : `${item ? "Edit" : "New"} ${kind === "task" ? "commitment" : kind}`;
-  document.querySelector("#form-error").textContent = "";
-  document.querySelector("#fields").innerHTML = editorFields(
+  editing = {
     kind,
     item,
     goalId,
-    state,
-  );
+    planRevision: state.dayBlocks.plan.revision,
+    planId: state.dayBlocks.plan.id,
+  };
+  document.querySelector("#editor-title").textContent =
+    kind === "block"
+      ? `${item ? "Edit" : "New"} day block`
+      : kind === "session"
+        ? "Correct Session"
+        : `${item ? "Edit" : "New"} ${kind === "task" ? "commitment" : kind}`;
+  document.querySelector("#form-error").textContent = "";
+  document.querySelector("#fields").innerHTML =
+    kind === "block"
+      ? blockFields(item)
+      : editorFields(kind, item, goalId, state);
   dialog.showModal();
   dialog.querySelector("input,textarea,select")?.focus();
 }
@@ -155,11 +175,9 @@ async function saveEditor(event) {
   event.preventDefault();
   if (busy) return;
   try {
-    const { domain, value } = editorCommand(
-      editing,
-      new FormData(event.target),
-      state,
-    );
+    const { domain, value } = (
+      editing.kind === "block" ? blockEditorCommand : editorCommand
+    )(editing, new FormData(event.target), state);
     let result = await command(domain, value);
     if (
       result?.confirmation &&
@@ -176,6 +194,7 @@ async function saveEditor(event) {
     dialog.close();
     if (["recovery", "checkin"].includes(editing.kind))
       root.querySelector("#private-heading")?.focus();
+    else if (editing.kind === "block") focusControl("block-add");
     else focusControl("new", editing.kind);
     notice("Saved on this device.");
   } catch (error) {
@@ -184,6 +203,88 @@ async function saveEditor(event) {
 }
 async function action(name, id) {
   if (busy) return;
+  if (name.startsWith("block-")) {
+    if (name === "block-add" || name === "block-edit") {
+      edit(
+        "block",
+        name === "block-edit"
+          ? state.dayBlocks.plan.blocks.find((block) => block.id === id)
+          : null,
+      );
+      return;
+    }
+    if (name === "block-add-row") {
+      document
+        .querySelector("#block-task-rows")
+        .insertAdjacentHTML("beforeend", taskRow());
+      document
+        .querySelector(
+          "#block-task-rows fieldset:last-child input[name=blockTaskTitle]",
+        )
+        .focus();
+      return;
+    }
+    if (name.startsWith("block-row-")) {
+      const row = [...document.querySelectorAll("[data-task-row]")].find(
+        (el) => el.dataset.taskRow === id,
+      );
+      const previous = row.previousElementSibling,
+        next = row.nextElementSibling;
+      if (name === "block-row-up" && previous) previous.before(row);
+      if (name === "block-row-down" && next) next.after(row);
+      if (name === "block-row-remove") {
+        row.remove();
+        (next || previous)?.querySelector("input[name=blockTaskTitle]").focus();
+        if (!next && !previous)
+          dialog.querySelector('[data-action="block-add-row"]').focus();
+      } else row.querySelector(`[data-action="${name}"]`).focus();
+      return;
+    }
+    const view = state.dayBlocks;
+    if (["block-up", "block-down", "block-remove"].includes(name)) {
+      const blocks = view.plan.blocks.slice(),
+        index = blocks.findIndex((block) => block.id === id);
+      if (name === "block-remove") blocks.splice(index, 1);
+      else {
+        const target = index + (name === "block-up" ? -1 : 1);
+        if (target < 0 || target >= blocks.length) return;
+        [blocks[index], blocks[target]] = [blocks[target], blocks[index]];
+      }
+      await command("dayblock", {
+        type: "plan.save",
+        expectedRevision: view.plan.revision,
+        expectedPlanId: view.plan.id,
+        blocks,
+      });
+      focusControl(
+        name === "block-remove" ? "block-add" : name,
+        name === "block-remove" ? undefined : id,
+      );
+      return;
+    }
+    const transitions = {
+      "block-start": {
+        type: "block.start",
+        blockId: id,
+        expectedPlanId: view.plan.id,
+        expectedRevision: view.plan.revision,
+      },
+      "block-advance": {
+        type: "task.advance",
+        expectedRunId: view.current?.id,
+        expectedTaskId: id,
+      },
+      "block-next": { type: "block.next", expectedRunId: id },
+      "block-finish": { type: "plan.finish", expectedRunId: id },
+      "block-new-plan": { type: "plan.new", expectedPlanId: id },
+    };
+    if (transitions[name]) {
+      await command("dayblock", transitions[name]);
+      root.querySelector("main h1")?.setAttribute("tabindex", "-1");
+      root.querySelector("main h1")?.focus({ preventScroll: true });
+    }
+    return;
+  }
   if (name === "navigate") {
     if (id === "Recovery") {
       confirmPrivate("entry");
@@ -526,6 +627,35 @@ window.dailyxp.onChange(() => {
   refresh().catch((error) => notice(error.message));
 });
 
+let blockClockPending = false;
+setInterval(async () => {
+  if (busy || blockClockPending || !state?.dayBlocks.current) return;
+  blockClockPending = true;
+  const requestedRevision = state.revision;
+  try {
+    const snapshot = await invoke({ action: "snapshot" });
+    if (busy || state.revision !== requestedRevision) return;
+    const before = state.dayBlocks;
+    state.dayBlocks = snapshot.dayBlocks;
+    state.dayblock = snapshot.dayblock;
+    const changed =
+      before.phase !== state.dayBlocks.phase ||
+      before.current?.id !== state.dayBlocks.current?.id ||
+      before.current?.taskIndex !== state.dayBlocks.current?.taskIndex;
+    if (surface === "Day blocks" && changed) render();
+    if (changed) renderBlockReminder();
+    const elapsed = document.querySelector("#block-elapsed"),
+      taskElapsed = document.querySelector("#block-task-elapsed");
+    if (elapsed)
+      elapsed.textContent = time(state.dayBlocks.elapsedMilliseconds);
+    if (taskElapsed)
+      taskElapsed.textContent = time(state.dayBlocks.taskElapsedMilliseconds);
+  } catch (error) {
+    notice(error.message);
+  } finally {
+    blockClockPending = false;
+  }
+}, 1000);
 setInterval(() => {
   const timer = document.querySelector("#session-timer");
   if (timer && state?.session.activeSession)

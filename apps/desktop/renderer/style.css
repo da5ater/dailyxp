@@ -791,3 +791,96 @@ h1 {
 .province progress::-webkit-progress-value {
   background: var(--accent);
 }
+
+.block-active {
+  padding: 28px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  margin: 24px 0;
+}
+.block-clock {
+  font:
+    40px "IBM Plex Mono",
+    monospace;
+  font-variant-numeric: tabular-nums;
+  margin: 16px 0;
+}
+.block-current-task {
+  margin-top: 24px;
+}
+.block-prompt {
+  border-left: 3px solid var(--accent);
+  padding: 20px;
+  background: var(--surface);
+  margin-top: 24px;
+}
+.block-prompt p {
+  line-height: 1.6;
+}
+.block-plan-heading {
+  margin: 32px 0 12px;
+}
+.block-card {
+  padding: 24px;
+  border: 1px solid var(--line);
+  margin: 16px 0;
+}
+.block-card h2 {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.block-card .rowhead {
+  flex-wrap: wrap;
+}
+.block-task-list {
+  padding-left: 22px;
+}
+.block-task-list li {
+  padding: 8px 0;
+}
+.block-task-list li span:first-child {
+  overflow-wrap: anywhere;
+}
+.block-task-list .hint {
+  display: block;
+  margin-top: 4px;
+}
+.block-task-row {
+  border: 1px solid var(--line);
+  padding: 16px;
+  margin: 16px 0;
+  min-width: 0;
+}
+.block-task-row legend {
+  padding: 0 8px;
+}
+.block-task-row .inline {
+  margin-top: 16px;
+}
+@media (max-width: 699px) {
+  .block-active,
+  .block-card {
+    padding: 18px;
+  }
+  .block-active h2,
+  .block-current-task h3 {
+    overflow-wrap: anywhere;
+  }
+  .block-clock {
+    font-size: 32px;
+  }
+}
+#day-block-reminder:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--accent);
+  padding: 16px 24px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.block-heading:focus {
+  outline: none;
+}

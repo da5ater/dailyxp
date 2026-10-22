@@ -1,3 +1,4 @@
+import { renderDayBlocks } from "./day-blocks.js";
 import { renderWorld } from "./world.js";
 import { escape, button, dateLabel, minutes, time } from "./view-utils.js";
 export function renderView({ state, surface, selectedId, privateOpen }) {
@@ -19,6 +20,7 @@ export function renderView({ state, surface, selectedId, privateOpen }) {
       );
   }
   function renderSurface() {
+    if (surface === "Day blocks") return renderDayBlocks(state.dayBlocks);
     if (surface === "Play") return renderPlay();
     if (surface === "Plan") return renderPlan();
     if (surface === "Journey") return renderJourney();
