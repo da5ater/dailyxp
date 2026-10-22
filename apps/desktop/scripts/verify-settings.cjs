@@ -140,7 +140,7 @@ module.exports = async function verifySettings({
   await button("Export JSON").click();
   await new Promise((resolve) => setTimeout(resolve, 1200));
   spawnSync("grim", [path.join(run, "100-export-during.png")], { env });
-  const file = path.join(run, "canonical-export.json");
+  let file = path.join(run, "canonical-export.json");
   const typed = spawnSync(
     "wtype",
     [
@@ -175,7 +175,9 @@ module.exports = async function verifySettings({
     { env, encoding: "utf8" },
   );
   assert.equal(typed.status, 0, typed.stderr);
-  await wait(() => fs.existsSync(file));
+  await wait(() => fs.existsSync(file) || fs.existsSync(file + ".json"));
+  if (!fs.existsSync(file)) file += ".json";
+  record("native canonical export destination", file);
   const loaded = Event.loadJournal(fs.readFileSync(file, "utf8"));
   assert.equal(loaded.ok, true);
   assert.ok(JSON.parse(fs.readFileSync(file)).checksum);

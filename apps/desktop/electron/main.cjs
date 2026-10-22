@@ -50,6 +50,7 @@ if (!ownsInstance) {
             "app.js",
             "views.js",
             "world.js",
+            "day-blocks.js",
             "editor.js",
             "view-utils.js",
             "style.css",

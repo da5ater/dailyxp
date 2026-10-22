@@ -1,0 +1,11 @@
+# Day blocks
+
+The Day blocks tab creates an explicit ordered plan. Blocks have a duration and ordered task targets. Task targets are navigation prompts; they never complete planning Tasks or award XP. The first start can select a later block, with visible copy that earlier blocks remain unstarted. Order freezes once execution starts. Each next block waits for a click. Final expiry waits for Finish plan, then New day plan creates a blank plan. Midnight does not reset or repeat the plan.
+
+Run `node apps/desktop/scripts/verify-day-blocks.cjs RUN` from the repository root with a nonexistent private run directory. It uses the desktop skill's real Electron and private Wayland driver. `DAILYXP_VERIFY_EXECUTABLE=/absolute/path/to/dailyxp` selects a packaged executable. No renderer clock setter or production time override is used.
+
+The journey starts from empty progress. It creates blocks through real controls, creates and reorders task targets, removes a row, rejects an empty name, checks a long narrow editor and a real save failure, reorders blocks, and starts with the keyboard. It starts and pauses a separate focused Session, restarts the app and checks focused time is unchanged while the block clock keeps counting. It waits the actual shortest task target, sees the pending prompt from Play, returns to Day blocks, advances explicitly, waits block expiry, double-clicks Start next block and checks one next run with a fresh start time. The next block has no tasks and its full duration passes before explicit Finish plan. New day plan creates a fresh empty plan. Keyboard focus and Escape/reopen remain usable.
+
+The journey takes at least three minutes because it tests production wall time. Keep its process running while doing other work. Do not replace the wait with engine mutation or a system-clock change. Node tests with Core's constructor clock cover exact one-millisecond thresholds, simultaneous task/block deadlines, multi-day overdue recovery, clock rollback, stale plan identities, duplicate commands, failed writes and Session/XP isolation.
+
+Retain `report.json`, action records, numbered real PNGs, the persisted profile and `cleanup.json`. Inspect rendered prompts and controls, not only socket status. Only disposable state is reset. A normal full `verify.cjs` run is also required for regressions in the existing application flows.

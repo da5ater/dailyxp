@@ -18,6 +18,7 @@ const models = Object.fromEntries(
     "Insight",
     "Share",
     "Settings",
+    "DayBlock",
   ].map((name) => [name.toLowerCase(), require(`../../../${name}Model.js`)]),
 );
 
@@ -106,6 +107,7 @@ function projectJournal(journal) {
     "ux",
     "insight",
     "share",
+    "dayblock",
   ])
     projections[name] = models[name].project(journal.events);
   const p = projections;
@@ -272,6 +274,7 @@ class Core extends EventEmitter {
       appVersion: require("../../../package.json").version,
       date: this.dateAt(),
       settings: this.data.settings,
+      dayBlocks: models.dayblock.viewAt(p.dayblock, this.clock().toISOString()),
       recoveryTrackStates: Object.fromEntries(
         p.recovery.tracks.map((track) => [
           track.id,
@@ -337,6 +340,11 @@ class Core extends EventEmitter {
     const input = structuredClone(command),
       now = this.clock().toISOString(),
       p = this.projections;
+    if (domain === "dayblock") {
+      input.atUtc = now;
+      input.newRunId = crypto.randomUUID();
+      input.planId = crypto.randomUUID();
+    }
     if (domain === "recovery") input.dailyXpDate = this.dateAt();
     if (domain === "session") {
       if (input.type === "session.start") {
@@ -433,9 +441,10 @@ class Core extends EventEmitter {
       this.context(),
       Event,
     );
+    const projected = projectJournal(journal);
     const next = {
       ...this.data,
-      settings: models.settings.project(journal.events),
+      settings: projected.settings,
       envelope: State.withEventJournal(
         this.data.envelope,
         Event.exportJournal(journal),
@@ -443,7 +452,8 @@ class Core extends EventEmitter {
       receipts: [...this.data.receipts, { id: requestId, signature, result }],
     };
     this.commit(next);
-    this.reproject();
+    this.journal = journal;
+    this.projections = projected.projections;
     if (decision.events.length) this.emit("change", this.status());
     return result;
   }
