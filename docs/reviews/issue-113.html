@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>DailyXP · Day blocks review</title
+  ><style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: #101429;
+      color: #eee8d2;
+      font: 16px/1.5 system-ui;
+    }
+    main {
+      max-width: 1580px;
+      margin: auto;
+      padding: 26px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0;
+    }
+    h2 {
+      font-size: 23px;
+    }
+    a {
+      color: #ffd080;
+    }
+    header p {
+      max-width: 950px;
+      color: #c0c7db;
+    }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 22px 0;
+    }
+    button {
+      font: inherit;
+      background: #202746;
+      color: inherit;
+      border: 1px solid #65729b;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+    button[aria-selected="true"] {
+      background: #ffc05b;
+      color: #101429;
+    }
+    button:focus-visible,
+    a:focus-visible {
+      outline: 3px solid #ffd881;
+      outline-offset: 3px;
+    }
+    .captures {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+    figure {
+      margin: 0;
+      background: #171d35;
+      border: 1px solid #414e76;
+      padding: 12px;
+      min-width: 0;
+    }
+    figcaption {
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    figure svg {
+      width: 100%;
+      height: 320px;
+      display: block;
+      background: #101429;
+    }
+    figure p {
+      margin: 10px 0 0;
+    }
+    li {
+      margin: 6px 0;
+    }
+    .state {
+      padding: 12px 16px;
+      border-left: 3px solid #ffc05b;
+      background: #202746;
+    }
+    footer {
+      border-top: 1px solid #414e76;
+      margin-top: 26px;
+      padding-top: 16px;
+      color: #b9c1d6;
+      font-size: 14px;
+    }
+    [hidden] {
+      display: none !important;
+    }
+    @media (max-width: 850px) {
+      .captures {
+        grid-template-columns: 1fr;
+      }
+      figure svg {
+        height: auto;
+        max-height: 470px;
+      }
+      main {
+        padding: 18px;
+      }
+    }
+  </style>
+  <main>
+    <header>
+      <h1>Try Day blocks</h1>
+      <p>
+        Real DailyXP is open with <b>REVIEW PROFILE · DEMO DATA</b>. Personal
+        progress is separate. Installed revision <b>2c9975d</b>. Pictures below
+        are real captures; click one to enlarge.
+      </p>
+      <p>
+        Before: last installed merged prototype A, main <b>1d7e0eb</b>,
+        production <b>50071ca</b>. After: the current packaged app.
+        <a href="https://github.com/da5ater/dailyxp/pull/114">Draft PR</a> ·
+        <a href="issue-113-evidence.md">Engineering evidence</a>
+      </p>
+    </header>
+    <nav role="tablist" aria-label="Feature to review">
+      <button
+        role="tab"
+        id="tab-plan"
+        aria-controls="plan"
+        aria-selected="true"
+        tabindex="0"
+      >
+        1 · Plan and order</button
+      ><button
+        role="tab"
+        id="tab-target"
+        aria-controls="target"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        2 · Task targets</button
+      ><button
+        role="tab"
+        id="tab-next"
+        aria-controls="next"
+        aria-selected="false"
+        tabindex="-1"
+      >
+        3 · Next block
+      </button>
+    </nav>
+    <section role="tabpanel" id="plan" aria-labelledby="tab-plan">
+      <h2>1 · Plan and order</h2>
+      <p>
+        Previously, you could not organize elapsed parts of your day into
+        ordered blocks.
+      </p>
+      <p class="state">
+        Prepared: Learn and create (2 min), two 1-minute task targets, then Life
+        and health (1 min). Neither block has started.
+      </p>
+      <ol>
+        <li>In the actual DailyXP window, click Day blocks.</li>
+        <li>
+          Click Edit block on Learn and create. Try Move task down/up, then
+          Save. No typing is needed.
+        </li>
+        <li>
+          Try Move block down/up. Restore Learn and create first before
+          starting.
+        </li>
+      </ol>
+      <div class="captures">
+        <figure>
+          <figcaption>Before · installed Plan</figcaption>
+          <a
+            href="issue-113/before-plan.png"
+            target="_blank"
+            aria-label="Enlarge Before · installed Plan"
+            ><svg
+              viewBox="20 60 1240 540"
+              role="img"
+              aria-label="The installed baseline had Tasks and Routines, with no ordered elapsed-time blocks."
+            >
+              <defs>
+                <clipPath id="crop1">
+                  <rect x="20" y="60" width="1240" height="540" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop1)">
+                <image
+                  href="issue-113/before-plan.png"
+                  width="1276"
+                  height="843"
+                />
+                <rect
+                  x="440"
+                  y="72"
+                  width="435"
+                  height="62"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="456" cy="88" r="16" fill="#ffce72" />
+                <text
+                  x="456"
+                  y="94"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  1
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>1.</b> The installed baseline had Tasks and Routines, with no
+            ordered elapsed-time blocks.
+          </p>
+        </figure>
+        <figure>
+          <figcaption>During · edit task targets</figcaption>
+          <a
+            href="issue-113/editor.png"
+            target="_blank"
+            aria-label="Enlarge During · edit task targets"
+            ><svg
+              viewBox="378 40 520 762"
+              role="img"
+              aria-label="In Edit block, Move task up/down changes its order. Scroll within the dialog to Save."
+            >
+              <defs>
+                <clipPath id="crop2">
+                  <rect x="378" y="40" width="520" height="762" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop2)">
+                <image href="issue-113/editor.png" width="1276" height="843" />
+                <rect
+                  x="418"
+                  y="488"
+                  width="316"
+                  height="105"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="434" cy="504" r="16" fill="#ffce72" />
+                <text
+                  x="434"
+                  y="510"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  2
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>2.</b> In Edit block, Move task up/down changes its order. Scroll
+            within the dialog to Save.
+          </p>
+        </figure>
+        <figure>
+          <figcaption>After · explicit order</figcaption>
+          <a
+            href="issue-113/04-plan-ready.png"
+            target="_blank"
+            aria-label="Enlarge After · explicit order"
+            ><svg
+              viewBox="40 410 1200 610"
+              role="img"
+              aria-label="Cards retain the target order. Move block down/up changes the block order before Start."
+            >
+              <defs>
+                <clipPath id="crop3">
+                  <rect x="40" y="410" width="1200" height="610" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop3)">
+                <image
+                  href="issue-113/04-plan-ready.png"
+                  width="1265"
+                  height="1140"
+                />
+                <rect
+                  x="60"
+                  y="646"
+                  width="740"
+                  height="55"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="76" cy="662" r="16" fill="#ffce72" />
+                <text
+                  x="76"
+                  y="668"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  3
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>3.</b> Cards retain the target order. Move block down/up changes
+            the block order before Start.
+          </p>
+        </figure>
+      </div>
+    </section>
+    <section role="tabpanel" id="target" aria-labelledby="tab-target" hidden>
+      <h2>2 · Task targets</h2>
+      <p>
+        Previously, focused Session time could not represent breaks and other
+        elapsed day time.
+      </p>
+      <p class="state">
+        Use the prepared first block after checking its order. Its clock counts
+        all wall time.
+      </p>
+      <ol>
+        <li>Click Start block on Learn and create.</li>
+        <li>
+          Wait one minute. You may visit Play; View day block brings you back
+          when its reminder appears.
+        </li>
+        <li>
+          Click Next task. Sketch an idea should become current while XP stays
+          at zero.
+        </li>
+      </ol>
+      <div class="captures">
+        <figure>
+          <figcaption>Before · focused work only</figcaption>
+          <a
+            href="issue-113/before-play.png"
+            target="_blank"
+            aria-label="Enlarge Before · focused work only"
+            ><svg
+              viewBox="470 540 765 335"
+              role="img"
+              aria-label="Play starts focused Sessions. It had no separate elapsed block clock."
+            >
+              <defs>
+                <clipPath id="crop4">
+                  <rect x="470" y="540" width="765" height="335" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop4)">
+                <image
+                  href="issue-113/before-play.png"
+                  width="1261"
+                  height="1001"
+                />
+                <rect
+                  x="490"
+                  y="790"
+                  width="300"
+                  height="62"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="506" cy="806" r="16" fill="#ffce72" />
+                <text
+                  x="506"
+                  y="812"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  1
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>1.</b> Play starts focused Sessions. It had no separate elapsed
+            block clock.
+          </p>
+        </figure>
+        <figure>
+          <figcaption>During · target reached</figcaption>
+          <a
+            href="issue-113/07-task-prompt.png"
+            target="_blank"
+            aria-label="Enlarge During · target reached"
+            ><svg
+              viewBox="65 520 1142 285"
+              role="img"
+              aria-label="At one minute, Next task waits for your click. The block clock keeps counting."
+            >
+              <defs>
+                <clipPath id="crop5">
+                  <rect x="65" y="520" width="1142" height="285" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop5)">
+                <image
+                  href="issue-113/07-task-prompt.png"
+                  width="1261"
+                  height="1497"
+                />
+                <rect
+                  x="88"
+                  y="723"
+                  width="120"
+                  height="50"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="104" cy="739" r="16" fill="#ffce72" />
+                <text
+                  x="104"
+                  y="745"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  2
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>2.</b> At one minute, Next task waits for your click. The block
+            clock keeps counting.
+          </p>
+        </figure>
+        <figure>
+          <figcaption>After · task moved on</figcaption>
+          <a
+            href="issue-113/08-task-after.png"
+            target="_blank"
+            aria-label="Enlarge After · task moved on"
+            ><svg
+              viewBox="16 350 589 330"
+              role="img"
+              aria-label="Sketch an idea becomes current. Moving on does not complete a Task or award XP."
+            >
+              <defs>
+                <clipPath id="crop6">
+                  <rect x="16" y="350" width="589" height="330" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop6)">
+                <image
+                  href="issue-113/08-task-after.png"
+                  width="605"
+                  height="1340"
+                />
+                <rect
+                  x="30"
+                  y="528"
+                  width="320"
+                  height="130"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="46" cy="544" r="16" fill="#ffce72" />
+                <text
+                  x="46"
+                  y="550"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  3
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>3.</b> Sketch an idea becomes current. Moving on does not
+            complete a Task or award XP.
+          </p>
+        </figure>
+      </div>
+    </section>
+    <section role="tabpanel" id="next" aria-labelledby="tab-next" hidden>
+      <h2>3 · Next block</h2>
+      <p>
+        Previously, there was no manual handoff that gave each next block its
+        own full duration.
+      </p>
+      <p class="state">
+        Continue the same run; no extra setup or typing is required.
+      </p>
+      <ol>
+        <li>
+          At two minutes from the first Start, look for Start next block. Wait
+          longer if you want to test the boundary.
+        </li>
+        <li>
+          Click Start next block. Life and health should begin at 00:00 with its
+          full minute.
+        </li>
+        <li>
+          After that minute, click Finish plan. New day plan gives you a blank
+          plan; work is not marked complete.
+        </li>
+      </ol>
+      <div class="captures">
+        <figure>
+          <figcaption>Before · no block handoff</figcaption>
+          <a
+            href="issue-113/before-play.png"
+            target="_blank"
+            aria-label="Enlarge Before · no block handoff"
+            ><svg
+              viewBox="470 540 765 335"
+              role="img"
+              aria-label="There was no ordered next-block transition beside the focused Session controls."
+            >
+              <defs>
+                <clipPath id="crop7">
+                  <rect x="470" y="540" width="765" height="335" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop7)">
+                <image
+                  href="issue-113/before-play.png"
+                  width="1261"
+                  height="1001"
+                />
+                <rect
+                  x="490"
+                  y="790"
+                  width="300"
+                  height="62"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="506" cy="806" r="16" fill="#ffce72" />
+                <text
+                  x="506"
+                  y="812"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  1
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>1.</b> There was no ordered next-block transition beside the
+            focused Session controls.
+          </p>
+        </figure>
+        <figure>
+          <figcaption>During · block time reached</figcaption>
+          <a
+            href="issue-113/09-block-prompt.png"
+            target="_blank"
+            aria-label="Enlarge During · block time reached"
+            ><svg
+              viewBox="16 350 589 465"
+              role="img"
+              aria-label="Start next block waits here. Unfinished work stays unfinished."
+            >
+              <defs>
+                <clipPath id="crop8">
+                  <rect x="16" y="350" width="589" height="465" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop8)">
+                <image
+                  href="issue-113/09-block-prompt.png"
+                  width="605"
+                  height="1502"
+                />
+                <rect
+                  x="50"
+                  y="743"
+                  width="175"
+                  height="54"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="66" cy="759" r="16" fill="#ffce72" />
+                <text
+                  x="66"
+                  y="765"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  2
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>2.</b> Start next block waits here. Unfinished work stays
+            unfinished.
+          </p>
+        </figure>
+        <figure>
+          <figcaption>After · fresh duration</figcaption>
+          <a
+            href="issue-113/10-next-block.png"
+            target="_blank"
+            aria-label="Enlarge After · fresh duration"
+            ><svg
+              viewBox="16 350 589 240"
+              role="img"
+              aria-label="The next block starts at 00:00 and receives its full minute, even if you waited."
+            >
+              <defs>
+                <clipPath id="crop9">
+                  <rect x="16" y="350" width="589" height="240" />
+                </clipPath>
+              </defs>
+              <g clip-path="url(#crop9)">
+                <image
+                  href="issue-113/10-next-block.png"
+                  width="605"
+                  height="1254"
+                />
+                <rect
+                  x="30"
+                  y="390"
+                  width="300"
+                  height="95"
+                  rx="4"
+                  fill="none"
+                  stroke="#ffce72"
+                  stroke-width="4"
+                />
+                <circle cx="46" cy="406" r="16" fill="#ffce72" />
+                <text
+                  x="46"
+                  y="412"
+                  text-anchor="middle"
+                  fill="#111528"
+                  font-family="system-ui"
+                  font-weight="700"
+                  font-size="19"
+                >
+                  3
+                </text>
+              </g>
+            </svg></a
+          >
+          <p>
+            <b>3.</b> The next block starts at 00:00 and receives its full
+            minute, even if you waited.
+          </p>
+        </figure>
+      </div>
+    </section>
+    <footer>
+      Keep this review profile while you try the feature. When you finish, tell
+      me and I will archive its review edits and restore normal launchers.
+      Ownership and cleanup:
+      ~/.local/state/dailyxp-handoff-113/cleanup-review.py. Your personal
+      progress is not overwritten. PR review and explicit merge approval remain
+      separate.
+    </footer>
+  </main>
+  <script>
+    const tabs = [...document.querySelectorAll("[role=tab]")];
+    function select(t) {
+      for (const b of tabs) {
+        const on = b === t;
+        b.setAttribute("aria-selected", on);
+        b.tabIndex = on ? 0 : -1;
+        document.getElementById(b.getAttribute("aria-controls")).hidden = !on;
+      }
+    }
+    for (const t of tabs) {
+      t.onclick = () => select(t);
+      t.onkeydown = (e) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+        e.preventDefault();
+        let i = tabs.indexOf(t);
+        i =
+          e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? tabs.length - 1
+              : (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                tabs.length;
+        select(tabs[i]);
+        tabs[i].focus();
+      };
+    }
+  </script>
+</html>
