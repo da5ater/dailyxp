@@ -344,6 +344,23 @@ function journal() {
       ),
       false,
     );
+    const longName = "W".repeat(240);
+    await create(longName, 1, [[longName, 1]]);
+    await button("Start block").click();
+    for (const width of [1276, 620]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        ),
+        false,
+      );
+      await shot(`13-long-active-${width}`);
+    }
+    record(
+      "unbroken maximum names",
+      "active block and task wrap at desktop and narrow widths",
+    );
     fs.writeFileSync(
       path.join(run, "report.json"),
       JSON.stringify(

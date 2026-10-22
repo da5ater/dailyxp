@@ -793,6 +793,7 @@ h1 {
 }
 
 .block-active {
+  overflow-wrap: anywhere;
   padding: 28px;
   border: 1px solid var(--line);
   background: var(--soft);
@@ -861,10 +862,6 @@ h1 {
   .block-active,
   .block-card {
     padding: 18px;
-  }
-  .block-active h2,
-  .block-current-task h3 {
-    overflow-wrap: anywhere;
   }
   .block-clock {
     font-size: 32px;
