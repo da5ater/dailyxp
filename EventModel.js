@@ -315,6 +315,21 @@ function exportJournal(journal) {
   return canonicalStringify(normalizeJournal(journal)) + "\n";
 }
 
+function journalChecksum(journal) {
+  var raw = exportJournal(journal);
+  var hash = 0x811c9dc5;
+  for (var i = 0; i < raw.length; i += 1) {
+    hash ^= raw.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return ("00000000" + hash.toString(16)).slice(-8);
+}
+
+function exportCheckedJournal(journal) {
+  var value = normalizeJournal(journal);
+  return canonicalStringify(Object.assign({}, value, { checksum: journalChecksum(value) })) + "\n";
+}
+
 function loadFailure(code, message, raw) {
   return { ok: false, code: code, message: message, recoverable: true, originalRaw: raw };
 }
@@ -330,6 +345,8 @@ function loadJournal(raw) {
 
   try {
     if (parsed && parsed.schemaVersion === JOURNAL_SCHEMA_VERSION) {
+      if (Object.prototype.hasOwnProperty.call(parsed, "checksum") && parsed.checksum !== journalChecksum(parsed))
+        return loadFailure("invalid_checksum", "Journal checksum does not match; keep the original as a backup.", original);
       return { ok: true, migrated: false, backupRaw: "", journal: normalizeJournal(parsed) };
     }
     if (parsed && parsed.version === 0) {
@@ -364,6 +381,7 @@ if (typeof module !== "undefined" && module.exports) {
     rebuildProjection: rebuildProjection,
     occurrenceKey: occurrenceKey,
     exportJournal: exportJournal,
+    exportCheckedJournal: exportCheckedJournal,
     loadJournal: loadJournal
   };
 }

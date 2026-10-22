@@ -17,6 +17,7 @@ const models = Object.fromEntries(
     "Ux",
     "Insight",
     "Share",
+    "Settings",
   ].map((name) => [name.toLowerCase(), require(`../../../${name}Model.js`)]),
 );
 
@@ -77,6 +78,7 @@ function validateDocument(raw) {
   }
   const journal = Event.loadJournal(data.envelope.payload.eventJournalRaw);
   if (!journal.ok) throw new Error(journal.message);
+  projectJournal(journal.journal);
   return data;
 }
 function serialize(data) {
@@ -90,6 +92,37 @@ function serialize(data) {
       }),
     }) + "\n"
   );
+}
+
+function projectJournal(journal) {
+  const settings = models.settings.project(journal.events);
+  const projections = {};
+  for (const name of [
+    "planning",
+    "session",
+    "habit",
+    "progression",
+    "recovery",
+    "ux",
+    "insight",
+    "share",
+  ])
+    projections[name] = models[name].project(journal.events);
+  const p = projections;
+  p.story = models.story.project(journal.events, {
+    goals: p.planning.goals,
+    tasks: p.planning.tasks,
+    momentumActivity: p.progression._dailyActivity,
+    milestones: p.planning.milestones,
+    occurrences: p.planning.occurrences,
+    sessions: p.session.sessions,
+    habits: p.habit.habits,
+    habitCompletions: p.habit.completions,
+    dailySummaries: p.habit.dailySummaries,
+    lastAdvanced: p.habit.lastAdvancedDailyXpDate,
+    momentum: p.progression.momentum,
+  });
+  return { settings, projections };
 }
 
 class Core extends EventEmitter {
@@ -149,7 +182,26 @@ class Core extends EventEmitter {
         };
         this.commit(this.data);
       }
+      const legacySettings = this.data.settings;
       this.reproject();
+      if (!this.journal.events.some((e) => e.type === "settings.changed")) {
+        const settings = models.settings.validate(legacySettings);
+        const journal = Journal.appendIntents(
+          this.journal,
+          [{ type: "settings.changed", payload: { settings } }],
+          this.context(),
+          Event,
+        );
+        this.commit({
+          ...this.data,
+          settings,
+          envelope: State.withEventJournal(
+            this.data.envelope,
+            Event.exportJournal(journal),
+          ),
+        });
+        this.reproject();
+      }
       this.advanceDay();
     } catch (error) {
       this.close();
@@ -174,36 +226,16 @@ class Core extends EventEmitter {
     this.recovered = false;
   }
   reproject() {
-    this.journal = Event.loadJournal(
+    const loaded = Event.loadJournal(
       this.data.envelope.payload.eventJournalRaw,
-    ).journal;
-    this.projections = {};
-    for (const name of [
-      "planning",
-      "session",
-      "habit",
-      "progression",
-      "recovery",
-      "ux",
-      "insight",
-      "share",
-    ])
-      this.projections[name] = models[name].project(this.journal.events);
-    const p = this.projections;
-    p.story = models.story.project(this.journal.events, {
-      goals: p.planning.goals,
-      tasks: p.planning.tasks,
-      momentumActivity: p.progression._dailyActivity,
-      milestones: p.planning.milestones,
-      occurrences: p.planning.occurrences,
-      sessions: p.session.sessions,
-      habits: p.habit.habits,
-      habitCompletions: p.habit.completions,
-      dailySummaries: p.habit.dailySummaries,
-      lastAdvanced: p.habit.lastAdvancedDailyXpDate,
-      momentum: p.progression.momentum,
-    });
+    );
+    if (!loaded.ok) throw new Error(loaded.message);
+    const projected = projectJournal(loaded.journal);
+    this.journal = loaded.journal;
+    this.data.settings = projected.settings;
+    this.projections = projected.projections;
   }
+
   context(at = this.clock()) {
     const timezone = Event.systemTimezone();
     const local = Event.localSystemContext(at, timezone);
@@ -237,6 +269,7 @@ class Core extends EventEmitter {
     const p = this.projections;
     return {
       revision: this.data.envelope.generation,
+      appVersion: require("../../../package.json").version,
       date: this.dateAt(),
       settings: this.data.settings,
       recoveryTrackStates: Object.fromEntries(
@@ -385,7 +418,10 @@ class Core extends EventEmitter {
         );
       }
     }
-    const decision = models[domain].decide(p[domain], input);
+    const decision = models[domain].decide(
+      domain === "settings" ? this.data.settings : p[domain],
+      input,
+    );
     const result = {
       changed: decision.events.length > 0,
       confirmation: decision.confirmation || null,
@@ -399,6 +435,7 @@ class Core extends EventEmitter {
     );
     const next = {
       ...this.data,
+      settings: models.settings.project(journal.events),
       envelope: State.withEventJournal(
         this.data.envelope,
         Event.exportJournal(journal),
@@ -411,45 +448,77 @@ class Core extends EventEmitter {
     return result;
   }
   settings(changes) {
-    const allowed = [
-      "dailyTargetMinutes",
-      "dayBoundaryMinutes",
-      "reducedMotion",
-      "notifications",
-    ];
-    if (Object.keys(changes).some((k) => !allowed.includes(k)))
-      throw new Error("Unknown setting");
-    const next = { ...this.data.settings, ...changes };
-    if (
-      !Number.isInteger(next.dailyTargetMinutes) ||
-      next.dailyTargetMinutes < 1 ||
-      next.dailyTargetMinutes > 720 ||
-      !Number.isInteger(next.dayBoundaryMinutes) ||
-      next.dayBoundaryMinutes < 0 ||
-      next.dayBoundaryMinutes > 1439 ||
-      typeof next.reducedMotion !== "boolean" ||
-      typeof next.notifications !== "boolean"
-    )
-      throw new Error("Invalid settings");
-    this.commit({ ...this.data, settings: next });
+    this.execute("settings", { type: "settings.change", changes });
+    this.advanceDay();
+  }
+  reset(confirmation) {
+    if (confirmation !== "reset-profile")
+      throw new Error("Reset needs confirmation");
+    this.write(
+      path.join(this.directory, `reset-backup-${crypto.randomUUID()}.json`),
+      serialize(this.data),
+    );
+    const journal = Event.createJournal(crypto.randomUUID());
+    this.commit({
+      version: 1,
+      envelope: State.withEventJournal(
+        State.createEnvelope(State.emptyPayload(), 0),
+        Event.exportJournal(journal),
+      ),
+      settings: { ...models.settings.DEFAULTS },
+      receipts: [],
+    });
+    this.reproject();
+    this.advanceDay();
     this.emit("change", this.status());
+  }
+  exportJournal() {
+    return Event.exportCheckedJournal(this.journal);
   }
   importLegacy(primary, backup = "") {
     if (
       this.journal.events.some(
         (e) =>
-          !["planning.day.advanced", "habit.day.advanced"].includes(e.type),
+          ![
+            "planning.day.advanced",
+            "habit.day.advanced",
+            "settings.changed",
+          ].includes(e.type),
       )
     )
       throw new Error("Import requires an empty desktop profile");
-    const recovered = State.recoverDetailed(primary, backup);
+    let parsed;
+    try {
+      parsed = JSON.parse(primary);
+    } catch {
+      parsed = null;
+    }
+    const rawJournal =
+      parsed && Array.isArray(parsed.events)
+        ? Event.loadJournal(primary)
+        : null;
+    if (rawJournal && !rawJournal.ok) throw new Error(rawJournal.message);
+    const recovered = rawJournal
+      ? {
+          envelope: State.withEventJournal(
+            State.createEnvelope(State.emptyPayload(), 0),
+            Event.exportJournal(rawJournal.journal),
+          ),
+        }
+      : State.recoverDetailed(primary, backup);
     if (recovered.error || recovered.fresh)
       throw new Error(recovered.error || "No legacy data found");
     const loaded = Event.loadJournal(
       recovered.envelope.payload.eventJournalRaw,
     );
     if (!loaded.ok) throw new Error(loaded.message);
-    this.commit({ ...this.data, envelope: recovered.envelope, receipts: [] });
+    const { settings } = projectJournal(loaded.journal);
+    this.commit({
+      ...this.data,
+      settings,
+      envelope: recovered.envelope,
+      receipts: [],
+    });
     this.reproject();
     this.advanceDay();
   }
