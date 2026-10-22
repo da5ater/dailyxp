@@ -226,3 +226,44 @@ test("deterministic and frozen", () => {
   const b=RecoveryModel.project([]);
   assert.deepEqual(a,b);
 });
+
+test("check-in is journal-safe, daily idempotent, and same-day restart keeps unique attempts", () => {
+  let p=apply(RecoveryModel.emptyProjection(),{type:"recovery.track.create",dailyXpDate:"2026-08-01",track:{id:"safe",category:"gaming",startDate:"2026-08-01",visibility:"public"}});
+  assert.equal(p.tracks[0].visibility,"private");
+  const command={type:"recovery.checkin",trackId:"safe",dailyXpDate:"2026-08-01"};
+  const decision=RecoveryModel.decide(p,command);
+  assert.equal(decision.events[0].private,true);
+  assert.deepEqual(decision.events[0].payload,{trackId:"safe",dailyXpDate:"2026-08-01",mood:"",trigger:"",note:""});
+  p=RecoveryModel.projectIntents(p,decision.events);
+  assert.deepEqual(RecoveryModel.decide(p,command).events,[]);
+  p=apply(p,{type:"recovery.relapse",trackId:"safe",dailyXpDate:"2026-08-01"});
+  p=apply(p,{type:"recovery.restart",trackId:"safe",dailyXpDate:"2026-08-01"});
+  assert.notEqual(p.attempts[0].id,p.attempts[1].id);
+  assert.equal(RecoveryModel.trackState(p,"safe","2026-08-01").days,1);
+  assert.throws(()=>RecoveryModel.decide(p,{type:"recovery.relapse",trackId:"safe",dailyXpDate:"2026-07-31"}),/precedes/);
+  assert.throws(()=>RecoveryModel.decide(p,{type:"recovery.track.create",dailyXpDate:"2026-08-01",track:{id:"future",category:"custom",customCategory:"Focus",startDate:"2026-08-02"}}),/future/);
+});
+
+test("canonical private journal replay deduplicates IDs and never awards ordinary XP", () => {
+  const Event=require('../EventModel.js');
+  const Progression=require('../ProgressionModel.js');
+  let journal=Event.createJournal('11111111-1111-4111-8111-111111111111');
+  let projection=RecoveryModel.emptyProjection();
+  const commands=[
+    {type:'recovery.track.create',track:{id:'replay',category:'gaming',startDate:'2026-08-01',visibility:'private'}},
+    {type:'recovery.checkin',trackId:'replay',dailyXpDate:'2026-08-01'},
+    {type:'recovery.relapse',trackId:'replay',dailyXpDate:'2026-08-01'},
+    {type:'recovery.restart',trackId:'replay',dailyXpDate:'2026-08-01'}
+  ];
+  for(const command of commands){
+    const decision=RecoveryModel.decide(projection,command);
+    for(const intent of decision.events) journal=Event.append(journal,Event.createEvent({deviceId:journal.deviceId,type:intent.type,payload:intent.payload,occurredAtUtc:'2026-08-01T12:00:00.000Z',timezone:'Etc/UTC',dayBoundaryMinutes:240}));
+    projection=RecoveryModel.project(journal.events);
+  }
+  const loaded=Event.loadJournal(Event.exportJournal(journal)).journal;
+  assert.deepEqual(RecoveryModel.project(loaded.events.concat(loaded.events)),projection);
+  assert.ok(loaded.events.every(event=>event.private===true));
+  assert.deepEqual(Progression.project(loaded.events),Progression.project([]));
+  const legacy={...loaded.events[0]};delete legacy.private;
+  assert.throws(()=>Event.append(Event.createJournal(journal.deviceId),legacy),/private/);
+});

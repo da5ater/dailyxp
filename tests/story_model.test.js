@@ -152,3 +152,38 @@ test("projection is frozen and deterministic", () => {
   assert.deepEqual(a,b);
   assert.ok(Object.isFrozen(a));
 });
+
+test("province fill reflects finished linked work, with milestones taking precedence", () => {
+  const sources={goals:[{id:"g",title:"Learn",status:"active"}],tasks:[{id:"t1",goalId:"g"},{id:"t2",goalId:"g"}],sessions:[{taskId:"t1",status:"finished",focusedMilliseconds:1000}]};
+  const province=StoryModel.project([],sources).provinces[0];
+  assert.equal(province.fraction,.5);
+  assert.equal(province.completed,1);
+  assert.equal(province.progressKind,"commitments");
+  const milestone=StoryModel.project([],{...sources,milestones:[{id:"m",goalId:"g",status:"open",title:"Ship"}]}).provinces[0];
+  assert.equal(milestone.fraction,0);
+  assert.equal(milestone.progressKind,"milestones");
+});
+
+test("Hollow King requires seven completed inactive eligible days and activity breaks the run", () => {
+  const dailySummaries={};
+  for(let day=1;day<=8;day++) dailySummaries[`2026-08-0${day}`]={eligibleCount:1};
+  const base={goals:[{id:"g",title:"Learn",status:"active"}],dailySummaries,lastAdvanced:"2026-08-07"};
+  assert.ok(!StoryModel.project([],base).antagonists.some(a=>a.id==="hollow-king"));
+  assert.ok(StoryModel.project([],{...base,lastAdvanced:"2026-08-08"}).antagonists.some(a=>a.id==="hollow-king"));
+  assert.ok(!StoryModel.project([],{...base,lastAdvanced:"2026-08-08",habitCompletions:[{dailyXpDate:"2026-08-05"}]}).antagonists.some(a=>a.id==="hollow-king"));
+  assert.ok(StoryModel.project([],{...base,lastAdvanced:"2026-08-08",sessions:[{status:"discarded",dailyXpDate:"2026-08-05",focusedMilliseconds:1000}]}).antagonists.some(a=>a.id==="hollow-king"));
+});
+
+test("a meaningful action today immediately reclaims inactive provinces", () => {
+  const dailySummaries={};
+  for(let day=1;day<=8;day++) dailySummaries[`2026-08-0${day}`]={eligibleCount:1};
+  const sources={goals:[{id:'g',title:'Learn',status:'active'}],dailySummaries,lastAdvanced:'2026-08-08',habitCompletions:[{dailyXpDate:'2026-08-08'}]};
+  assert.ok(!StoryModel.project([],sources).antagonists.some(a=>a.id==='hollow-king'));
+});
+
+
+test("earned Milestone activity also clears Hollow King without consuming private Recovery", () => {
+  const dailySummaries = Object.fromEntries(Array.from({length:8}, (_, i) => [`2026-08-0${i+1}`, {eligibleCount:1}]));
+  const story = StoryModel.project([], {goals:[{id:"g",title:"Learn",status:"active"}],dailySummaries,lastAdvanced:"2026-08-08",momentumActivity:{"2026-08-08":true}});
+  assert.ok(!story.antagonists.some(a => a.id === "hollow-king"));
+});

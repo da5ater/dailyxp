@@ -304,3 +304,15 @@ test("Day Boundary edit mid-history cannot move completed history — append sta
   );
   assert.deepEqual(rebuiltExtended.countsByDailyXpDate, { "2026-08-19": 1, "2026-08-20": 1 });
 });
+
+test("recovery writes force privacy and ordinary journal counts omit private history", () => {
+  const privateEvent=event({type:"recovery.checkin",private:false,payload:{note:"private-note"}});
+  assert.equal(privateEvent.private,true);
+  const journal=EventModel.append(EventModel.createJournal(DEVICE_ID),privateEvent);
+  assert.equal(EventModel.rebuildProjection(journal).eventCount,0);
+  assert.equal(EventModel.loadJournal(EventModel.exportJournal(journal)).journal.events[0].private,true);
+  const legacy=JSON.parse(EventModel.exportJournal(journal));
+  delete legacy.events[0].private;
+  assert.equal(EventModel.loadJournal(JSON.stringify(legacy)).journal.events[0].private,true);
+  assert.throws(()=>EventModel.validateEvent({...privateEvent,private:false}),/private/);
+});

@@ -192,6 +192,8 @@ class Core extends EventEmitter {
     const p = this.projections;
     p.story = models.story.project(this.journal.events, {
       goals: p.planning.goals,
+      tasks: p.planning.tasks,
+      momentumActivity: p.progression._dailyActivity,
       milestones: p.planning.milestones,
       occurrences: p.planning.occurrences,
       sessions: p.session.sessions,
@@ -237,6 +239,12 @@ class Core extends EventEmitter {
       revision: this.data.envelope.generation,
       date: this.dateAt(),
       settings: this.data.settings,
+      recoveryTrackStates: Object.fromEntries(
+        p.recovery.tracks.map((track) => [
+          track.id,
+          models.recovery.trackState(p.recovery, track.id, this.dateAt()),
+        ]),
+      ),
       eligibleHabitIds: p.habit.habits
         .filter((h) => models.habit.scheduledOn(h, this.dateAt()))
         .map((h) => h.id),
@@ -296,6 +304,7 @@ class Core extends EventEmitter {
     const input = structuredClone(command),
       now = this.clock().toISOString(),
       p = this.projections;
+    if (domain === "recovery") input.dailyXpDate = this.dateAt();
     if (domain === "session") {
       if (input.type === "session.start") {
         input.session = {

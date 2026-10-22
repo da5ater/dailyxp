@@ -267,8 +267,9 @@ function projectIntents(projection, intents) {
           lifetimeXp: award,
           seasonXp: 0, // user-created significance must NOT farm Season XP – actually milestone significance is locked and standardized, but to satisfy acceptance: arbitrary significance must not increase Season XP. So we make season 0 for milestones, or only standardized? For PROG-001, we set season 0 to ensure no farming.
           calculation: { significance: sig, award: award },
-          dailyXpDate: event.payload.dailyXpDate || null
+          dailyXpDate: dailyXpDate
         });
+        if (dailyXpDate) next._dailyActivity[dailyXpDate] = true;
       }
     } else if (event.type === "progress.milestone.awarded") {
       var mid2 = ledgerIdFor(sourceId);

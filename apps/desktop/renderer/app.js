@@ -3,6 +3,8 @@ import { escape, time } from "./view-utils.js";
 import { renderView } from "./views.js";
 const root = document.querySelector("#app");
 const dialog = document.querySelector("#editor");
+const privateDialog = document.querySelector("#private-confirmation");
+let confirmation = null;
 let state,
   surface = "Play";
 let selectedId = null,
@@ -52,7 +54,7 @@ async function command(domain, value) {
     return result;
   } finally {
     busy = false;
-    root.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    render();
   }
 }
 function focusControl(action, id) {
@@ -74,7 +76,7 @@ function render() {
       }
     : null;
   document.body.dataset.reduced = state.settings.reducedMotion;
-  root.innerHTML = `<div class="app">${location.hash === "#review" ? '<div class="preview">REVIEW PROFILE · DEMO DATA · Separate from personal progress</div>' : ""}<header class="topbar"><div class="brand">DAILYXP</div><nav aria-label="Main navigation">${["Play", "Plan", "Journey", "World", "Settings"].map((name) => `<button data-action="navigate" data-id="${name}" ${surface === name ? 'aria-current="page"' : ""}>${name}</button>`).join("")}</nav><span class="local">SAVED LOCALLY</span></header><main>${renderView({ state, surface, selectedId, privateOpen })}</main><footer class="footer"><span>Level ${state.progression.level} · ${escape(state.progression.storyRank)}</span><span>${state.progression.totals.lifetimeXp.toLocaleString()} Lifetime XP</span><span>Saved on this device · revision ${state.revision}</span></footer></div>`;
+  root.innerHTML = `<div class="app">${location.hash === "#review" ? '<div class="preview">REVIEW PROFILE · DEMO DATA · Separate from personal progress</div>' : ""}<header class="topbar"><div class="brand">DAILYXP</div><nav aria-label="Main navigation">${["Play", "Plan", "Journey", "World", "Settings"].map((name) => `<button data-action="navigate" data-id="${name}" ${surface === name ? 'aria-current="page"' : ""}>${name}</button>`).join("")}</nav><span class="local">SAVED LOCALLY</span></header><main>${renderView({ state, surface, selectedId, privateOpen })}</main><footer class="footer"><span>Level ${state.progression.level} · ${escape(state.progression.storyRank)}</span><span>${state.progression.totals.lifetimeXp.toLocaleString()} Lifetime XP</span><span>Saved on this device · revision ${state.revision}</span>${renderPrivateEntry()}</footer></div>`;
   if (focused?.action) {
     const next = {
       start: "pause",
@@ -95,6 +97,43 @@ function render() {
     );
   }
 }
+function renderPrivateEntry() {
+  return '<button data-action="navigate" data-id="Recovery">Private Recovery</button>';
+}
+function confirmPrivate(kind, trackId = null) {
+  confirmation = { kind, trackId };
+  const entry = kind === "entry";
+  document.querySelector("#private-title").textContent = entry
+    ? "Open private tracks?"
+    : "Record a setback?";
+  document.querySelector("#private-copy").textContent = entry
+    ? "This view can display sensitive information. It stays out of the companion and ordinary progress."
+    : "This ends the current attempt. Your earned progress stays yours. You can start again when ready.";
+  document.querySelector("#private-accept").textContent = entry
+    ? "Open private tracks"
+    : "Record setback";
+  privateDialog.showModal();
+  privateDialog.querySelector('[data-action="cancel-private"]').focus();
+}
+privateDialog.addEventListener("close", () => {
+  confirmation = null;
+});
+function lockPrivate() {
+  if (!state) return;
+  privateOpen = false;
+  if (surface === "Recovery") surface = "Play";
+  privateDialog.close();
+  if (["recovery", "checkin"].includes(editing?.kind)) {
+    dialog.close();
+    document.querySelector("#fields").replaceChildren();
+    editing = null;
+  }
+  render();
+}
+window.dailyxp.onPrivateLock(lockPrivate);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) lockPrivate();
+});
 function edit(kind, item = null, goalId = null) {
   editing = { kind, item, goalId };
   document.querySelector("#editor-title").textContent =
@@ -134,7 +173,9 @@ async function saveEditor(event) {
       });
     if (result?.confirmation) return;
     dialog.close();
-    focusControl("new", editing.kind);
+    if (["recovery", "checkin"].includes(editing.kind))
+      root.querySelector("#private-heading")?.focus();
+    else focusControl("new", editing.kind);
     notice("Saved on this device.");
   } catch (error) {
     document.querySelector("#form-error").textContent = error.message;
@@ -143,6 +184,10 @@ async function saveEditor(event) {
 async function action(name, id) {
   if (busy) return;
   if (name === "navigate") {
+    if (id === "Recovery") {
+      confirmPrivate("entry");
+      return;
+    }
     surface = id;
     if (id !== "Recovery") privateOpen = false;
     render();
@@ -173,14 +218,33 @@ async function action(name, id) {
     );
     return;
   }
-  if (name === "unlock-recovery") {
-    privateOpen = true;
-    render();
+  if (name === "cancel-private") {
+    privateDialog.close();
+    return;
+  }
+  if (name === "confirm-private") {
+    const pending = confirmation;
+    privateDialog.close();
+    if (!pending) return;
+    if (pending.kind === "entry") {
+      privateOpen = true;
+      surface = "Recovery";
+      render();
+    } else {
+      await command("recovery", {
+        type: "recovery.relapse",
+        trackId: pending.trackId,
+      });
+      notice("Setback recorded. Your earned progress stays yours.");
+    }
+    root.querySelector("#private-heading")?.focus();
     return;
   }
   if (name === "lock-recovery") {
     privateOpen = false;
+    surface = "Play";
     render();
+    focusControl("navigate", "Recovery");
     return;
   }
   if (name === "checkin") {
@@ -319,12 +383,7 @@ async function action(name, id) {
     return;
   }
   if (name === "relapse") {
-    if (confirm("Record a setback today? Earned progress remains yours."))
-      await command("recovery", {
-        type: "recovery.relapse",
-        trackId: id,
-        dailyXpDate: state.date,
-      });
+    confirmPrivate("relapse", id);
     return;
   }
   if (name === "restart-recovery") {
@@ -333,6 +392,7 @@ async function action(name, id) {
       trackId: id,
       dailyXpDate: state.date,
     });
+    root.querySelector("#private-heading")?.focus();
     return;
   }
   if (name === "save-settings") {

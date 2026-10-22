@@ -37,15 +37,39 @@ function provinceForGoal(goal) {
   return { id: goal.id, title: goal.title, status: provinceStatus, goalStatus: goal.status };
 }
 
+function inactiveEligibleDays(sources) {
+  var today = sources.lastAdvanced;
+  if (!today) return 0;
+  var eligible = Object.create(null);
+  var activity = [];
+  Object.keys(sources.dailySummaries || {}).forEach(function(day) {
+    if (sources.dailySummaries[day].eligibleCount > 0) eligible[day] = true;
+  });
+  (sources.occurrences || []).forEach(function(occurrence) {
+    eligible[occurrence.dailyXpDate] = true;
+    if (occurrence.status === "completed") activity.push(occurrence.dailyXpDate);
+  });
+  (sources.habitCompletions || []).forEach(function(completion) { activity.push(completion.dailyXpDate); });
+  (sources.sessions || []).forEach(function(session) {
+    if (session.status !== "finished" || session.focusedMilliseconds <= 0) return;
+    if (session.dailyXpDate) activity.push(session.dailyXpDate);
+    (session.dailySlices || []).forEach(function(slice) {
+      if (slice.milliseconds > 0) activity.push(slice.dailyXpDate);
+    });
+  });
+  Object.keys(sources.momentumActivity || {}).forEach(function(day) {
+    if (sources.momentumActivity[day]) activity.push(day);
+  });
+  var lastActivity = activity.filter(function(day) { return day <= today; }).sort().pop() || "";
+  return Object.keys(eligible).filter(function(day) { return day < today && day > lastActivity; }).length;
+}
+
 function recompute(projection, sources) {
   // sources: { goals, milestones, occurrences, sessions, habits, habitCompletions, dailySummaries, lastAdvanced }
   var goals = sources.goals || [];
   var milestones = sources.milestones || [];
   var occurrences = sources.occurrences || [];
   var sessions = sources.sessions || [];
-  var habits = sources.habits || [];
-  var completions = sources.habitCompletions || [];
-  var dailySummaries = sources.dailySummaries || {};
   var lastAdvanced = sources.lastAdvanced || null;
 
   // Provinces + landmarks
@@ -55,6 +79,17 @@ function recompute(projection, sources) {
       return { id: m.id, title: m.title, status: m.status === "completed" ? "built" : "planned", significance: m.significance };
     });
     prov.landmarks = landmarks;
+    var tasks = (sources.tasks || []).concat(occurrences).filter(function(t){return t.goalId===goal.id;});
+    var completed = tasks.filter(function(task) {
+      if (task.status === "completed") return true;
+      return sessions.some(function(session) {
+        return session.taskId === task.id && session.status === "finished" && session.focusedMilliseconds > 0;
+      });
+    }).length;
+    prov.total = landmarks.length || tasks.length;
+    prov.completed = landmarks.length ? landmarks.filter(function(l){return l.status==="built";}).length : completed;
+    prov.progressKind = landmarks.length ? "milestones" : "commitments";
+    prov.fraction = goal.status==="achieved" ? 1 : prov.total ? prov.completed/prov.total : 0;
     return prov;
   });
 
@@ -66,47 +101,23 @@ function recompute(projection, sources) {
   // Distraction: >=2 discarded sessions
   var discarded = sessions.filter(function(s){ return s.status==="discarded"; }).length;
   if (discarded >= 2) antagonists.push({ id: "distraction", label: "Distraction", cause: discarded + " sessions were discarded — focus was interrupted", severity: "info" });
-  // Doubt: any active goal untouched >7 days (no milestone progress, no tasks for that goal)
-  goals.forEach(function(goal){
-    if (goal.status!=="active") return;
-    // find latest activity for this goal: milestone progress or task with goalId
-    var hasProgress = milestones.some(function(m){ return m.goalId===goal.id && (m.progress!==undefined || m.status==="completed"); });
-    if (!hasProgress) {
-      // check if goal created >7 days before lastAdvanced and still no progress
-      if (lastAdvanced) {
-        // naive: if goal id contains no recent activity, mark doubt
-        // For test determinism, if no milestone for goal, mark doubt
-        antagonists.push({ id: "doubt:"+goal.id, label: "Doubt", cause: "Goal \"" + goal.title + "\" has not seen progress yet — a small step would help", severity: "info" });
-      }
-    }
-  });
   // Apathy: momentum dormant
   var momentum = sources.momentum || "Dormant";
+  var activity=sources.momentumActivity || {};
+  var activityDates=Object.keys(activity).sort();
+  var windowEnd=activityDates.length ? activityDates[activityDates.length-1] : null;
+  var activeDays=windowEnd ? activityDates.filter(function(day){return activity[day] && (dateValue(windowEnd,"date")-dateValue(day,"date"))/86400000<7;}).length : 0;
+  var momentumCause=windowEnd ? activeDays+(activeDays===1 ? " day" : " days")+" with earned activity in the seven-day window ending "+windowEnd : "No earned activity yet. Start with one small action.";
   if (momentum==="Dormant") antagonists.push({ id: "apathy", label: "Apathy", cause: "Overall momentum is low — recent days had little eligible activity", severity: "info" });
   // Hollow King: after 7 inactive eligible days, occupies only unfinished provinces
-  var inactiveDays = 0;
-  if (lastAdvanced) {
-    // count last 7 eligible days before lastAdvanced where no habit/session/occurrence activity
-    var cursor = lastAdvanced;
-    for (var i=0;i<7;i++) {
-      var eligible = false;
-      // habit eligible or occurrence on that date
-      if (habits.some(function(h){ return dailySummaries[cursor] && dailySummaries[cursor].eligibleCount>0; })) eligible = true;
-      // also check if any session on that date
-      var hasActivity = completions.some(function(c){ return c.dailyXpDate===cursor; }) || sessions.some(function(s){ return s.dailyXpDate===cursor; }) || occurrences.some(function(o){ return o.dailyXpDate===cursor && o.status==="completed"; });
-      if (eligible && !hasActivity) inactiveDays+=1;
-      // move back
-      var parts = cursor.split("-").map(Number);
-      var d = new Date(Date.UTC(parts[0],parts[1]-1,parts[2])); d.setUTCDate(d.getUTCDate()-1); cursor=d.toISOString().slice(0,10);
-    }
-  }
+  var inactiveDays = inactiveEligibleDays(sources);
   var unfinishedProvinces = provinces.filter(function(p){ return p.status!=="achieved"; }).map(function(p){ return p.id; });
   if (inactiveDays>=7 && unfinishedProvinces.length>0) antagonists.push({ id: "hollow-king", label: "Hollow King", cause: "7 inactive eligible days — unfinished provinces are resting and can be reclaimed with a small step", severity: "info", provinces: unfinishedProvinces });
 
   // Comeback Quest logic
   var comebackQuest = null;
   // If currently inactive >=7 and no active quest, offer one; else derive from sources.comebackEvents
-  if (sources.comebackEvents) {
+  if (sources.comebackEvents && sources.comebackEvents.length) {
     // sources.comebackEvents is array of story.comeback.* payloads
     var last = sources.comebackEvents[sources.comebackEvents.length-1] || null;
     if (last) comebackQuest = clone(last);
@@ -145,6 +156,7 @@ function recompute(projection, sources) {
     provinces: provinces.map(function(p){ return freeze(clone(p)); }),
     antagonists: antagonists.map(function(a){ return freeze(clone(a)); }),
     momentum: momentum,
+    momentumCause: momentumCause,
     comebackQuest: comebackQuest ? freeze(clone(comebackQuest)) : null,
     achievements: achievements.map(function(a){ return freeze(clone(a)); })
   });

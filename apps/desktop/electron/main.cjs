@@ -49,6 +49,7 @@ if (!ownsInstance) {
             "index.html",
             "app.js",
             "views.js",
+            "world.js",
             "editor.js",
             "view-utils.js",
             "style.css",
@@ -197,6 +198,8 @@ function show() {
   window.webContents.session.setPermissionRequestHandler((_, __, callback) =>
     callback(false),
   );
+  for (const event of ["hide", "minimize"])
+    window.on(event, () => window.webContents.send("dailyxp-lock-private"));
   window.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
